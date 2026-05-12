@@ -153,7 +153,7 @@ reminder:
 
   return (
     <div
-  className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-4 pb-5 backdrop-blur-sm"
+  className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-[calc(16px+env(safe-area-inset-bottom))] backdrop-blur-sm sm:px-4"
 >
       <form
   onSubmit={submit}
@@ -163,10 +163,10 @@ reminder:
       setIsAddingCategory(false);
     }
   }}
-        className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[28px] bg-white p-6 shadow-2xl"
+        className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-[calc(16px+env(safe-area-inset-bottom))] backdrop-blur-sm sm:px-4"
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-2xl font-black text-slate-950">
+          <h2 className="text-[22px] font-black tracking-[-0.03em] text-slate-950 sm:text-2xl">
             {mode === "edit" ? "Todoを編集" : "Todoを追加"}
           </h2>
           <button
@@ -492,7 +492,7 @@ reminder:
   </div>
 )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="sticky bottom-0 -mx-5 mt-2 grid grid-cols-2 gap-3 bg-white px-5 pb-1 pt-3 sm:-mx-6 sm:px-6">
           <button
             type="button"
             onClick={onClose}

@@ -580,10 +580,10 @@ function WorkLogModal({ open, targetTodo, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-4 pb-5 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-[calc(16px+env(safe-area-inset-bottom))] backdrop-blur-sm">
       <form
         onSubmit={submit}
-        className="w-full max-w-[430px] rounded-[28px] bg-white p-6 shadow-2xl"
+        className="max-h-[calc(100vh-32px)] w-full max-w-[430px] overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl"
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-2xl font-black text-slate-950">
@@ -662,12 +662,12 @@ function UndoToast({ visible, taskTitle, onUndo, onClose }) {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-24 left-1/2 z-[60] flex w-[calc(100%-32px)] max-w-[390px] -translate-x-1/2 items-center justify-between rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-[0_16px_40px_rgba(15,23,42,0.28)]">
+    <div className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-[430px] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-[0_16px_40px_rgba(15,23,42,0.28)]">
       <div className="min-w-0">
         <p className="truncate text-sm font-black">達成済みにしました</p>
         <p className="truncate text-xs font-bold text-slate-300">{taskTitle}</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <button
           onClick={onUndo}
           className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-emerald-200"
@@ -695,13 +695,13 @@ function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-4 left-1/2 z-40 grid h-[72px] w-[calc(100%-32px)] max-w-[390px] -translate-x-1/2 grid-cols-4 overflow-hidden rounded-[22px] border border-slate-100 bg-white/95 shadow-[0_12px_36px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+    <nav className="fixed bottom-[calc(12px+env(safe-area-inset-bottom))] left-1/2 z-40 grid h-[68px] w-[calc(100%-24px)] max-w-[430px] -translate-x-1/2 grid-cols-4 overflow-hidden rounded-[22px] border border-slate-100 bg-white/95 shadow-[0_12px_36px_rgba(15,23,42,0.14)] backdrop-blur-xl">
       {items.map((item) => {
         const Icon = item.icon;
         return (
           <button
             key={item.label}
-            className={`flex flex-col items-center justify-center gap-1 text-[11px] font-black ${
+            className={`flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-black ${
               item.active ? "bg-emerald-50 text-emerald-500" : "text-slate-500"
             }`}
           >
@@ -709,7 +709,7 @@ function BottomNav() {
               className={`h-6 w-6 ${item.active ? "fill-emerald-500" : ""}`}
               strokeWidth={2.15}
             />
-            {item.label}
+            <span className="truncate">{item.label}</span>
           </button>
         );
       })}
@@ -986,9 +986,9 @@ export default function TodayPage({
   });
 };
 
-  return (
+    return (
     <div className="min-h-screen bg-[#f6f8f7] text-slate-950 antialiased">
-      <div className="mx-auto min-h-screen w-full max-w-[390px] bg-[#fbfcfb] px-4 pb-28 pt-4 shadow-[0_0_80px_rgba(15,23,42,0.045)]">
+      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfcfb] px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-[calc(12px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)] sm:px-4">
         <Header selectedDate={selectedDate} onChangeDate={setSelectedDate} />
 
         <main className="space-y-4">
@@ -1009,9 +1009,7 @@ export default function TodayPage({
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             selectedTaskId={selectedTaskId}
-            onSelect={(todo) =>
-  !todo.completed && setSelectedTaskId(todo.id)
-}
+            onSelect={(todo) => !todo.completed && setSelectedTaskId(todo.id)}
             onToggle={toggleTodo}
             onEdit={(todo) =>
               setTodoModal({ open: true, mode: "edit", todo })

@@ -135,7 +135,7 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
 
   return (
     <section className="mb-5 flex flex-col items-center">
-      <div className="relative grid h-[310px] w-[310px] place-items-center">
+      <div className="relative grid aspect-square w-full max-w-[310px] place-items-center">
         <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 310 310">
           <circle
             cx="155"
@@ -194,7 +194,7 @@ function PauseButton({ isRunning, onToggle }) {
 
 function AnimatedStudyScene({ isRunning }) {
   return (
-    <section className="relative mb-3 h-[250px] overflow-hidden rounded-[26px] bg-gradient-to-b from-white via-emerald-50/30 to-white">
+    <section className="relative mb-3 h-[230px] overflow-hidden rounded-[24px] bg-gradient-to-b from-white via-emerald-50/30 to-white sm:h-[250px]">
       <div className="absolute left-5 top-10 h-24 w-24 rounded-xl border-8 border-white bg-gradient-to-br from-sky-100 to-emerald-100 shadow-sm" />
 
       <div className="absolute bottom-[56px] left-2 right-2 h-5 rounded-full bg-amber-200/80" />
@@ -408,7 +408,7 @@ export default function TimerPage({
 
   return (
     <div className="min-h-screen bg-[#fbfcfb] text-slate-950 antialiased">
-      <div className="mx-auto min-h-screen w-full max-w-[390px] px-4 pb-8 pt-4">
+      <div className="mx-auto min-h-screen w-full max-w-[430px] px-3 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[calc(12px+env(safe-area-inset-top))] sm:px-4">
         <TimerHeader onClose={handleClose} />
 
         <TaskCard
