@@ -92,19 +92,19 @@ function TaskCard({ task, plannedMinutes, onEdit }) {
   const Icon = style.icon;
 
   return (
-    <section className="flex h-[68px] shrink-0 items-center justify-between rounded-[21px] border border-slate-100 bg-white px-4 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
+    <section className="flex h-[68px] shrink-0 items-center justify-between rounded-[21px] border border-slate-100 bg-white px-4 shadow-[0_10px_26px_rgba(15,23,42,0.06)] max-[900px]:max-h-[62px] max-[900px]:min-[500px]:px-3">
       <div className="flex min-w-0 items-center gap-3">
         <div
-          className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${style.bg}`}
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${style.bg} max-[900px]:max-h-9 max-[900px]:max-w-9`}
         >
           <Icon className={`h-6 w-6 ${style.color}`} strokeWidth={2.25} />
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-[17px] font-black tracking-[-0.04em] text-slate-950">
+          <p className="truncate text-[17px] font-black tracking-[-0.04em] text-slate-950 max-[900px]:min-[500px]:text-[15px]">
             {task?.title ?? "タスク未選択"}
           </p>
-          <p className="mt-0.5 text-xs font-bold text-slate-400">
+          <p className="mt-0.5 text-xs font-bold text-slate-400 max-[900px]:min-[500px]:text-[11px]">
             {task?.category ?? "その他"}・予定 {formatMinutesLabel(plannedMinutes)}
           </p>
         </div>
@@ -134,8 +134,8 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
   const dashOffset = circumference * (1 - progress);
 
   return (
-    <section className="flex min-h-0 shrink items-center justify-center py-[clamp(4px,1.2dvh,10px)]">
-      <div className="relative grid aspect-square w-[min(68vw,30dvh,260px)] place-items-center">
+    <section className="flex min-h-0 shrink items-center justify-center py-[clamp(3px,1dvh,8px)]">
+      <div className="relative grid aspect-square w-[min(66vw,28dvh,250px)] place-items-center max-[900px]:max-h-[24dvh] max-[900px]:min-[500px]:w-[min(28vw,34dvh,220px)]">
         <svg
           className="absolute inset-0 h-full w-full -rotate-90"
           viewBox="0 0 300 300"
@@ -163,14 +163,14 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
         </svg>
 
         <div className="relative z-10 flex flex-col items-center text-center">
-          <p className="mb-[clamp(6px,1dvh,12px)] text-[12px] font-black text-slate-400">
+          <p className="mb-[clamp(4px,0.8dvh,10px)] text-[12px] font-black text-slate-400 max-[900px]:min-[500px]:text-[10px]">
             経過時間
           </p>
-          <p className="text-[clamp(42px,7dvh,56px)] font-black leading-none tracking-[-0.06em] text-slate-950">
+          <p className="text-[clamp(38px,6.4dvh,54px)] font-black leading-none tracking-[-0.06em] text-slate-950 max-[900px]:min-[500px]:text-[clamp(30px,8dvh,46px)]">
             {formatClock(elapsedSeconds)}
           </p>
 
-          <p className="mt-[clamp(8px,1.5dvh,16px)] text-[13px] font-bold text-slate-400">
+          <p className="mt-[clamp(6px,1dvh,14px)] text-[13px] font-bold text-slate-400 max-[900px]:min-[500px]:text-[11px]">
             予定時間 {plannedMinutes}分
           </p>
         </div>
@@ -184,7 +184,7 @@ function PauseButton({ isRunning, onToggle }) {
     <div className="flex shrink-0 justify-center">
       <button
         onClick={onToggle}
-        className="flex h-[50px] min-w-[146px] items-center justify-center gap-2 rounded-[19px] bg-white px-6 text-[16px] font-black text-emerald-600 shadow-[0_10px_26px_rgba(15,23,42,0.08)] active:scale-[0.98]"
+        className="flex h-[48px] min-w-[142px] items-center justify-center gap-2 rounded-[19px] bg-white px-6 text-[16px] font-black text-emerald-600 shadow-[0_10px_26px_rgba(15,23,42,0.08)] active:scale-[0.98] max-[900px]:min-[500px]:h-11 max-[900px]:min-[500px]:text-[14px]"
       >
         {isRunning ? (
           <Pause className="h-6 w-6 fill-emerald-500" />
@@ -199,7 +199,7 @@ function PauseButton({ isRunning, onToggle }) {
 
 function AnimatedStudyScene({ isRunning }) {
   return (
-    <section className="relative h-[clamp(112px,18dvh,155px)] shrink-0 overflow-hidden rounded-[22px] bg-gradient-to-b from-white via-emerald-50/30 to-white">
+    <section className="relative h-[clamp(102px,16dvh,145px)] shrink-0 overflow-hidden rounded-[22px] bg-gradient-to-b from-white via-emerald-50/30 to-white max-[900px]:min-[500px]:h-full max-[900px]:min-[500px]:min-h-0">
       <div className="absolute left-5 top-5 h-14 w-20 rounded-xl border-8 border-white bg-gradient-to-br from-sky-100 to-emerald-100 shadow-sm" />
 
       <div className="absolute bottom-[32px] left-2 right-2 h-4 rounded-full bg-amber-200/80" />
@@ -215,7 +215,7 @@ function AnimatedStudyScene({ isRunning }) {
       />
 
       <div
-        className={`absolute bottom-5 left-1/2 h-24 w-28 -translate-x-1/2 scale-[0.78] min-[390px]:scale-[0.9] ${
+        className={`absolute bottom-5 left-1/2 h-24 w-28 -translate-x-1/2 scale-[0.72] min-[390px]:scale-[0.86] max-[900px]:min-[500px]:scale-[0.62] ${
           isRunning
             ? "animate-[studyBob_2.4s_ease-in-out_infinite]"
             : "animate-[pauseLook_3s_ease-in-out_infinite]"
@@ -269,8 +269,8 @@ function MiniProgressCard({ focusMinutes = 0, plannedMinutes = 0 }) {
       : Math.min(100, Math.round((focusMinutes / plannedMinutes) * 100));
 
   return (
-    <section className="shrink-0 rounded-[20px] border border-slate-100 bg-white px-4 py-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.055)]">
-      <div className="mb-2 flex items-center justify-between">
+    <section className="shrink-0 rounded-[20px] border border-slate-100 bg-white px-4 py-2 shadow-[0_10px_26px_rgba(15,23,42,0.055)]">
+      <div className="mb-1.5 flex items-center justify-between">
         <p className="text-[13px] font-black text-slate-950">今日の集中</p>
         <p className="text-[13px] font-black text-emerald-600">
           {formatMinutesLabel(focusMinutes)}
@@ -426,45 +426,51 @@ export default function TimerPage({
 
   return (
     <div className="h-dvh overflow-hidden bg-[#f6f8f7] text-slate-950 antialiased">
-      <div className="mx-auto flex h-dvh w-full max-w-[480px] flex-col gap-[clamp(6px,1dvh,10px)] overflow-hidden bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(10px+env(safe-area-inset-bottom))] pt-[calc(6px+env(safe-area-inset-top))]">
+      <div className="mx-auto flex h-dvh w-full max-w-[480px] flex-col gap-[clamp(5px,0.9dvh,9px)] overflow-hidden bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(8px+env(safe-area-inset-bottom))] pt-[calc(5px+env(safe-area-inset-top))] max-[900px]:min-[500px]:max-w-[620px]">
         <TimerHeader onClose={handleClose} />
 
-        <TaskCard
-          task={localTask}
-          plannedMinutes={plannedMinutes}
-          onEdit={() => setIsEditModalOpen(true)}
-        />
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-[clamp(5px,0.9dvh,9px)] max-[900px]:min-[500px]:grid-cols-[minmax(0,1fr)_minmax(170px,0.72fr)]">
+          <div className="flex min-h-0 flex-col gap-[clamp(5px,0.9dvh,9px)]">
+            <TaskCard
+              task={localTask}
+              plannedMinutes={plannedMinutes}
+              onEdit={() => setIsEditModalOpen(true)}
+            />
 
-        <CircularTimer
-          elapsedSeconds={elapsedSeconds}
-          plannedSeconds={plannedSeconds}
-          plannedMinutes={plannedMinutes}
-        />
+            <CircularTimer
+              elapsedSeconds={elapsedSeconds}
+              plannedSeconds={plannedSeconds}
+              plannedMinutes={plannedMinutes}
+            />
 
-        <PauseButton isRunning={isRunning} onToggle={toggleTimer} />
+            <PauseButton isRunning={isRunning} onToggle={toggleTimer} />
 
-        <button
-          onClick={handleClose}
-          className="mx-auto flex h-8 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-[12px] font-black text-slate-400 active:bg-slate-100"
-        >
-          <Home className="h-4 w-4" />
-          ホームに戻る
-        </button>
+            <button
+              onClick={handleClose}
+              className="mx-auto flex h-8 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-[12px] font-black text-slate-400 active:bg-slate-100"
+            >
+              <Home className="h-4 w-4" />
+              ホームに戻る
+            </button>
+          </div>
 
-        <AnimatedStudyScene isRunning={isRunning} />
+          <div className="flex min-h-0 flex-col gap-[clamp(5px,0.9dvh,9px)]">
+            <AnimatedStudyScene isRunning={isRunning} />
 
-        <MiniProgressCard
-          focusMinutes={elapsedMinutes}
-          plannedMinutes={plannedMinutes}
-        />
+            <MiniProgressCard
+              focusMinutes={elapsedMinutes}
+              plannedMinutes={plannedMinutes}
+            />
 
-        <button
-          onClick={completeWork}
-          className="flex h-[54px] shrink-0 items-center justify-center gap-3 rounded-[22px] bg-emerald-500 text-[17px] font-black text-white shadow-[0_12px_24px_rgba(16,185,129,0.28)] active:scale-[0.985]"
-        >
-          <CheckCircle2 className="h-7 w-7" />
-          作業を完了する
-        </button>
+            <button
+              onClick={completeWork}
+              className="mt-auto flex h-[54px] shrink-0 items-center justify-center gap-3 rounded-[22px] bg-emerald-500 text-[17px] font-black text-white shadow-[0_12px_24px_rgba(16,185,129,0.28)] active:scale-[0.985] max-[900px]:min-[500px]:h-[50px] max-[900px]:min-[500px]:text-[15px]"
+            >
+              <CheckCircle2 className="h-7 w-7" />
+              作業を完了する
+            </button>
+          </div>
+        </div>
       </div>
 
       <TodoModal
