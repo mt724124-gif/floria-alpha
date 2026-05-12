@@ -17,7 +17,7 @@ export default function App() {
     setScreen("today");
   };
 
-  const completeTimer = (result) => {
+  const handleTimerResult = (result) => {
     setTimerCompletion(result);
     setScreen("today");
   };
@@ -43,8 +43,8 @@ export default function App() {
         <TimerPage
           task={timerTask}
           onClose={closeTimer}
-          onComplete={completeTimer}
-          onSaveProgress={completeTimer}
+          onComplete={handleTimerResult}
+          onSaveProgress={handleTimerResult}
           onUpdateTask={updateTaskFromTimer}
         />
       )}

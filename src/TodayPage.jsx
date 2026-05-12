@@ -26,10 +26,10 @@ import {
 } from "lucide-react";
 
 const defaultCategoryStyles = {
-  学習: { icon: BookOpen, color: "text-emerald-500" },
-  仕事: { icon: Briefcase, color: "text-blue-500" },
-  健康: { icon: Dumbbell, color: "text-violet-500" },
-  その他: { icon: CalendarDays, color: "text-slate-500" },
+  学習: { icon: BookOpen, color: "text-emerald-500", bg: "bg-emerald-50" },
+  仕事: { icon: Briefcase, color: "text-blue-500", bg: "bg-blue-50" },
+  健康: { icon: Dumbbell, color: "text-violet-500", bg: "bg-violet-50" },
+  その他: { icon: CalendarDays, color: "text-slate-500", bg: "bg-slate-50" },
 };
 
 const initialCategories = ["学習", "仕事", "健康", "その他"];
@@ -101,6 +101,19 @@ function isReminder(todo) {
   );
 }
 
+function getReminderLabel(todo) {
+  const lead = todo?.reminder?.reminderLead ?? todo?.schedule?.reminderLead;
+
+  if (lead === "0") return "指定時刻にリマインド";
+  if (lead === "5") return "5分前にリマインド";
+  if (lead === "10") return "10分前にリマインド";
+  if (lead === "30") return "30分前にリマインド";
+  if (lead === "60") return "1時間前にリマインド";
+  if (lead === "1440") return "1日前にリマインド";
+
+  return "リマインド予定";
+}
+
 function Header({ selectedDate, onChangeDate }) {
   const [calendarOpen, setCalendarOpen] = useState(false);
 
@@ -113,18 +126,19 @@ function Header({ selectedDate, onChangeDate }) {
   const handleDateChange = (event) => {
     const value = event.target.value;
     if (!value) return;
+
     const [year, month, day] = value.split("-").map(Number);
     onChangeDate(new Date(year, month - 1, day));
     setCalendarOpen(false);
   };
 
   return (
-    <header className="relative mb-5 flex h-14 items-center justify-between px-1">
+    <header className="relative mb-4 flex h-12 items-center justify-between">
       <button className="grid h-11 w-11 place-items-center rounded-2xl text-slate-900 active:bg-slate-100">
         <Menu className="h-7 w-7" strokeWidth={2.4} />
       </button>
 
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 items-center justify-center gap-0.5">
         <button
           onClick={() => moveDate(-1)}
           className="grid h-9 w-8 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
@@ -134,7 +148,7 @@ function Header({ selectedDate, onChangeDate }) {
 
         <button
           onClick={() => setCalendarOpen((current) => !current)}
-          className="flex items-center text-[17px] font-extrabold tracking-[-0.02em] text-slate-950 active:scale-[0.98]"
+          className="min-w-0 px-1 text-[16px] font-extrabold tracking-[-0.03em] text-slate-950 active:scale-[0.98]"
         >
           {formatDateForHeader(selectedDate)}
         </button>
@@ -153,7 +167,7 @@ function Header({ selectedDate, onChangeDate }) {
       </button>
 
       {calendarOpen && (
-        <div className="absolute left-1/2 top-14 z-50 w-[260px] -translate-x-1/2 rounded-[22px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+        <div className="absolute left-1/2 top-13 z-50 w-[min(280px,calc(100vw-32px))] -translate-x-1/2 rounded-[22px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
           <p className="mb-3 text-center text-sm font-black text-slate-700">
             日付を選択
           </p>
@@ -168,7 +182,7 @@ function Header({ selectedDate, onChangeDate }) {
               onChangeDate(new Date());
               setCalendarOpen(false);
             }}
-            className="mt-3 h-11 w-full rounded-2xl bg-emerald-50 text-sm font-black text-emerald-600"
+            className="mt-3 h-11 w-full rounded-2xl bg-emerald-50 text-sm font-black text-emerald-600 active:scale-[0.99]"
           >
             今日に戻る
           </button>
@@ -179,18 +193,20 @@ function Header({ selectedDate, onChangeDate }) {
 }
 
 function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
+  const selectedIsReminder = isReminder(selectedTask);
+
   return (
-    <section className="relative overflow-hidden rounded-[26px] border border-emerald-100/70 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.075)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(187,247,208,0.55),transparent_38%),linear-gradient(135deg,rgba(240,253,244,0.88),white_55%)]" />
+    <section className="relative overflow-hidden rounded-[26px] border border-emerald-100/70 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.07)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_22%,rgba(187,247,208,0.55),transparent_38%),linear-gradient(135deg,rgba(240,253,244,0.9),white_58%)]" />
 
       <img
         src={mountainImage}
         alt="山のイラスト"
-        className="pointer-events-none absolute right-1 top-7 z-0 h-[150px] w-[170px] object-contain opacity-95"
+        className="pointer-events-none absolute -right-1 top-7 z-0 h-[132px] w-[150px] object-contain opacity-95 min-[390px]:h-[148px] min-[390px]:w-[168px]"
       />
 
-      <div className="relative z-10 min-h-[132px] pr-[128px]">
-        <div className="mb-4 flex items-center gap-2 text-[15px] font-extrabold text-slate-900">
+      <div className="relative z-10 min-h-[124px] pr-[118px] min-[390px]:pr-[132px]">
+        <div className="mb-3 flex items-center gap-2 text-[14px] font-extrabold text-slate-900">
           <span className="grid h-6 w-6 place-items-center rounded-full bg-amber-100 text-[15px]">
             ☀️
           </span>
@@ -199,41 +215,31 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
 
         {selectedTask ? (
           <>
-            <h1 className="mb-2 text-[23px] font-black leading-[1.18] tracking-[-0.045em] text-slate-950">
+            <h1 className="mb-2 line-clamp-2 text-[22px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[24px]">
               {selectedTask.title}
             </h1>
-            {!isReminder(selectedTask) && (
-  <p className="mb-1 text-[14px] font-bold text-slate-400">
-    {selectedTask.category}・予定 {formatMinutes(selectedTask.estimatedMinutes)}
-  </p>
-)}
-          <p className="text-[13px] font-bold leading-relaxed text-emerald-600">
-  {isReminder(selectedTask)
-    ? (() => {
-        const lead =
-          selectedTask.reminder?.reminderLead ??
-          selectedTask.schedule?.reminderLead;
 
-        if (lead === "0") return "指定時刻にリマインド";
-        if (lead === "5") return "5分前にリマインド";
-        if (lead === "10") return "10分前にリマインド";
-        if (lead === "30") return "30分前にリマインド";
-        if (lead === "60") return "1時間前にリマインド";
-        if (lead === "1440") return "1日前にリマインド";
+            {!selectedIsReminder && (
+              <p className="mb-1 text-[13px] font-bold text-slate-400">
+                {selectedTask.category}・予定{" "}
+                {formatMinutes(selectedTask.estimatedMinutes)}
+              </p>
+            )}
 
-        return "リマインド予定";
-      })()
-    : "このタスクを開始できます。"}
-</p>
+            <p className="text-[13px] font-bold leading-relaxed text-emerald-600">
+              {selectedIsReminder
+                ? getReminderLabel(selectedTask)
+                : "このタスクを開始できます。"}
+            </p>
           </>
         ) : (
           <>
-            <h1 className="mb-3 text-[25px] font-black leading-[1.18] tracking-[-0.045em] text-slate-950">
+            <h1 className="mb-3 text-[24px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[26px]">
               {incompleteCount > 0
                 ? `${incompleteCount}つのタスクを完了しよう！`
                 : "今日のタスクは完了！"}
             </h1>
-            <p className="text-[15px] font-bold leading-relaxed text-slate-400">
+            <p className="text-[14px] font-bold leading-relaxed text-slate-400">
               タスクを選ぶとタイマーを開始できます。
             </p>
           </>
@@ -243,20 +249,26 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
       <button
         onClick={selectedTask ? onStartTimer : undefined}
         disabled={!selectedTask}
-        className={`relative z-10 mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-[17px] text-[16px] font-black active:scale-[0.985] ${
+        className={`relative z-10 mt-2 flex h-13 w-full items-center justify-center gap-2 rounded-[17px] text-[15px] font-black active:scale-[0.985] min-[390px]:h-14 min-[390px]:text-[16px] ${
           selectedTask
-            ? "bg-emerald-500 text-white shadow-[0_12px_22px_rgba(16,185,129,0.26)]"
+            ? selectedIsReminder
+              ? "bg-emerald-50 text-emerald-600 shadow-none"
+              : "bg-emerald-500 text-white shadow-[0_12px_22px_rgba(16,185,129,0.26)]"
             : "cursor-not-allowed bg-slate-200 text-slate-400 shadow-none"
         }`}
       >
         <Play
-          className={`h-5 w-5 ${selectedTask ? "fill-white" : "fill-slate-400"}`}
+          className={`h-5 w-5 ${
+            selectedTask && !selectedIsReminder
+              ? "fill-white"
+              : "fill-current"
+          }`}
         />
         {selectedTask
-  ? isReminder(selectedTask)
-    ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
-    : "このタスクで集中開始"
-  : "タスクを選択してください"}
+          ? selectedIsReminder
+            ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
+            : "このタスクで集中開始"
+          : "タスクを選択してください"}
       </button>
     </section>
   );
@@ -266,11 +278,11 @@ function AddTodoButton({ onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex h-[66px] w-full items-center justify-between rounded-[22px] border border-slate-100 bg-white px-5 shadow-[0_12px_30px_rgba(15,23,42,0.065)] active:scale-[0.99]"
+      className="flex h-[62px] w-full items-center justify-between rounded-[22px] border border-slate-100 bg-white px-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] active:scale-[0.99] min-[390px]:h-[66px] min-[390px]:px-5"
     >
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 min-[390px]:gap-4">
         <Plus className="h-8 w-8 text-slate-950" strokeWidth={2.25} />
-        <span className="text-[17px] font-black tracking-[-0.02em] text-slate-950">
+        <span className="text-[16px] font-black tracking-[-0.02em] text-slate-950 min-[390px]:text-[17px]">
           Todoを追加
         </span>
       </div>
@@ -283,7 +295,7 @@ function TabButton({ active, label, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`relative h-[62px] text-[15px] font-black ${
+      className={`relative h-[56px] text-[14px] font-black min-[390px]:h-[60px] min-[390px]:text-[15px] ${
         active ? "text-emerald-500" : "text-slate-400"
       }`}
     >
@@ -312,6 +324,7 @@ function TodoItem({
 }) {
   const config = getCategoryStyle(todo.category);
   const Icon = config.icon;
+  const reminder = isReminder(todo);
 
   return (
     <div
@@ -321,65 +334,71 @@ function TodoItem({
       onDragOver={(event) => event.preventDefault()}
       onDrop={() => onDrop(todo.id)}
       onClick={() => onSelect(todo)}
-      className={`relative grid min-h-[72px] cursor-pointer grid-cols-[24px_32px_1fr_auto_auto_26px] items-center gap-2 border-b border-slate-100 px-3 py-3 last:border-b-0 ${
+      className={`relative cursor-pointer border-b border-slate-100 px-3 py-3 last:border-b-0 ${
         selected ? "bg-emerald-50/70" : "bg-white"
       } ${dragging ? "opacity-40" : "opacity-100"}`}
     >
-      <GripVertical className="h-5 w-5 text-slate-300" />
+      <div className="flex min-h-[54px] items-center gap-2.5">
+        <GripVertical className="h-5 w-5 shrink-0 text-slate-300" />
 
-      <button
-  onClick={(event) => {
-    event.stopPropagation();
-    onToggle(todo.id);
-  }}
-  className={`grid h-7 w-7 place-items-center rounded-full border-[1.7px] ${
-  todo.completed
-    ? "border-emerald-500 bg-emerald-500 text-white"
-    : "border-slate-300 bg-white text-transparent"
-}`}
->
-  <Check className="h-4 w-4" strokeWidth={3} />
-</button>
-      <div className="min-w-0">
-        <p
-          className={`truncate text-[15px] font-extrabold tracking-[-0.02em] ${
-  todo.completed ? "text-slate-400" : "text-slate-950"
-}`}
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle(todo.id);
+          }}
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.7px] ${
+            todo.completed
+              ? "border-emerald-500 bg-emerald-500 text-white"
+              : "border-slate-300 bg-white text-transparent"
+          }`}
         >
-          {todo.title}
-        </p>
-       {todo.schedule && (
-  <p className="mt-1 truncate text-[11px] font-bold text-slate-400">
-    {formatDateForTodo(todo.schedule.date)} {todo.schedule.time} 開始
-  </p>
-)}
+          <Check className="h-4 w-4" strokeWidth={3} />
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <p
+            className={`truncate text-[15px] font-extrabold tracking-[-0.02em] ${
+              todo.completed ? "text-slate-400" : "text-slate-950"
+            }`}
+          >
+            {todo.title}
+          </p>
+
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            {todo.schedule && (
+              <p className="truncate text-[11px] font-bold text-slate-400">
+                {formatDateForTodo(todo.schedule.date)} {todo.schedule.time} 開始
+              </p>
+            )}
+
+            <div className={`flex items-center gap-1 ${config.color}`}>
+              <Icon className="h-4 w-4" strokeWidth={2.2} />
+              <span className="max-w-[56px] truncate text-[12px] font-black">
+                {todo.category}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 text-slate-400">
+              <Clock className="h-4 w-4" strokeWidth={2.2} />
+              <span className="text-[12px] font-bold">
+                {reminder
+                  ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
+                  : `${todo.estimatedMinutes}分`}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleMenu(todo.id);
+          }}
+          className="grid h-9 w-8 shrink-0 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
+        >
+          <MoreVertical className="h-5 w-5" />
+        </button>
       </div>
-
-      <div className={`flex items-center gap-1.5 ${config.color}`}>
-        <Icon className="h-5 w-5" strokeWidth={2.2} />
-        <span className="max-w-[38px] truncate text-[13px] font-black">
-          {todo.category}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-1 text-slate-400">
-  <Clock className="h-5 w-5" strokeWidth={2.2} />
-  <span className="text-[13px] font-bold">
-    {isReminder(todo)
-  ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
-  : `${todo.estimatedMinutes}分`}
-  </span>
-</div>
-
-      <button
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleMenu(todo.id);
-        }}
-        className="grid h-8 w-7 place-items-center text-slate-400"
-      >
-        <MoreVertical className="h-5 w-5" />
-      </button>
 
       {menuOpen && (
         <div
@@ -393,15 +412,17 @@ function TodoItem({
             <Pencil className="h-4 w-4" />
             編集
           </button>
-         {!isReminder(todo) && (
-  <button
-    onClick={() => onWorkLogEdit(todo)}
-    className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-emerald-600 active:bg-emerald-50"
-  >
-    <Clock className="h-4 w-4" />
-    作業データ修正
-  </button>
-)}
+
+          {!reminder && (
+            <button
+              onClick={() => onWorkLogEdit(todo)}
+              className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-emerald-600 active:bg-emerald-50"
+            >
+              <Clock className="h-4 w-4" />
+              作業データ修正
+            </button>
+          )}
+
           <button
             onClick={() => onDelete(todo)}
             className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-red-500 active:bg-red-50"
@@ -495,31 +516,46 @@ function TodoListCard({
   );
 }
 
+function RecordStat({ label, value }) {
+  return (
+    <div className="min-w-0 px-1">
+      <p className="mb-2 text-[10px] font-black text-slate-700 min-[390px]:text-[11px]">
+        {label}
+      </p>
+      <p className="truncate text-[20px] font-black tracking-[-0.04em] text-slate-950 min-[390px]:text-[22px]">
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function TodayRecordCard({ totalMinutes, completedCount, totalCount }) {
   const rate =
     totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
 
   return (
-    <section className="rounded-[24px] border border-slate-100 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.07)]">
-      <div className="mb-5 flex items-center justify-between">
+    <section className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.07)] min-[390px]:p-5">
+      <div className="mb-4 flex items-center justify-between gap-3 min-[390px]:mb-5">
         <div className="flex items-center gap-2.5">
           <TrendingUp className="h-6 w-6 text-emerald-500" strokeWidth={2.25} />
-          <h2 className="text-[18px] font-black tracking-[-0.02em] text-slate-950">
+          <h2 className="text-[17px] font-black tracking-[-0.02em] text-slate-950 min-[390px]:text-[18px]">
             今日の記録
           </h2>
         </div>
-        <button className="flex items-center gap-1 text-[13px] font-black text-slate-400">
+
+        <button className="flex shrink-0 items-center gap-1 text-[12px] font-black text-slate-400 min-[390px]:text-[13px]">
           詳細を見る
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="rounded-[20px] bg-white px-4 py-5 shadow-[0_8px_24px_rgba(15,23,42,0.055)]">
+      <div className="rounded-[20px] bg-white px-3 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] min-[390px]:px-4 min-[390px]:py-5">
         <div className="grid grid-cols-3 divide-x divide-slate-200 text-center">
           <RecordStat label="総作業時間" value={formatMinutes(totalMinutes)} />
           <RecordStat label="完了タスク" value={`${completedCount} / ${totalCount}`} />
           <RecordStat label="達成率" value={`${rate}%`} />
         </div>
+
         <div className="mt-5 h-3.5 overflow-hidden rounded-full bg-slate-100">
           <div
             className="h-full rounded-full bg-emerald-500 transition-all"
@@ -531,62 +567,54 @@ function TodayRecordCard({ totalMinutes, completedCount, totalCount }) {
   );
 }
 
-function RecordStat({ label, value }) {
-  return (
-    <div className="px-1">
-      <p className="mb-2 text-[11px] font-black text-slate-700">{label}</p>
-      <p className="text-[22px] font-black tracking-[-0.04em] text-slate-950">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function WorkLogModal({ open, targetTodo, onClose, onSave }) {
   const [durationHour, setDurationHour] = useState(1);
   const [durationMinute, setDurationMinute] = useState(0);
 
   useEffect(() => {
     if (!open) return;
+
     const savedSeconds =
-    targetTodo?.actualSeconds ??
-    (targetTodo?.actualMinutes != null
-      ? targetTodo.actualMinutes * 60
-      : 60 * 60);
+      targetTodo?.actualSeconds ??
+      (targetTodo?.actualMinutes != null
+        ? targetTodo.actualMinutes * 60
+        : 60 * 60);
 
-  const safeSeconds = Math.max(0, Math.round(Number(savedSeconds)));
-  const hours = Math.floor(safeSeconds / 3600);
-  const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const safeSeconds = Math.max(0, Math.round(Number(savedSeconds)));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
 
-  setDurationHour(hours);
-  setDurationMinute(minutes);
-}, [open, targetTodo]);
+    setDurationHour(hours);
+    setDurationMinute(minutes);
+  }, [open, targetTodo]);
 
   if (!open) return null;
 
   const submit = (event) => {
     event.preventDefault();
+
     const minutes = Number(durationHour) * 60 + Number(durationMinute);
     if (minutes <= 0 || !targetTodo) return;
 
     onSave({
-  taskId: targetTodo.id,
-  taskTitle: targetTodo.title,
-  category: targetTodo.category,
-  minutes,
-  seconds: minutes * 60,
-});
+      taskId: targetTodo.id,
+      taskTitle: targetTodo.title,
+      category: targetTodo.category,
+      minutes,
+      seconds: minutes * 60,
+    });
+
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-[calc(16px+env(safe-area-inset-bottom))] backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-[calc(14px+env(safe-area-inset-bottom))] backdrop-blur-sm">
       <form
         onSubmit={submit}
-        className="max-h-[calc(100vh-32px)] w-full max-w-[430px] overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl"
+        className="max-h-[calc(100dvh-28px)] w-full max-w-[480px] overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl"
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-2xl font-black text-slate-950">
+          <h2 className="text-[22px] font-black text-slate-950">
             作業データを修正
           </h2>
           <button
@@ -624,6 +652,7 @@ function WorkLogModal({ open, targetTodo, onClose, onSave }) {
                 </option>
               ))}
             </select>
+
             <select
               value={durationMinute}
               onChange={(e) => setDurationMinute(e.target.value)}
@@ -642,13 +671,13 @@ function WorkLogModal({ open, targetTodo, onClose, onSave }) {
           <button
             type="button"
             onClick={onClose}
-            className="h-14 rounded-2xl bg-slate-100 text-base font-black text-slate-600"
+            className="h-14 rounded-2xl bg-slate-100 text-base font-black text-slate-600 active:scale-[0.99]"
           >
             キャンセル
           </button>
           <button
             type="submit"
-            className="h-14 rounded-2xl bg-emerald-500 text-base font-black text-white"
+            className="h-14 rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]"
           >
             保存する
           </button>
@@ -662,22 +691,24 @@ function UndoToast({ visible, taskTitle, onUndo, onClose }) {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-[430px] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-[0_16px_40px_rgba(15,23,42,0.28)]">
+    <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom))] left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-[480px] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-[0_16px_40px_rgba(15,23,42,0.28)]">
       <div className="min-w-0">
         <p className="truncate text-sm font-black">達成済みにしました</p>
         <p className="truncate text-xs font-bold text-slate-300">{taskTitle}</p>
       </div>
+
       <div className="flex shrink-0 items-center gap-2">
         <button
           onClick={onUndo}
-          className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-emerald-200"
+          className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-emerald-200 active:scale-[0.98]"
         >
           <RotateCcw className="h-4 w-4" />
           元に戻す
         </button>
+
         <button
           onClick={onClose}
-          className="grid h-8 w-8 place-items-center rounded-xl bg-white/10"
+          className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 active:scale-[0.98]"
         >
           <X className="h-4 w-4" />
         </button>
@@ -695,9 +726,10 @@ function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-[calc(12px+env(safe-area-inset-bottom))] left-1/2 z-40 grid h-[68px] w-[calc(100%-24px)] max-w-[430px] -translate-x-1/2 grid-cols-4 overflow-hidden rounded-[22px] border border-slate-100 bg-white/95 shadow-[0_12px_36px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+    <nav className="fixed bottom-[calc(10px+env(safe-area-inset-bottom))] left-1/2 z-40 grid h-[66px] w-[calc(100%-20px)] max-w-[480px] -translate-x-1/2 grid-cols-4 overflow-hidden rounded-[22px] border border-slate-100 bg-white/95 shadow-[0_12px_36px_rgba(15,23,42,0.14)] backdrop-blur-xl">
       {items.map((item) => {
         const Icon = item.icon;
+
         return (
           <button
             key={item.label}
@@ -740,9 +772,7 @@ export default function TodayPage({
   const undoTimerRef = useRef(null);
 
   const selectedTask =
-  todos.find(
-    (todo) => todo.id === selectedTaskId && !todo.completed
-  ) ?? null;
+    todos.find((todo) => todo.id === selectedTaskId && !todo.completed) ?? null;
 
   const completedCount = todos.filter((t) => t.completed).length;
   const incompleteCount = todos.length - completedCount;
@@ -780,12 +810,12 @@ export default function TodayPage({
     setTodos((current) =>
       current.map((todo) =>
         todo.id === finishedTask.id
-         ? {
-    ...todo,
-    completed: timerCompletion.completed === true,
-    actualMinutes: timerCompletion.actualMinutes,
-    actualSeconds: timerCompletion.actualSeconds,
-  }
+          ? {
+              ...todo,
+              completed: timerCompletion.completed === true,
+              actualMinutes: timerCompletion.actualMinutes,
+              actualSeconds: timerCompletion.actualSeconds,
+            }
           : todo
       )
     );
@@ -803,9 +833,7 @@ export default function TodayPage({
       },
     ]);
 
-    setSelectedTaskId(
-      timerCompletion.completed ? null : finishedTask.id
-    );
+    setSelectedTaskId(timerCompletion.completed ? null : finishedTask.id);
     setActiveTab(timerCompletion.completed ? "completed" : "incomplete");
 
     onTimerCompletionHandled?.();
@@ -821,11 +849,13 @@ export default function TodayPage({
     if (category === "その他") return;
 
     setCategories((current) => current.filter((item) => item !== category));
+
     setTodos((current) =>
       current.map((todo) =>
         todo.category === category ? { ...todo, category: "その他" } : todo
       )
     );
+
     setWorkLogs((current) =>
       current.map((log) =>
         log.category === category ? { ...log, category: "その他" } : log
@@ -834,49 +864,48 @@ export default function TodayPage({
   };
 
   const saveTodo = (todoData) => {
-  const normalizedTodoData = {
-    ...todoData,
-    type: todoData.type ?? (todoData.reminder ? "reminder" : "todo"),
-  };
+    const normalizedTodoData = {
+      ...todoData,
+      type: todoData.type ?? (todoData.reminder ? "reminder" : "todo"),
+    };
 
-  const reminderFlag = isReminder(normalizedTodoData);
+    const reminderFlag = isReminder(normalizedTodoData);
 
-  if (todoModal.mode === "edit") {
-    setTodos((current) =>
-      current.map((todo) =>
-        todo.id === normalizedTodoData.id
-          ? { ...todo, ...normalizedTodoData }
-          : todo
-      )
-    );
+    if (todoModal.mode === "edit") {
+      setTodos((current) =>
+        current.map((todo) =>
+          todo.id === normalizedTodoData.id
+            ? { ...todo, ...normalizedTodoData }
+            : todo
+        )
+      );
 
-    if (
-      selectedTaskId === normalizedTodoData.id &&
-      (normalizedTodoData.completed || reminderFlag)
-    ) {
+      if (
+        selectedTaskId === normalizedTodoData.id &&
+        (normalizedTodoData.completed || reminderFlag)
+      ) {
+        setSelectedTaskId(null);
+      }
+
+      return;
+    }
+
+    const newTodo = {
+      ...normalizedTodoData,
+      id: Date.now(),
+      completed: false,
+    };
+
+    setTodos((current) => [...current, newTodo]);
+
+    if (!reminderFlag) {
+      setSelectedTaskId(newTodo.id);
+    } else {
       setSelectedTaskId(null);
     }
 
-    return;
-  }
-
-  const newTodo = {
-  ...normalizedTodoData,
-  type: normalizedTodoData.type ?? (normalizedTodoData.reminder ? "reminder" : "todo"),
-  id: Date.now(),
-  completed: false,
-};
-
-  setTodos((current) => [...current, newTodo]);
-
-  if (!reminderFlag) {
-    setSelectedTaskId(newTodo.id);
-  } else {
-    setSelectedTaskId(null);
-  }
-
-  setActiveTab("incomplete");
-};
+    setActiveTab("incomplete");
+  };
 
   const toggleTodo = (id) => {
     const target = todos.find((todo) => todo.id === id);
@@ -907,6 +936,7 @@ export default function TodayPage({
         todo.id === undoToast.id ? { ...todo, completed: false } : todo
       )
     );
+
     setSelectedTaskId(undoToast.id);
     setUndoToast(null);
 
@@ -936,62 +966,60 @@ export default function TodayPage({
   };
 
   const saveWorkLog = (log) => {
-  const seconds = log.seconds ?? log.minutes * 60;
+    const seconds = log.seconds ?? log.minutes * 60;
 
-  setWorkLogs((current) => [
-    ...current.filter((item) => item.taskId !== log.taskId),
-    {
-      ...log,
-      seconds,
-      id: Date.now(),
-      date: formatDateForInput(selectedDate),
-    },
-  ]);
+    setWorkLogs((current) => [
+      ...current.filter((item) => item.taskId !== log.taskId),
+      {
+        ...log,
+        seconds,
+        id: Date.now(),
+        date: formatDateForInput(selectedDate),
+      },
+    ]);
 
-  setTodos((current) =>
-    current.map((todo) =>
-      todo.id === log.taskId
-        ? {
-            ...todo,
-            actualMinutes: log.minutes,
-            actualSeconds: seconds,
-          }
-        : todo
-    )
-  );
-};
+    setTodos((current) =>
+      current.map((todo) =>
+        todo.id === log.taskId
+          ? {
+              ...todo,
+              actualMinutes: log.minutes,
+              actualSeconds: seconds,
+            }
+          : todo
+      )
+    );
+  };
 
   const openWorkLogModal = (todo) => {
     setWorkLogTargetTodo(todo);
   };
 
- const startTimer = () => {
-  if (!selectedTask) return;
+  const startTimer = () => {
+    if (!selectedTask) return;
 
-  if (isReminder(selectedTask)) {
-    return;
-  }
+    if (isReminder(selectedTask)) {
+      return;
+    }
 
-  const savedWorkLog = workLogs.find(
-    (log) => log.taskId === selectedTask.id
-  );
+    const savedWorkLog = workLogs.find((log) => log.taskId === selectedTask.id);
 
-  onOpenTimer?.({
-    ...selectedTask,
-    actualMinutes: savedWorkLog?.minutes ?? selectedTask.actualMinutes ?? 0,
-    actualSeconds:
-      savedWorkLog?.seconds ??
-      selectedTask.actualSeconds ??
-      ((savedWorkLog?.minutes ?? selectedTask.actualMinutes ?? 0) * 60),
-  });
-};
+    onOpenTimer?.({
+      ...selectedTask,
+      actualMinutes: savedWorkLog?.minutes ?? selectedTask.actualMinutes ?? 0,
+      actualSeconds:
+        savedWorkLog?.seconds ??
+        selectedTask.actualSeconds ??
+        (savedWorkLog?.minutes ?? selectedTask.actualMinutes ?? 0) * 60,
+    });
+  };
 
-    return (
-    <div className="min-h-screen bg-[#f6f8f7] text-slate-950 antialiased">
-      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfcfb] px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-[calc(12px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)] sm:px-4">
+  return (
+    <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
+      <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(94px+env(safe-area-inset-bottom))] pt-[calc(10px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
         <Header selectedDate={selectedDate} onChangeDate={setSelectedDate} />
 
-        <main className="space-y-4">
+        <main className="space-y-3.5 min-[390px]:space-y-4">
           <TodayGoalCard
             incompleteCount={incompleteCount}
             selectedTask={selectedTask}
