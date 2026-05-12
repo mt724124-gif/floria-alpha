@@ -68,7 +68,7 @@ function getInitialActualSeconds(task) {
 
 function TimerHeader({ onClose }) {
   return (
-    <header className="mb-2 flex h-11 items-center justify-between">
+    <header className="flex h-[42px] shrink-0 items-center justify-between">
       <button
         onClick={onClose}
         className="grid h-10 w-10 place-items-center rounded-2xl text-slate-950 active:bg-slate-100"
@@ -92,7 +92,7 @@ function TaskCard({ task, plannedMinutes, onEdit }) {
   const Icon = style.icon;
 
   return (
-    <section className="mb-3 flex min-h-[72px] items-center justify-between rounded-[22px] border border-slate-100 bg-white px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.065)]">
+    <section className="flex h-[68px] shrink-0 items-center justify-between rounded-[21px] border border-slate-100 bg-white px-4 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="flex min-w-0 items-center gap-3">
         <div
           className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${style.bg}`}
@@ -101,10 +101,10 @@ function TaskCard({ task, plannedMinutes, onEdit }) {
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-[18px] font-black tracking-[-0.04em] text-slate-950">
+          <p className="truncate text-[17px] font-black tracking-[-0.04em] text-slate-950">
             {task?.title ?? "タスク未選択"}
           </p>
-          <p className="mt-1 text-xs font-bold text-slate-400">
+          <p className="mt-0.5 text-xs font-bold text-slate-400">
             {task?.category ?? "その他"}・予定 {formatMinutesLabel(plannedMinutes)}
           </p>
         </div>
@@ -134,8 +134,8 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
   const dashOffset = circumference * (1 - progress);
 
   return (
-    <section className="mb-2 flex flex-col items-center">
-      <div className="relative grid aspect-square w-[min(72vw,270px)] place-items-center">
+    <section className="flex min-h-0 shrink items-center justify-center py-[clamp(4px,1.2dvh,10px)]">
+      <div className="relative grid aspect-square w-[min(68vw,30dvh,260px)] place-items-center">
         <svg
           className="absolute inset-0 h-full w-full -rotate-90"
           viewBox="0 0 300 300"
@@ -163,12 +163,14 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
         </svg>
 
         <div className="relative z-10 flex flex-col items-center text-center">
-          <p className="mb-3 text-[13px] font-black text-slate-400">経過時間</p>
-          <p className="text-[52px] font-black leading-none tracking-[-0.06em] text-slate-950 min-[390px]:text-[58px]">
+          <p className="mb-[clamp(6px,1dvh,12px)] text-[12px] font-black text-slate-400">
+            経過時間
+          </p>
+          <p className="text-[clamp(42px,7dvh,56px)] font-black leading-none tracking-[-0.06em] text-slate-950">
             {formatClock(elapsedSeconds)}
           </p>
 
-          <p className="mt-4 text-[14px] font-bold text-slate-400">
+          <p className="mt-[clamp(8px,1.5dvh,16px)] text-[13px] font-bold text-slate-400">
             予定時間 {plannedMinutes}分
           </p>
         </div>
@@ -179,10 +181,10 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
 
 function PauseButton({ isRunning, onToggle }) {
   return (
-    <div className="mb-2 flex justify-center">
+    <div className="flex shrink-0 justify-center">
       <button
         onClick={onToggle}
-        className="flex h-[52px] min-w-[150px] items-center justify-center gap-2 rounded-[19px] bg-white px-6 text-[16px] font-black text-emerald-600 shadow-[0_12px_30px_rgba(15,23,42,0.08)] active:scale-[0.98]"
+        className="flex h-[50px] min-w-[146px] items-center justify-center gap-2 rounded-[19px] bg-white px-6 text-[16px] font-black text-emerald-600 shadow-[0_10px_26px_rgba(15,23,42,0.08)] active:scale-[0.98]"
       >
         {isRunning ? (
           <Pause className="h-6 w-6 fill-emerald-500" />
@@ -197,23 +199,23 @@ function PauseButton({ isRunning, onToggle }) {
 
 function AnimatedStudyScene({ isRunning }) {
   return (
-    <section className="relative mb-3 h-[150px] overflow-hidden rounded-[24px] bg-gradient-to-b from-white via-emerald-50/30 to-white min-[390px]:h-[165px]">
-      <div className="absolute left-5 top-6 h-16 w-20 rounded-xl border-8 border-white bg-gradient-to-br from-sky-100 to-emerald-100 shadow-sm" />
+    <section className="relative h-[clamp(112px,18dvh,155px)] shrink-0 overflow-hidden rounded-[22px] bg-gradient-to-b from-white via-emerald-50/30 to-white">
+      <div className="absolute left-5 top-5 h-14 w-20 rounded-xl border-8 border-white bg-gradient-to-br from-sky-100 to-emerald-100 shadow-sm" />
 
-      <div className="absolute bottom-[36px] left-2 right-2 h-4 rounded-full bg-amber-200/80" />
-      <div className="absolute bottom-6 left-6 right-6 h-9 rounded-b-[24px] bg-amber-100" />
+      <div className="absolute bottom-[32px] left-2 right-2 h-4 rounded-full bg-amber-200/80" />
+      <div className="absolute bottom-5 left-6 right-6 h-8 rounded-b-[24px] bg-amber-100" />
 
-      <div className="absolute bottom-[48px] right-9 h-20 w-7 origin-bottom rotate-[25deg] rounded-full bg-slate-300" />
-      <div className="absolute bottom-[98px] right-16 h-7 w-14 rounded-full bg-emerald-200 shadow-[0_0_24px_rgba(16,185,129,0.22)]" />
+      <div className="absolute bottom-[42px] right-9 h-18 w-7 origin-bottom rotate-[25deg] rounded-full bg-slate-300" />
+      <div className="absolute bottom-[88px] right-16 h-7 w-14 rounded-full bg-emerald-200 shadow-[0_0_24px_rgba(16,185,129,0.22)]" />
 
       <Coffee
-        className={`absolute bottom-[48px] left-[108px] h-7 w-7 text-emerald-700 ${
+        className={`absolute bottom-[42px] left-[108px] h-7 w-7 text-emerald-700 ${
           isRunning ? "animate-[coffee_5.5s_ease-in-out_infinite]" : ""
         }`}
       />
 
       <div
-        className={`absolute bottom-8 left-1/2 h-24 w-28 -translate-x-1/2 scale-[0.86] min-[390px]:scale-95 ${
+        className={`absolute bottom-5 left-1/2 h-24 w-28 -translate-x-1/2 scale-[0.78] min-[390px]:scale-[0.9] ${
           isRunning
             ? "animate-[studyBob_2.4s_ease-in-out_infinite]"
             : "animate-[pauseLook_3s_ease-in-out_infinite]"
@@ -234,9 +236,9 @@ function AnimatedStudyScene({ isRunning }) {
         <div className="absolute left-18 top-26 h-5 w-20 rotate-8 rounded-full bg-[#f4c7a5]" />
       </div>
 
-      <div className="absolute bottom-6 left-[112px] h-10 w-28 rounded-lg bg-white shadow-sm" />
-      <div className="absolute bottom-8 left-[124px] h-1 w-16 rounded-full bg-slate-200" />
-      <div className="absolute bottom-12 left-[124px] h-1 w-20 rounded-full bg-slate-200" />
+      <div className="absolute bottom-5 left-[112px] h-9 w-28 rounded-lg bg-white shadow-sm" />
+      <div className="absolute bottom-7 left-[124px] h-1 w-16 rounded-full bg-slate-200" />
+      <div className="absolute bottom-11 left-[124px] h-1 w-20 rounded-full bg-slate-200" />
 
       <style>{`
         @keyframes studyBob {
@@ -267,15 +269,15 @@ function MiniProgressCard({ focusMinutes = 0, plannedMinutes = 0 }) {
       : Math.min(100, Math.round((focusMinutes / plannedMinutes) * 100));
 
   return (
-    <section className="mb-3 rounded-[22px] border border-slate-100 bg-white px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+    <section className="shrink-0 rounded-[20px] border border-slate-100 bg-white px-4 py-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.055)]">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-[14px] font-black text-slate-950">今日の集中</p>
+        <p className="text-[13px] font-black text-slate-950">今日の集中</p>
         <p className="text-[13px] font-black text-emerald-600">
           {formatMinutesLabel(focusMinutes)}
         </p>
       </div>
 
-      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
         <div
           className="h-full rounded-full bg-emerald-500 transition-all"
           style={{ width: `${rate}%` }}
@@ -423,8 +425,8 @@ export default function TimerPage({
   };
 
   return (
-    <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(12px+env(safe-area-inset-bottom))] pt-[calc(8px+env(safe-area-inset-top))]">
+    <div className="h-dvh overflow-hidden bg-[#f6f8f7] text-slate-950 antialiased">
+      <div className="mx-auto flex h-dvh w-full max-w-[480px] flex-col gap-[clamp(6px,1dvh,10px)] overflow-hidden bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(10px+env(safe-area-inset-bottom))] pt-[calc(6px+env(safe-area-inset-top))]">
         <TimerHeader onClose={handleClose} />
 
         <TaskCard
@@ -443,7 +445,7 @@ export default function TimerPage({
 
         <button
           onClick={handleClose}
-          className="mx-auto mb-2 flex h-9 items-center justify-center gap-2 rounded-2xl px-4 text-[13px] font-black text-slate-400 active:bg-slate-100"
+          className="mx-auto flex h-8 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-[12px] font-black text-slate-400 active:bg-slate-100"
         >
           <Home className="h-4 w-4" />
           ホームに戻る
@@ -458,7 +460,7 @@ export default function TimerPage({
 
         <button
           onClick={completeWork}
-          className="mt-auto flex h-[58px] w-full items-center justify-center gap-3 rounded-[22px] bg-emerald-500 text-[18px] font-black text-white shadow-[0_14px_26px_rgba(16,185,129,0.28)] active:scale-[0.985]"
+          className="flex h-[54px] shrink-0 items-center justify-center gap-3 rounded-[22px] bg-emerald-500 text-[17px] font-black text-white shadow-[0_12px_24px_rgba(16,185,129,0.28)] active:scale-[0.985]"
         >
           <CheckCircle2 className="h-7 w-7" />
           作業を完了する
