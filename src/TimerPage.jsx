@@ -314,11 +314,11 @@ function AnimatedStudyScene({ isRunning }) {
     }
   }
 
-  @media (max-height: 700px) {
-    .study-scene {
-      display: none;
-    }
+  @media (max-height: 620px) {
+  .study-scene {
+    display: none;
   }
+}
 `}</style>
     </section>
   );
