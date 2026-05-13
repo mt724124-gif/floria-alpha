@@ -246,74 +246,80 @@ function AnimatedStudyScene({ isRunning }) {
       <div className="absolute bottom-11 left-[124px] h-1 w-20 rounded-full bg-slate-200" />
 
       <style>{`
-        @keyframes studyBob {
-          0%, 100% { transform: translateX(-50%) translateY(0); }
-          50% { transform: translateX(-50%) translateY(3px); }
-        }
+  @keyframes studyBob {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(3px); }
+  }
 
-        @keyframes penMove {
-          0%, 100% { transform: rotate(-24deg) translateX(0); }
-          50% { transform: rotate(-34deg) translateX(5px); }
-        }
+  @keyframes penMove {
+    0%, 100% { transform: rotate(-24deg) translateX(0); }
+    50% { transform: rotate(-34deg) translateX(5px); }
+  }
 
-        @keyframes pauseLook {
-          0%, 100% { transform: translateX(-50%) translateY(0) rotate(0deg); }
-          50% { transform: translateX(-50%) translateY(-2px) rotate(-2deg); }
-        }
+  @keyframes pauseLook {
+    0%, 100% { transform: translateX(-50%) translateY(0) rotate(0deg); }
+    50% { transform: translateX(-50%) translateY(-2px) rotate(-2deg); }
+  }
 
-        @keyframes coffee {
-          0%, 75%, 100% { transform: translateY(0) rotate(0deg); }
-          85% { transform: translateY(-8px) rotate(-8deg); }
-        }
+  @keyframes coffee {
+    0%, 75%, 100% { transform: translateY(0) rotate(0deg); }
+    85% { transform: translateY(-8px) rotate(-8deg); }
+  }
 
-        @media (min-width: 500px) and (max-height: 760px) {
-          .timer-shell {
-            gap: 6px;
-          }
+  @media (min-width: 500px) and (max-height: 760px) {
+    .timer-shell {
+      gap: 6px;
+    }
 
-          .timer-control-area {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            align-items: center;
-            gap: 14px;
-            padding-left: 18px;
-            padding-right: 18px;
-          }
+    .timer-control-area {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 14px;
+      padding-left: 18px;
+      padding-right: 18px;
+    }
 
-          .timer-action-area {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-          }
+    .timer-action-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
 
-          .timer-dial {
-            width: min(34dvh, 210px, 42vw);
-          }
+    .timer-dial {
+      width: min(34dvh, 210px, 42vw);
+    }
 
-          .timer-clock {
-            font-size: clamp(34px, 6dvh, 44px);
-          }
+    .timer-clock {
+      font-size: clamp(34px, 6dvh, 44px);
+    }
 
-          .study-scene {
-            height: clamp(86px, 15dvh, 120px);
-          }
-        }
+    .study-scene {
+      height: clamp(86px, 15dvh, 120px);
+    }
+  }
 
-        @media (max-height: 620px) {
-          .timer-dial {
-            width: min(32dvh, 190px, 44vw);
-          }
+  @media (max-height: 620px) {
+    .timer-dial {
+      width: min(32dvh, 190px, 44vw);
+    }
 
-          .timer-clock {
-            font-size: clamp(32px, 5.5dvh, 40px);
-          }
+    .timer-clock {
+      font-size: clamp(32px, 5.5dvh, 40px);
+    }
 
-          .study-scene {
-            height: 86px;
-          }
-        }
-      `}</style>
+    .study-scene {
+      height: 86px;
+    }
+  }
+
+  @media (max-height: 700px) {
+    .study-scene {
+      display: none;
+    }
+  }
+`}</style>
     </section>
   );
 }
