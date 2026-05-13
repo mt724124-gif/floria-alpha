@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import TodayPage from "./TodayPage";
 import TimerPage from "./TimerPage";
+import CalendarPage from "./CalendarPage";
+import StatsPageDay from "./StatsPage_day";
+import SetPage from "./SetPage";
 
 const STORAGE_KEY = "todo-app-data-v1";
 
@@ -94,7 +97,7 @@ export default function App() {
 
   return (
     <>
-      <div className={screen === "today" ? "block" : "hidden"}>
+      {screen === "today" && (
         <TodayPage
           onOpenTimer={openTimer}
           timerCompletion={timerCompletion}
@@ -103,8 +106,21 @@ export default function App() {
           onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
           appData={appData}
           setAppData={updateAppData}
+          onNavigate={setScreen}
         />
-      </div>
+      )}
+
+      {screen === "calendar" && (
+        <CalendarPage onNavigate={setScreen} />
+      )}
+
+      {screen === "stats" && (
+        <StatsPageDay onNavigate={setScreen} />
+      )}
+
+      {screen === "settings" && (
+        <SetPage onNavigate={setScreen} />
+      )}
 
       {screen === "timer" && (
         <TimerPage

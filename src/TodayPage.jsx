@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import mountainImage from "./assets/mountain.png";
 import TodoModal from "./components/TodoModal";
+import BottomNav from "./components/BottomNav";
 import {
   Bell,
   BookOpen,
@@ -717,37 +718,6 @@ function UndoToast({ visible, taskTitle, onUndo, onClose }) {
   );
 }
 
-function BottomNav() {
-  const items = [
-    { label: "今日", icon: Home, active: true },
-    { label: "カレンダー", icon: CalendarDays },
-    { label: "統計", icon: BarChart3 },
-    { label: "設定", icon: Settings },
-  ];
-
-  return (
-    <nav className="fixed bottom-[calc(10px+env(safe-area-inset-bottom))] left-1/2 z-40 grid h-[66px] w-[calc(100%-20px)] max-w-[480px] -translate-x-1/2 grid-cols-4 overflow-hidden rounded-[22px] border border-slate-100 bg-white/95 shadow-[0_12px_36px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-      {items.map((item) => {
-        const Icon = item.icon;
-
-        return (
-          <button
-            key={item.label}
-            className={`flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-black ${
-              item.active ? "bg-emerald-50 text-emerald-500" : "text-slate-500"
-            }`}
-          >
-            <Icon
-              className={`h-6 w-6 ${item.active ? "fill-emerald-500" : ""}`}
-              strokeWidth={2.15}
-            />
-            <span className="truncate">{item.label}</span>
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
 
 export default function TodayPage({
   onOpenTimer,
@@ -757,6 +727,7 @@ export default function TodayPage({
   onTaskUpdateHandled,
   appData,
   setAppData,
+  onNavigate,
 }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const todos = appData.tasks ?? initialTodos;
@@ -1084,7 +1055,7 @@ const setWorkLogs = (updater) => {
         </main>
       </div>
 
-      <BottomNav />
+      <BottomNav active="today" onNavigate={onNavigate} />
 
       <TodoModal
         open={todoModal.open}
