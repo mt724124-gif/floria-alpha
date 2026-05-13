@@ -755,11 +755,40 @@ export default function TodayPage({
   onTimerCompletionHandled,
   taskUpdateRequest,
   onTaskUpdateHandled,
+  appData,
+  setAppData,
 }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [todos, setTodos] = useState(initialTodos);
-  const [categories, setCategories] = useState(initialCategories);
-  const [workLogs, setWorkLogs] = useState(initialWorkLogs);
+  const todos = appData.tasks ?? initialTodos;
+  const categories = appData.categories ?? initialCategories;
+  const workLogs = appData.workLogs ?? initialWorkLogs;
+  const setTodos = (updater) => {
+  setAppData((current) => ({
+    ...current,
+    tasks:
+      typeof updater === "function"
+        ? updater(current.tasks ?? [])
+        : updater,
+  }));
+};
+const setCategories = (updater) => {
+  setAppData((current) => ({
+    ...current,
+    categories:
+      typeof updater === "function"
+        ? updater(current.categories ?? [])
+        : updater,
+  }));
+};
+const setWorkLogs = (updater) => {
+  setAppData((current) => ({
+    ...current,
+    workLogs:
+      typeof updater === "function"
+        ? updater(current.workLogs ?? [])
+        : updater,
+  }));
+};
   const [activeTab, setActiveTab] = useState("incomplete");
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [todoModal, setTodoModal] = useState({
