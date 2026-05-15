@@ -302,14 +302,13 @@ function TodoItem({
   selected,
   menuOpen,
   dragging,
-  dragOver,
   onSelect,
   onToggle,
   onEdit,
   onDelete,
   onWorkLogEdit,
   onToggleMenu,
-  onDragHandlePointerDown,
+  onTaskPointerDown,
 }) {
   const config = getCategoryStyle(todo.category);
   const Icon = config.icon;
@@ -318,53 +317,18 @@ function TodoItem({
   return (
     <div
       data-todo-id={todo.id}
-      onClick={() => onSelect(todo)}
-      className={`relative cursor-pointer border-b px-3 py-2 last:border-b-0 transition-all duration-150 ${
+      onPointerDown={(event) => onTaskPointerDown(event, todo.id)}
+      onClick={(event) => {
+        if (event.defaultPrevented) return;
+        onSelect(todo);
+      }}
+      className={`relative cursor-pointer border-b border-slate-100 px-3 py-2 last:border-b-0 transition-colors ${
         selected ? "bg-emerald-50/70" : "bg-white"
-      } ${
-        dragging
-          ? "z-30 mx-1 my-1 scale-[1.035] rounded-[18px] border border-emerald-300 bg-emerald-100 opacity-95 shadow-[0_18px_40px_rgba(16,185,129,0.28)]"
-          : "border-slate-100 opacity-100"
-      } ${
-        dragOver && !dragging
-          ? "border-t-[5px] border-t-emerald-500 bg-emerald-50/95"
-          : ""
-      }`}
+      } ${dragging ? "bg-slate-100 opacity-80" : "opacity-100"}`}
     >
-      {dragOver && !dragging && (
-        <div className="mb-1 flex items-center gap-2 rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-black text-white shadow-[0_8px_18px_rgba(16,185,129,0.24)]">
-          <span className="h-2 w-2 rounded-full bg-white" />
-          ここに移動
-        </div>
-      )}
-
-      {dragging && (
-        <div className="mb-1 flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-black text-emerald-600 shadow-[0_8px_18px_rgba(16,185,129,0.18)]">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-          移動中
-        </div>
-      )}
-
       <div className="flex min-h-[46px] items-center gap-2">
         <button
-          type="button"
-          aria-label="順番を並び替え"
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => onDragHandlePointerDown(event, todo.id)}
-          className={`grid h-9 w-7 shrink-0 touch-none select-none place-items-center rounded-xl transition-all ${
-            dragging
-              ? "bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.28)]"
-              : "text-slate-300 active:bg-slate-100 active:text-slate-500"
-          }`}
-        >
-          <GripVertical
-            className={`h-[18px] w-[18px] transition-transform ${
-              dragging ? "scale-125" : "scale-100"
-            }`}
-          />
-        </button>
-
-        <button
+          data-no-drag="true"
           onClick={(event) => {
             event.stopPropagation();
             onToggle(todo.id);
@@ -378,7 +342,7 @@ function TodoItem({
           <Check className="h-3.5 w-3.5" strokeWidth={3} />
         </button>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 select-none">
           <p
             className={`truncate text-[14px] font-extrabold tracking-[-0.02em] ${
               todo.completed ? "text-slate-400" : "text-slate-950"
@@ -413,6 +377,7 @@ function TodoItem({
         </div>
 
         <button
+          data-no-drag="true"
           onClick={(event) => {
             event.stopPropagation();
             onToggleMenu(todo.id);
@@ -425,6 +390,7 @@ function TodoItem({
 
       {menuOpen && (
         <div
+          data-no-drag="true"
           onClick={(event) => event.stopPropagation()}
           className="absolute right-3 top-10 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
         >
@@ -473,69 +439,141 @@ function TodoListCard({
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
-  const [dragOverId, setDragOverId] = useState(null);
+
   const draggingIdRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const startPointRef = useRef({ x: 0, y: 0 });
   const lastTargetIdRef = useRef(null);
+  const skipClickRef = useRef(false);
   const previousBodyTouchActionRef = useRef("");
   const previousBodyUserSelectRef = useRef("");
 
-  const stopDragging = () => {
-    setDragOverId(null);
-    draggingIdRef.current = null;
-    lastTargetIdRef.current = null;
-    setDraggingId(null);
-    document.body.style.touchAction = previousBodyTouchActionRef.current;
-    document.body.style.userSelect = previousBodyUserSelectRef.current;
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
   };
 
-  const handleDragHandlePointerDown = (event, id) => {
-    event.preventDefault();
-    event.stopPropagation();
-
+  const beginDragging = (id) => {
     draggingIdRef.current = id;
     lastTargetIdRef.current = id;
+    skipClickRef.current = true;
+
     previousBodyTouchActionRef.current = document.body.style.touchAction;
     previousBodyUserSelectRef.current = document.body.style.userSelect;
     document.body.style.touchAction = "none";
     document.body.style.userSelect = "none";
 
     setDraggingId(id);
-    setDragOverId(null);
     setOpenMenuId(null);
+  };
+
+  const stopDragging = () => {
+    clearLongPressTimer();
+    draggingIdRef.current = null;
+    lastTargetIdRef.current = null;
+    setDraggingId(null);
+    document.body.style.touchAction = previousBodyTouchActionRef.current;
+    document.body.style.userSelect = previousBodyUserSelectRef.current;
+
+    window.setTimeout(() => {
+      skipClickRef.current = false;
+    }, 0);
+  };
+
+  const getTargetIdByY = (clientY) => {
+    const sourceId = draggingIdRef.current;
+    if (!sourceId) return null;
+
+    const elements = Array.from(document.querySelectorAll("[data-todo-id]"));
+    const targets = elements.filter(
+      (element) => Number(element.dataset.todoId) !== sourceId
+    );
+
+    if (targets.length === 0) return null;
+
+    let nearestId = null;
+    let nearestDistance = Infinity;
+
+    targets.forEach((element) => {
+      const rect = element.getBoundingClientRect();
+      const middleY = rect.top + rect.height / 2;
+      const distance = Math.abs(clientY - middleY);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestId = Number(element.dataset.todoId);
+      }
+    });
+
+    return nearestId;
+  };
+
+  const handleTaskPointerDown = (event, id) => {
+    if (event.target?.closest?.("[data-no-drag='true']")) return;
+
+    event.stopPropagation();
+    clearLongPressTimer();
+
+    startPointRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+
+    longPressTimerRef.current = setTimeout(() => {
+      beginDragging(id);
+    }, 220);
   };
 
   useEffect(() => {
     const handlePointerMove = (event) => {
+      if (longPressTimerRef.current && !draggingIdRef.current) {
+        const dx = Math.abs(event.clientX - startPointRef.current.x);
+        const dy = Math.abs(event.clientY - startPointRef.current.y);
+
+        if (dx > 12 || dy > 12) {
+          clearLongPressTimer();
+        }
+      }
+
       if (!draggingIdRef.current) return;
 
       event.preventDefault();
+      skipClickRef.current = true;
 
-      const element = document.elementFromPoint(event.clientX, event.clientY);
-      const targetElement = element?.closest?.("[data-todo-id]");
-      const targetId = Number(targetElement?.dataset?.todoId);
+      const targetId = getTargetIdByY(event.clientY);
 
       if (!targetId) return;
-      if (targetId === draggingIdRef.current) return;
       if (targetId === lastTargetIdRef.current) return;
 
       lastTargetIdRef.current = targetId;
-      setDragOverId(targetId);
       onReorder(draggingIdRef.current, targetId);
     };
 
     const handlePointerUp = () => {
+      if (longPressTimerRef.current) clearLongPressTimer();
       if (!draggingIdRef.current) return;
       stopDragging();
+    };
+
+    const handleClickCapture = (event) => {
+      if (!skipClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
     };
 
     window.addEventListener("pointermove", handlePointerMove, { passive: false });
     window.addEventListener("pointerup", handlePointerUp);
     window.addEventListener("pointercancel", handlePointerUp);
+    window.addEventListener("click", handleClickCapture, true);
 
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
+      window.removeEventListener("click", handleClickCapture, true);
+      clearLongPressTimer();
     };
   }, [onReorder]);
 
@@ -571,7 +609,6 @@ function TodoListCard({
               selected={selectedTaskId === todo.id}
               menuOpen={openMenuId === todo.id}
               dragging={draggingId === todo.id}
-              dragOver={dragOverId === todo.id}
               onSelect={onSelect}
               onToggle={onToggle}
               onEdit={(target) => {
@@ -589,7 +626,7 @@ function TodoListCard({
               onToggleMenu={(id) =>
                 setOpenMenuId((current) => (current === id ? null : id))
               }
-              onDragHandlePointerDown={handleDragHandlePointerDown}
+              onTaskPointerDown={handleTaskPointerDown}
             />
           ))
         )}
