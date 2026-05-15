@@ -1,13 +1,11 @@
 import React, { useMemo, useState } from "react";
 import BottomNav from "./components/BottomNav";
+import AppHeader from "./components/AppHeader";
 import {
-  Bell,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
-  Home,
   List,
-  Menu,
   Plus,
   Settings,
   BarChart3,
@@ -70,26 +68,12 @@ function getTaskPlacement(task, weekDays) {
 
 function Header({ currentDate }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 px-5 pb-4 pt-4 backdrop-blur">
-      <div className="flex items-center justify-between">
-        <button className="grid h-11 w-11 place-items-center rounded-2xl active:bg-slate-100">
-          <Menu className="h-8 w-8 text-slate-950" />
-        </button>
-
-        <div className="flex items-center gap-3">
-          <CalendarDays className="h-8 w-8 text-slate-950" />
-          <h1 className="text-[24px] font-black tracking-[-0.04em] text-slate-950">
-            {currentDate.getFullYear()}年{currentDate.getMonth() + 1}月
-          </h1>
-          <ChevronDown className="h-6 w-6 text-slate-950" />
-        </div>
-
-        <button className="relative grid h-11 w-11 place-items-center rounded-2xl active:bg-slate-100">
-          <Bell className="h-8 w-8 text-slate-950" />
-          <span className="absolute right-2 top-1.5 h-3.5 w-3.5 rounded-full bg-red-500 ring-2 ring-white" />
-        </button>
-      </div>
-    </header>
+    <div className="px-[max(12px,env(safe-area-inset-left))] pt-[calc(10px+env(safe-area-inset-top))]">
+      <AppHeader
+        title={`${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月`}
+        centerIcon={<CalendarDays className="h-5 w-5 text-slate-950" />}
+      />
+    </div>
   );
 }
 
@@ -255,17 +239,18 @@ function SummaryItem({ icon, label, value }) {
 export default function CalendarPage({ onNavigate }) {
   const [currentDate] = useState(new Date(2026, 2, 1));
 
-  return (
-    <div className="min-h-dvh bg-[#fbfcfb] text-slate-950 antialiased">
-      <div className="mx-auto min-h-dvh w-full max-w-[390px] bg-[#fbfcfb] pb-24">
-        <Header currentDate={currentDate} />
-        <NoticeCard />
-        <MonthTabs />
-        <CalendarGrid currentDate={currentDate} />
-        <SummaryCard />
-        <div className="h-5" />
-        <BottomNav active="calendar" onNavigate={onNavigate} />
-      </div>
+ return (
+  <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
+    <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] pb-[calc(94px+env(safe-area-inset-bottom))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
+      <Header currentDate={currentDate} />
+      <NoticeCard />
+      <MonthTabs />
+      <CalendarGrid currentDate={currentDate} />
+      <SummaryCard />
+      <div className="h-5" />
     </div>
-  );
+
+    <BottomNav active="calendar" onNavigate={onNavigate} />
+  </div>
+);
 }

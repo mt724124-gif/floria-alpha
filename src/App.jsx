@@ -7,6 +7,10 @@ import SetPage from "./SetPage";
 
 const STORAGE_KEY = "todo-app-data-v1";
 
+function getTodayKey() {
+  return new Date().toLocaleDateString("sv-SE");
+}
+
 function loadSavedData() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -67,11 +71,18 @@ export default function App() {
   };
 
   const handleTimerResult = (result) => {
+    const sessionDate =
+      result?.task?.targetDate ??
+      result?.task?.date ??
+      result?.task?.createdDate ??
+      getTodayKey();
+
     const session = {
       id: crypto.randomUUID(),
       taskId: result?.task?.id,
       taskTitle: result?.task?.title,
       category: result?.task?.category,
+      date: sessionDate,
       actualMinutes: result?.actualMinutes ?? 0,
       actualSeconds: result?.actualSeconds ?? 0,
       plannedMinutes: result?.plannedMinutes ?? result?.task?.estimatedMinutes ?? 0,
@@ -111,16 +122,18 @@ export default function App() {
       )}
 
       {screen === "calendar" && (
-        <CalendarPage onNavigate={setScreen} />
+        <CalendarPage
+          appData={appData}
+          setAppData={updateAppData}
+          onNavigate={setScreen}
+        />
       )}
 
       {screen === "stats" && (
-        <StatsPageDay onNavigate={setScreen} />
+        <StatsPageDay appData={appData} onNavigate={setScreen} />
       )}
 
-      {screen === "settings" && (
-        <SetPage onNavigate={setScreen} />
-      )}
+      {screen === "settings" && <SetPage onNavigate={setScreen} />}
 
       {screen === "timer" && (
         <TimerPage

@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import mountainImage from "./assets/mountain.png";
 import TodoModal from "./components/TodoModal";
 import BottomNav from "./components/BottomNav";
+import AppHeader from "./components/AppHeader";
 import {
-  Bell,
   BookOpen,
   Briefcase,
   CalendarDays,
@@ -12,15 +12,11 @@ import {
   Clock,
   Dumbbell,
   GripVertical,
-  Home,
-  Menu,
   MoreVertical,
   Pencil,
   Play,
   Plus,
   RotateCcw,
-  Settings,
-  BarChart3,
   Trash2,
   TrendingUp,
   X,
@@ -35,6 +31,15 @@ const defaultCategoryStyles = {
 
 const initialCategories = ["学習", "仕事", "健康", "その他"];
 
+function formatDateForInput(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+const todayKey = formatDateForInput(new Date());
+
 const initialTodos = [
   {
     id: 1,
@@ -43,6 +48,8 @@ const initialTodos = [
     estimatedMinutes: 30,
     completed: false,
     schedule: null,
+    createdDate: todayKey,
+    targetDate: todayKey,
   },
   {
     id: 2,
@@ -51,6 +58,8 @@ const initialTodos = [
     estimatedMinutes: 90,
     completed: false,
     schedule: null,
+    createdDate: todayKey,
+    targetDate: todayKey,
   },
   {
     id: 3,
@@ -59,6 +68,8 @@ const initialTodos = [
     estimatedMinutes: 60,
     completed: false,
     schedule: null,
+    createdDate: todayKey,
+    targetDate: todayKey,
   },
 ];
 
@@ -72,13 +83,6 @@ function formatMinutes(totalMinutes) {
   return `${h}時間${m}分`;
 }
 
-function formatDateForInput(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function formatDateForHeader(date) {
   const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
   return `${date.getMonth() + 1}月${date.getDate()}日（${weekdays[date.getDay()]}）`;
@@ -88,6 +92,16 @@ function formatDateForTodo(dateString) {
   if (!dateString) return "";
   const [year, month, day] = dateString.split("-").map(Number);
   return formatDateForHeader(new Date(year, month - 1, day));
+}
+
+function getTodoDateKey(todo) {
+  return (
+    todo?.targetDate ??
+    todo?.date ??
+    todo?.createdDate ??
+    todo?.schedule?.date ??
+    todayKey
+  );
 }
 
 function getCategoryStyle(category) {
@@ -134,38 +148,13 @@ function Header({ selectedDate, onChangeDate }) {
   };
 
   return (
-    <header className="relative mb-4 flex h-12 items-center justify-between">
-      <button className="grid h-11 w-11 place-items-center rounded-2xl text-slate-900 active:bg-slate-100">
-        <Menu className="h-7 w-7" strokeWidth={2.4} />
-      </button>
-
-      <div className="flex min-w-0 items-center justify-center gap-0.5">
-        <button
-          onClick={() => moveDate(-1)}
-          className="grid h-9 w-8 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
-        >
-          <ChevronRight className="h-5 w-5 rotate-180" strokeWidth={2.6} />
-        </button>
-
-        <button
-          onClick={() => setCalendarOpen((current) => !current)}
-          className="min-w-0 px-1 text-[16px] font-extrabold tracking-[-0.03em] text-slate-950 active:scale-[0.98]"
-        >
-          {formatDateForHeader(selectedDate)}
-        </button>
-
-        <button
-          onClick={() => moveDate(1)}
-          className="grid h-9 w-8 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
-        >
-          <ChevronRight className="h-5 w-5" strokeWidth={2.6} />
-        </button>
-      </div>
-
-      <button className="relative grid h-11 w-11 place-items-center rounded-2xl text-slate-900 active:bg-slate-100">
-        <Bell className="h-7 w-7" strokeWidth={2.25} />
-        <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
-      </button>
+    <div className="relative">
+      <AppHeader
+        title={formatDateForHeader(selectedDate)}
+        onPrev={() => moveDate(-1)}
+        onNext={() => moveDate(1)}
+        onTitleClick={() => setCalendarOpen((current) => !current)}
+      />
 
       {calendarOpen && (
         <div className="absolute left-1/2 top-13 z-50 w-[min(280px,calc(100vw-32px))] -translate-x-1/2 rounded-[22px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
@@ -189,7 +178,7 @@ function Header({ selectedDate, onChangeDate }) {
           </button>
         </div>
       )}
-    </header>
+    </div>
   );
 }
 
@@ -718,7 +707,6 @@ function UndoToast({ visible, taskTitle, onUndo, onClose }) {
   );
 }
 
-
 export default function TodayPage({
   onOpenTimer,
   timerCompletion,
@@ -730,36 +718,51 @@ export default function TodayPage({
   onNavigate,
 }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+
+  const selectedDateKey = formatDateForInput(selectedDate);
+
   const todos = appData.tasks ?? initialTodos;
   const categories = appData.categories ?? initialCategories;
   const workLogs = appData.workLogs ?? initialWorkLogs;
+
+  const filteredTodos = useMemo(() => {
+    return todos.filter((todo) => getTodoDateKey(todo) === selectedDateKey);
+  }, [todos, selectedDateKey]);
+
+  const filteredWorkLogs = useMemo(() => {
+    return workLogs.filter((log) => (log.date ?? todayKey) === selectedDateKey);
+  }, [workLogs, selectedDateKey]);
+
   const setTodos = (updater) => {
-  setAppData((current) => ({
-    ...current,
-    tasks:
-      typeof updater === "function"
-        ? updater(current.tasks ?? [])
-        : updater,
-  }));
-};
-const setCategories = (updater) => {
-  setAppData((current) => ({
-    ...current,
-    categories:
-      typeof updater === "function"
-        ? updater(current.categories ?? [])
-        : updater,
-  }));
-};
-const setWorkLogs = (updater) => {
-  setAppData((current) => ({
-    ...current,
-    workLogs:
-      typeof updater === "function"
-        ? updater(current.workLogs ?? [])
-        : updater,
-  }));
-};
+    setAppData((current) => ({
+      ...current,
+      tasks:
+        typeof updater === "function"
+          ? updater(current.tasks ?? initialTodos)
+          : updater,
+    }));
+  };
+
+  const setCategories = (updater) => {
+    setAppData((current) => ({
+      ...current,
+      categories:
+        typeof updater === "function"
+          ? updater(current.categories ?? initialCategories)
+          : updater,
+    }));
+  };
+
+  const setWorkLogs = (updater) => {
+    setAppData((current) => ({
+      ...current,
+      workLogs:
+        typeof updater === "function"
+          ? updater(current.workLogs ?? initialWorkLogs)
+          : updater,
+    }));
+  };
+
   const [activeTab, setActiveTab] = useState("incomplete");
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [todoModal, setTodoModal] = useState({
@@ -772,14 +775,15 @@ const setWorkLogs = (updater) => {
   const undoTimerRef = useRef(null);
 
   const selectedTask =
-    todos.find((todo) => todo.id === selectedTaskId && !todo.completed) ?? null;
+    filteredTodos.find((todo) => todo.id === selectedTaskId && !todo.completed) ??
+    null;
 
-  const completedCount = todos.filter((t) => t.completed).length;
-  const incompleteCount = todos.length - completedCount;
+  const completedCount = filteredTodos.filter((t) => t.completed).length;
+  const incompleteCount = filteredTodos.length - completedCount;
 
   const totalWorkMinutes = useMemo(
-    () => workLogs.reduce((sum, log) => sum + log.minutes, 0),
-    [workLogs]
+    () => filteredWorkLogs.reduce((sum, log) => sum + log.minutes, 0),
+    [filteredWorkLogs]
   );
 
   useEffect(() => {
@@ -789,12 +793,28 @@ const setWorkLogs = (updater) => {
   }, []);
 
   useEffect(() => {
+    if (!selectedTaskId) return;
+
+    const existsInSelectedDate = filteredTodos.some(
+      (todo) => todo.id === selectedTaskId && !todo.completed
+    );
+
+    if (!existsInSelectedDate) {
+      setSelectedTaskId(null);
+    }
+  }, [selectedDateKey, filteredTodos, selectedTaskId]);
+
+  useEffect(() => {
     if (!taskUpdateRequest?.id) return;
 
     setTodos((current) =>
       current.map((todo) =>
         todo.id === taskUpdateRequest.id
-          ? { ...todo, ...taskUpdateRequest }
+          ? {
+              ...todo,
+              ...taskUpdateRequest,
+              targetDate: taskUpdateRequest.targetDate ?? getTodoDateKey(todo),
+            }
           : todo
       )
     );
@@ -806,6 +826,7 @@ const setWorkLogs = (updater) => {
     if (!timerCompletion?.task?.id) return;
 
     const finishedTask = timerCompletion.task;
+    const taskDateKey = getTodoDateKey(finishedTask);
 
     setTodos((current) =>
       current.map((todo) =>
@@ -815,6 +836,7 @@ const setWorkLogs = (updater) => {
               completed: timerCompletion.completed === true,
               actualMinutes: timerCompletion.actualMinutes,
               actualSeconds: timerCompletion.actualSeconds,
+              targetDate: getTodoDateKey(todo),
             }
           : todo
       )
@@ -829,7 +851,7 @@ const setWorkLogs = (updater) => {
         category: finishedTask.category,
         minutes: timerCompletion.actualMinutes,
         seconds: timerCompletion.actualSeconds,
-        date: formatDateForInput(selectedDate),
+        date: taskDateKey,
       },
     ]);
 
@@ -837,7 +859,7 @@ const setWorkLogs = (updater) => {
     setActiveTab(timerCompletion.completed ? "completed" : "incomplete");
 
     onTimerCompletionHandled?.();
-  }, [timerCompletion, selectedDate, onTimerCompletionHandled]);
+  }, [timerCompletion, onTimerCompletionHandled]);
 
   const addCategory = (category) => {
     setCategories((current) =>
@@ -875,7 +897,15 @@ const setWorkLogs = (updater) => {
       setTodos((current) =>
         current.map((todo) =>
           todo.id === normalizedTodoData.id
-            ? { ...todo, ...normalizedTodoData }
+            ? {
+                ...todo,
+                ...normalizedTodoData,
+                targetDate: normalizedTodoData.targetDate ?? getTodoDateKey(todo),
+                createdDate:
+                  normalizedTodoData.createdDate ??
+                  todo.createdDate ??
+                  getTodoDateKey(todo),
+              }
             : todo
         )
       );
@@ -894,6 +924,13 @@ const setWorkLogs = (updater) => {
       ...normalizedTodoData,
       id: Date.now(),
       completed: false,
+      createdDate: selectedDateKey,
+      targetDate:
+        normalizedTodoData.targetDate ??
+        normalizedTodoData.schedule?.date ??
+        selectedDateKey,
+      actualMinutes: normalizedTodoData.actualMinutes ?? 0,
+      actualSeconds: normalizedTodoData.actualSeconds ?? 0,
     };
 
     setTodos((current) => [...current, newTodo]);
@@ -954,14 +991,26 @@ const setWorkLogs = (updater) => {
 
   const reorderTodos = (draggingId, targetId) => {
     setTodos((current) => {
-      const fromIndex = current.findIndex((todo) => todo.id === draggingId);
-      const toIndex = current.findIndex((todo) => todo.id === targetId);
+      const currentDateTodos = current.filter(
+        (todo) => getTodoDateKey(todo) === selectedDateKey
+      );
+
+      const otherDateTodos = current.filter(
+        (todo) => getTodoDateKey(todo) !== selectedDateKey
+      );
+
+      const fromIndex = currentDateTodos.findIndex(
+        (todo) => todo.id === draggingId
+      );
+      const toIndex = currentDateTodos.findIndex((todo) => todo.id === targetId);
+
       if (fromIndex < 0 || toIndex < 0) return current;
 
-      const next = [...current];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      return next;
+      const nextDateTodos = [...currentDateTodos];
+      const [moved] = nextDateTodos.splice(fromIndex, 1);
+      nextDateTodos.splice(toIndex, 0, moved);
+
+      return [...otherDateTodos, ...nextDateTodos];
     });
   };
 
@@ -974,7 +1023,7 @@ const setWorkLogs = (updater) => {
         ...log,
         seconds,
         id: Date.now(),
-        date: formatDateForInput(selectedDate),
+        date: selectedDateKey,
       },
     ]);
 
@@ -985,6 +1034,7 @@ const setWorkLogs = (updater) => {
               ...todo,
               actualMinutes: log.minutes,
               actualSeconds: seconds,
+              targetDate: getTodoDateKey(todo),
             }
           : todo
       )
@@ -1033,7 +1083,7 @@ const setWorkLogs = (updater) => {
           />
 
           <TodoListCard
-            todos={todos}
+            todos={filteredTodos}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             selectedTaskId={selectedTaskId}
@@ -1050,7 +1100,7 @@ const setWorkLogs = (updater) => {
           <TodayRecordCard
             totalMinutes={totalWorkMinutes}
             completedCount={completedCount}
-            totalCount={todos.length}
+            totalCount={filteredTodos.length}
           />
         </main>
       </div>
