@@ -302,6 +302,7 @@ function TodoItem({
   selected,
   menuOpen,
   dragging,
+  dragOver,
   onSelect,
   onToggle,
   onEdit,
@@ -320,7 +321,7 @@ function TodoItem({
       onClick={() => onSelect(todo)}
       className={`relative cursor-pointer border-b border-slate-100 px-3 py-2 last:border-b-0 transition-colors ${
         selected ? "bg-emerald-50/70" : "bg-white"
-      } ${dragging ? "bg-emerald-50 opacity-70" : "opacity-100"}`}
+      } ${dragging ? "bg-emerald-100 scale-[1.015] opacity-90 shadow-[0_10px_24px_rgba(16,185,129,0.18)]" : "opacity-100"} ${dragOver ? "border-t-[3px] border-emerald-400" : ""}`}
     >
       <div className="flex min-h-[46px] items-center gap-2">
         <button
@@ -330,7 +331,7 @@ function TodoItem({
           onPointerDown={(event) => onDragHandlePointerDown(event, todo.id)}
           className="grid h-8 w-6 shrink-0 touch-none select-none place-items-center rounded-lg text-slate-300 active:bg-slate-100 active:text-slate-500"
         >
-          <GripVertical className="h-[18px] w-[18px]" />
+          <GripVertical className={`h-[18px] w-[18px] transition-transform ${dragging ? "scale-125" : "scale-100"}`} />
         </button>
 
         <button
@@ -442,12 +443,14 @@ function TodoListCard({
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
   const draggingIdRef = useRef(null);
   const lastTargetIdRef = useRef(null);
   const previousBodyTouchActionRef = useRef("");
   const previousBodyUserSelectRef = useRef("");
 
   const stopDragging = () => {
+    setDragOverId(null);
     draggingIdRef.current = null;
     lastTargetIdRef.current = null;
     setDraggingId(null);
@@ -485,6 +488,7 @@ function TodoListCard({
       if (targetId === lastTargetIdRef.current) return;
 
       lastTargetIdRef.current = targetId;
+      setDragOverId(targetId);
       onReorder(draggingIdRef.current, targetId);
     };
 
@@ -536,6 +540,7 @@ function TodoListCard({
               selected={selectedTaskId === todo.id}
               menuOpen={openMenuId === todo.id}
               dragging={draggingId === todo.id}
+              dragOver={dragOverId === todo.id}
               onSelect={onSelect}
               onToggle={onToggle}
               onEdit={(target) => {
