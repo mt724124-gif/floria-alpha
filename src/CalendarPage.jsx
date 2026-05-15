@@ -4,11 +4,8 @@ import AppHeader from "./components/AppHeader";
 import {
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   List,
   Plus,
-  Settings,
-  BarChart3,
   Sprout,
   Clock3,
   PlayCircle,
@@ -47,7 +44,6 @@ function buildCalendarDays(year, monthIndex) {
 function getTaskPlacement(task, weekDays) {
   const start = new Date(task.start);
   const end = new Date(task.end);
-
   const weekStart = weekDays[0];
   const weekEnd = weekDays[6];
 
@@ -79,23 +75,23 @@ function Header({ currentDate }) {
 
 function NoticeCard() {
   return (
-    <section className="mx-4 mt-4 rounded-[24px] bg-gradient-to-r from-emerald-50 to-white p-5 shadow-sm">
+    <section className="mx-3 mt-3 rounded-[22px] border border-emerald-100/70 bg-gradient-to-r from-emerald-50 to-white p-4 shadow-[0_10px_26px_rgba(15,23,42,0.05)]">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-start gap-4">
-          <Sprout className="mt-1 h-8 w-8 shrink-0 text-emerald-500" />
+        <div className="flex items-start gap-3">
+          <Sprout className="mt-0.5 h-7 w-7 shrink-0 text-emerald-500" />
           <div>
-            <p className="text-[18px] font-black tracking-[-0.03em] text-slate-950">
-              長期タスクのみ表示しています
+            <p className="text-[16px] font-black leading-snug tracking-[-0.03em] text-slate-950">
+              長期タスクを表示中
             </p>
-            <p className="mt-1 text-sm font-bold text-slate-600">
-              日をまたいで進行するタスクの期間を確認できます
+            <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-500">
+              長期タスク表示と各日タスクの切り替え必要？
             </p>
           </div>
         </div>
 
-        <button className="hidden shrink-0 items-center gap-2 rounded-[18px] border border-emerald-100 bg-white px-4 py-3 text-sm font-black text-emerald-600 shadow-sm min-[360px]:flex">
-          <List className="h-5 w-5" />
-          長期タスク一覧
+        <button className="hidden shrink-0 items-center gap-1.5 rounded-[16px] border border-emerald-100 bg-white px-3 py-2 text-[12px] font-black text-emerald-600 shadow-sm min-[390px]:flex">
+          <List className="h-4 w-4" />
+          一覧
         </button>
       </div>
     </section>
@@ -104,13 +100,13 @@ function NoticeCard() {
 
 function MonthTabs() {
   return (
-    <div className="mx-4 mt-5 grid grid-cols-2 rounded-[20px] border border-slate-200 bg-white p-1">
-      <button className="flex h-12 items-center justify-center gap-2 rounded-[16px] bg-emerald-50 text-[16px] font-black text-emerald-600">
-        <CalendarDays className="h-6 w-6" />
+    <div className="mx-3 mt-3 grid grid-cols-2 rounded-[18px] border border-slate-200 bg-white p-1">
+      <button className="flex h-11 items-center justify-center gap-2 rounded-[14px] bg-emerald-50 text-[14px] font-black text-emerald-600">
+        <CalendarDays className="h-5 w-5" />
         月間
       </button>
-      <button className="flex h-12 items-center justify-center gap-2 rounded-[16px] text-[16px] font-black text-slate-400">
-        <CalendarDays className="h-6 w-6" />
+      <button className="flex h-11 items-center justify-center gap-2 rounded-[14px] text-[14px] font-black text-slate-400">
+        <CalendarDays className="h-5 w-5" />
         週
       </button>
     </div>
@@ -125,12 +121,12 @@ function CalendarGrid({ currentDate }) {
   const todayKey = "2026-03-03";
 
   return (
-    <section className="mx-4 mt-5 overflow-hidden rounded-[20px] border border-slate-200 bg-white">
+    <section className="mx-3 mt-3 overflow-hidden rounded-[18px] border border-slate-200 bg-white">
       <div className="grid grid-cols-7 border-b border-slate-200">
         {["月", "火", "水", "木", "金", "土", "日"].map((day, index) => (
           <div
             key={day}
-            className={`py-3 text-center text-sm font-black ${
+            className={`py-2.5 text-center text-[12px] font-black ${
               index === 5 ? "text-blue-500" : index === 6 ? "text-red-500" : "text-slate-950"
             }`}
           >
@@ -140,7 +136,10 @@ function CalendarGrid({ currentDate }) {
       </div>
 
       {weeks.map((weekDays, weekIndex) => (
-        <div key={weekIndex} className="relative grid min-h-[118px] grid-cols-7 border-b border-slate-100 last:border-b-0">
+        <div
+          key={weekIndex}
+          className="relative grid min-h-[78px] grid-cols-7 border-b border-slate-100 last:border-b-0"
+        >
           {weekDays.map((day, dayIndex) => {
             const isCurrentMonth = day.getMonth() === month;
             const isToday = dateKey(day) === todayKey;
@@ -148,9 +147,12 @@ function CalendarGrid({ currentDate }) {
             const isSunday = dayIndex === 6;
 
             return (
-              <div key={dateKey(day)} className="border-r border-slate-100 px-2 py-3 last:border-r-0">
+              <div
+                key={dateKey(day)}
+                className="border-r border-slate-100 px-1 py-2 last:border-r-0"
+              >
                 <div
-                  className={`mx-auto grid h-9 w-9 place-items-center rounded-full text-[17px] font-black ${
+                  className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[13px] font-black ${
                     isToday
                       ? "bg-emerald-500 text-white"
                       : !isCurrentMonth
@@ -168,7 +170,7 @@ function CalendarGrid({ currentDate }) {
             );
           })}
 
-          <div className="pointer-events-none absolute inset-x-0 top-[54px] grid grid-cols-7 gap-y-1 px-1">
+          <div className="pointer-events-none absolute inset-x-0 top-[38px] grid grid-cols-7 gap-y-0.5 px-1">
             {longTasks.map((task, i) => {
               const placement = getTaskPlacement(task, weekDays);
               if (!placement) return null;
@@ -176,7 +178,7 @@ function CalendarGrid({ currentDate }) {
               return (
                 <div
                   key={`${task.id}-${weekIndex}`}
-                  className={`${task.color} h-7 truncate rounded-r-full px-3 text-[11px] font-black leading-7 text-white shadow-sm`}
+                  className={`${task.color} h-5 truncate rounded-r-full px-2 text-[9px] font-black leading-5 text-white shadow-sm`}
                   style={{
                     ...placement,
                     gridRow: `${(i % 3) + 1}`,
@@ -195,15 +197,15 @@ function CalendarGrid({ currentDate }) {
 
 function SummaryCard() {
   return (
-    <section className="mx-4 mt-5 rounded-[24px] border border-slate-100 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Sprout className="h-7 w-7 text-emerald-500" />
-          <h2 className="text-[20px] font-black tracking-[-0.04em] text-slate-950">
-            今月の長期タスクサマリー
+    <section className="mx-3 mt-3 rounded-[22px] border border-slate-100 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Sprout className="h-6 w-6 text-emerald-500" />
+          <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">
+            今月のサマリー
           </h2>
         </div>
-        <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-600">
+        <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-black text-emerald-600">
           進行中 7件
         </span>
       </div>
@@ -211,12 +213,12 @@ function SummaryCard() {
       <div className="grid grid-cols-4 divide-x divide-slate-100 text-center">
         <SummaryItem icon={<Clock3 />} label="進行前" value="2件" />
         <SummaryItem icon={<PlayCircle />} label="進行中" value="5件" />
-        <SummaryItem icon={<Clock3 />} label="期限3日以内" value="2件" />
-        <SummaryItem icon={<CheckCircle2 />} label="完了済み" value="1件" />
+        <SummaryItem icon={<Clock3 />} label="期限近" value="2件" />
+        <SummaryItem icon={<CheckCircle2 />} label="完了" value="1件" />
       </div>
 
-      <button className="mt-6 flex h-14 w-full items-center justify-center gap-3 rounded-[18px] border border-emerald-200 bg-white text-[17px] font-black text-emerald-600 active:bg-emerald-50">
-        <Plus className="h-6 w-6" />
+      <button className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-[16px] border border-emerald-200 bg-white text-[14px] font-black text-emerald-600 active:bg-emerald-50">
+        <Plus className="h-5 w-5" />
         長期タスクを追加
       </button>
     </section>
@@ -226,31 +228,32 @@ function SummaryCard() {
 function SummaryItem({ icon, label, value }) {
   return (
     <div className="px-1">
-      <div className="mx-auto mb-2 grid h-8 w-8 place-items-center text-emerald-500">
-        {React.cloneElement(icon, { className: "h-7 w-7", strokeWidth: 2.4 })}
+      <div className="mx-auto mb-1.5 grid h-7 w-7 place-items-center text-emerald-500">
+        {React.cloneElement(icon, { className: "h-5 w-5", strokeWidth: 2.4 })}
       </div>
-      <p className="text-[11px] font-black text-slate-600">{label}</p>
-      <p className="mt-2 text-[22px] font-black tracking-[-0.05em] text-slate-950">{value}</p>
+      <p className="text-[10px] font-black text-slate-500">{label}</p>
+      <p className="mt-1 text-[17px] font-black tracking-[-0.04em] text-slate-950">
+        {value}
+      </p>
     </div>
   );
 }
 
-
 export default function CalendarPage({ onNavigate }) {
   const [currentDate] = useState(new Date(2026, 2, 1));
 
- return (
-  <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
-    <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] pb-[calc(94px+env(safe-area-inset-bottom))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
-      <Header currentDate={currentDate} />
-      <NoticeCard />
-      <MonthTabs />
-      <CalendarGrid currentDate={currentDate} />
-      <SummaryCard />
-      <div className="h-5" />
-    </div>
+  return (
+    <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
+      <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] pb-[calc(94px+env(safe-area-inset-bottom))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
+        <Header currentDate={currentDate} />
+        <NoticeCard />
+        <MonthTabs />
+        <CalendarGrid currentDate={currentDate} />
+        <SummaryCard />
+        <div className="h-5" />
+      </div>
 
-    <BottomNav active="calendar" onNavigate={onNavigate} />
-  </div>
-);
+      <BottomNav active="calendar" onNavigate={onNavigate} />
+    </div>
+  );
 }
