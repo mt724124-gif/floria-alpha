@@ -170,13 +170,13 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
             経過時間
           </p>
 
-          <p className="timer-clock text-[clamp(36px,6dvh,48px)] font-black leading-none tracking-[-0.06em] text-slate-950">
+          <p className="timer-clock whitespace-nowrap text-[clamp(30px,5.2dvh,42px)] font-black leading-none tracking-[-0.05em] text-slate-950">
             {formatClock(elapsedSeconds)}
           </p>
 
           <p className="mt-2 text-[12px] font-bold text-slate-400">
-            予定時間 {plannedMinutes}分
-          </p>
+  予定時間 {formatMinutesLabel(plannedMinutes)}
+</p>
         </div>
       </div>
     </section>

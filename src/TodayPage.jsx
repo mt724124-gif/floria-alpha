@@ -16,6 +16,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Bell,
   RotateCcw,
   Trash2,
   TrendingUp,
@@ -247,18 +248,21 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
             : "cursor-not-allowed bg-slate-200 text-slate-400 shadow-none"
         }`}
       >
-        <Play
-          className={`h-5 w-5 ${
-            selectedTask && !selectedIsReminder
-              ? "fill-white"
-              : "fill-current"
-          }`}
-        />
-        {selectedTask
-          ? selectedIsReminder
-            ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
-            : "このタスクで集中開始"
-          : "タスクを選択してください"}
+        {selectedTask ? (
+  selectedIsReminder ? (
+    <Bell className="h-5 w-5" />
+  ) : (
+    <Play className="h-5 w-5 fill-white" />
+  )
+) : (
+  <Play className="h-5 w-5 fill-current" />
+)}
+
+{selectedTask
+  ? selectedIsReminder
+    ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
+    : "このタスクで集中開始"
+  : "タスクを選択してください"}
       </button>
     </section>
   );
@@ -377,12 +381,16 @@ function TodoItem({
           onPointerDown={(event) => onTaskLongPressPointerDown(event, todo.id)}
         >
           <p
-            className={`truncate text-[14px] font-extrabold tracking-[-0.02em] ${
-              todo.completed ? "text-slate-400" : "text-slate-950"
-            }`}
-          >
-            {todo.title}
-          </p>
+  className={`flex items-center gap-1 truncate text-[14px] font-extrabold tracking-[-0.02em] ${
+    todo.completed ? "text-slate-400" : "text-slate-950"
+  }`}
+>
+  {reminder && (
+    <Bell className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+  )}
+
+  <span className="truncate">{todo.title}</span>
+</p>
 
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
             {todo.schedule && (
@@ -401,19 +409,20 @@ function TodoItem({
             <div className="flex items-center gap-1 text-slate-400">
               <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
               <span className="text-[11px] font-bold">
-                {reminder
-                  ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
-                  : `${todo.estimatedMinutes}分`}
-              </span>
+  {reminder
+    ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
+    : formatMinutes(todo.estimatedMinutes)}
+</span>
             </div>
           </div>
         </div>
 
         <button
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleMenu(todo.id);
-          }}
+  data-menu-button="true"
+  onClick={(event) => {
+    event.stopPropagation();
+    onToggleMenu(todo.id);
+  }}
           className="grid h-8 w-7 shrink-0 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
         >
           <MoreVertical className="h-[18px] w-[18px]" />
@@ -421,10 +430,12 @@ function TodoItem({
       </div>
 
       {menuOpen && (
-        <div
-          onClick={(event) => event.stopPropagation()}
-          className="absolute right-3 top-10 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
-        >
+  <div
+    data-menu-popup="true"
+    onPointerDown={(event) => event.stopPropagation()}
+    onClick={(event) => event.stopPropagation()}
+    className="absolute right-3 top-10 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
+  >
           <button
             onClick={() => onEdit(todo)}
             className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-slate-700 active:bg-slate-50"
@@ -538,6 +549,25 @@ function TodoListCard({
       beginDragging(id, longPressStartRef.current.y);
     }, 260);
   };
+
+  useEffect(() => {
+  if (!openMenuId) return;
+
+  const closeMenu = (event) => {
+    const clickedInsidePopup = event.target?.closest?.("[data-menu-popup='true']");
+    const clickedMenuButton = event.target?.closest?.("[data-menu-button='true']");
+
+    if (clickedInsidePopup || clickedMenuButton) return;
+
+    setOpenMenuId(null);
+  };
+
+  window.addEventListener("pointerdown", closeMenu, true);
+
+  return () => {
+    window.removeEventListener("pointerdown", closeMenu, true);
+  };
+}, [openMenuId]);
 
   useEffect(() => {
     const handlePointerMove = (event) => {
