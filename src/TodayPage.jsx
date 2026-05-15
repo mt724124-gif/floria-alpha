@@ -302,13 +302,15 @@ function TodoItem({
   selected,
   menuOpen,
   dragging,
+  dragOffsetY,
+  dropTarget,
   onSelect,
   onToggle,
   onEdit,
   onDelete,
   onWorkLogEdit,
   onToggleMenu,
-  onTaskPointerDown,
+  onDragHandlePointerDown,
 }) {
   const config = getCategoryStyle(todo.category);
   const Icon = config.icon;
@@ -317,18 +319,42 @@ function TodoItem({
   return (
     <div
       data-todo-id={todo.id}
-      onPointerDown={(event) => onTaskPointerDown(event, todo.id)}
-      onClick={(event) => {
-        if (event.defaultPrevented) return;
-        onSelect(todo);
-      }}
-      className={`relative cursor-pointer border-b border-slate-100 px-3 py-2 last:border-b-0 transition-colors ${
+      onClick={() => onSelect(todo)}
+      style={
+        dragging
+          ? {
+              transform: `translate3d(0, ${dragOffsetY}px, 0) scale(1.03)`,
+            }
+          : undefined
+      }
+      className={`relative cursor-pointer border-b border-slate-100 px-3 py-2 last:border-b-0 transition-transform duration-200 ease-out ${
         selected ? "bg-emerald-50/70" : "bg-white"
-      } ${dragging ? "bg-slate-100 opacity-80" : "opacity-100"}`}
+      } ${
+        dragging
+          ? "pointer-events-none z-40 rounded-[18px] bg-white opacity-95 shadow-[0_20px_42px_rgba(15,23,42,0.20)] ring-1 ring-slate-200"
+          : "opacity-100"
+      } ${dropTarget && !dragging ? "bg-slate-50" : ""}`}
     >
       <div className="flex min-h-[46px] items-center gap-2">
         <button
-          data-no-drag="true"
+          type="button"
+          aria-label="順番を並び替え"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => onDragHandlePointerDown(event, todo.id)}
+          className={`grid h-9 w-7 shrink-0 touch-none select-none place-items-center rounded-xl transition-all ${
+            dragging
+              ? "bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.18)]"
+              : "text-slate-300 active:bg-slate-100 active:text-slate-500"
+          }`}
+        >
+          <GripVertical
+            className={`h-[18px] w-[18px] transition-transform ${
+              dragging ? "scale-125" : "scale-100"
+            }`}
+          />
+        </button>
+
+        <button
           onClick={(event) => {
             event.stopPropagation();
             onToggle(todo.id);
@@ -342,7 +368,7 @@ function TodoItem({
           <Check className="h-3.5 w-3.5" strokeWidth={3} />
         </button>
 
-        <div className="min-w-0 flex-1 select-none">
+        <div className="min-w-0 flex-1">
           <p
             className={`truncate text-[14px] font-extrabold tracking-[-0.02em] ${
               todo.completed ? "text-slate-400" : "text-slate-950"
@@ -377,7 +403,6 @@ function TodoItem({
         </div>
 
         <button
-          data-no-drag="true"
           onClick={(event) => {
             event.stopPropagation();
             onToggleMenu(todo.id);
@@ -390,7 +415,6 @@ function TodoItem({
 
       {menuOpen && (
         <div
-          data-no-drag="true"
           onClick={(event) => event.stopPropagation()}
           className="absolute right-3 top-10 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
         >
@@ -439,141 +463,85 @@ function TodoListCard({
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
-
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  const [dropTargetId, setDropTargetId] = useState(null);
   const draggingIdRef = useRef(null);
-  const longPressTimerRef = useRef(null);
-  const startPointRef = useRef({ x: 0, y: 0 });
-  const lastTargetIdRef = useRef(null);
-  const skipClickRef = useRef(false);
+  const startYRef = useRef(0);
+  const dropTargetIdRef = useRef(null);
   const previousBodyTouchActionRef = useRef("");
   const previousBodyUserSelectRef = useRef("");
 
-  const clearLongPressTimer = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
+  const stopDragging = () => {
+    const sourceId = draggingIdRef.current;
+    const targetId = dropTargetIdRef.current;
+
+    if (sourceId && targetId && sourceId !== targetId) {
+      onReorder(sourceId, targetId);
     }
+
+    draggingIdRef.current = null;
+    dropTargetIdRef.current = null;
+    setDraggingId(null);
+    setDragOffsetY(0);
+    setDropTargetId(null);
+    document.body.style.touchAction = previousBodyTouchActionRef.current;
+    document.body.style.userSelect = previousBodyUserSelectRef.current;
   };
 
-  const beginDragging = (id) => {
-    draggingIdRef.current = id;
-    lastTargetIdRef.current = id;
-    skipClickRef.current = true;
+  const handleDragHandlePointerDown = (event, id) => {
+    event.preventDefault();
+    event.stopPropagation();
 
+    draggingIdRef.current = id;
+    startYRef.current = event.clientY;
+    dropTargetIdRef.current = null;
     previousBodyTouchActionRef.current = document.body.style.touchAction;
     previousBodyUserSelectRef.current = document.body.style.userSelect;
     document.body.style.touchAction = "none";
     document.body.style.userSelect = "none";
 
     setDraggingId(id);
+    setDragOffsetY(0);
+    setDropTargetId(null);
     setOpenMenuId(null);
-  };
-
-  const stopDragging = () => {
-    clearLongPressTimer();
-    draggingIdRef.current = null;
-    lastTargetIdRef.current = null;
-    setDraggingId(null);
-    document.body.style.touchAction = previousBodyTouchActionRef.current;
-    document.body.style.userSelect = previousBodyUserSelectRef.current;
-
-    window.setTimeout(() => {
-      skipClickRef.current = false;
-    }, 0);
-  };
-
-  const getTargetIdByY = (clientY) => {
-    const sourceId = draggingIdRef.current;
-    if (!sourceId) return null;
-
-    const elements = Array.from(document.querySelectorAll("[data-todo-id]"));
-    const targets = elements.filter(
-      (element) => Number(element.dataset.todoId) !== sourceId
-    );
-
-    if (targets.length === 0) return null;
-
-    let nearestId = null;
-    let nearestDistance = Infinity;
-
-    targets.forEach((element) => {
-      const rect = element.getBoundingClientRect();
-      const middleY = rect.top + rect.height / 2;
-      const distance = Math.abs(clientY - middleY);
-
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestId = Number(element.dataset.todoId);
-      }
-    });
-
-    return nearestId;
-  };
-
-  const handleTaskPointerDown = (event, id) => {
-    if (event.target?.closest?.("[data-no-drag='true']")) return;
-
-    event.stopPropagation();
-    clearLongPressTimer();
-
-    startPointRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-    };
-
-    longPressTimerRef.current = setTimeout(() => {
-      beginDragging(id);
-    }, 220);
   };
 
   useEffect(() => {
     const handlePointerMove = (event) => {
-      if (longPressTimerRef.current && !draggingIdRef.current) {
-        const dx = Math.abs(event.clientX - startPointRef.current.x);
-        const dy = Math.abs(event.clientY - startPointRef.current.y);
-
-        if (dx > 12 || dy > 12) {
-          clearLongPressTimer();
-        }
-      }
-
       if (!draggingIdRef.current) return;
 
       event.preventDefault();
-      skipClickRef.current = true;
 
-      const targetId = getTargetIdByY(event.clientY);
+      const nextOffsetY = event.clientY - startYRef.current;
+      setDragOffsetY(nextOffsetY);
 
-      if (!targetId) return;
-      if (targetId === lastTargetIdRef.current) return;
+      const element = document.elementFromPoint(event.clientX, event.clientY);
+      const targetElement = element?.closest?.("[data-todo-id]");
+      const targetId = Number(targetElement?.dataset?.todoId);
 
-      lastTargetIdRef.current = targetId;
-      onReorder(draggingIdRef.current, targetId);
+      if (!targetId || targetId === draggingIdRef.current) {
+        dropTargetIdRef.current = null;
+        setDropTargetId(null);
+        return;
+      }
+
+      dropTargetIdRef.current = targetId;
+      setDropTargetId(targetId);
     };
 
     const handlePointerUp = () => {
-      if (longPressTimerRef.current) clearLongPressTimer();
       if (!draggingIdRef.current) return;
       stopDragging();
-    };
-
-    const handleClickCapture = (event) => {
-      if (!skipClickRef.current) return;
-      event.preventDefault();
-      event.stopPropagation();
     };
 
     window.addEventListener("pointermove", handlePointerMove, { passive: false });
     window.addEventListener("pointerup", handlePointerUp);
     window.addEventListener("pointercancel", handlePointerUp);
-    window.addEventListener("click", handleClickCapture, true);
 
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
-      window.removeEventListener("click", handleClickCapture, true);
-      clearLongPressTimer();
     };
   }, [onReorder]);
 
@@ -609,6 +577,8 @@ function TodoListCard({
               selected={selectedTaskId === todo.id}
               menuOpen={openMenuId === todo.id}
               dragging={draggingId === todo.id}
+              dragOffsetY={draggingId === todo.id ? dragOffsetY : 0}
+              dropTarget={dropTargetId === todo.id}
               onSelect={onSelect}
               onToggle={onToggle}
               onEdit={(target) => {
@@ -626,7 +596,7 @@ function TodoListCard({
               onToggleMenu={(id) =>
                 setOpenMenuId((current) => (current === id ? null : id))
               }
-              onTaskPointerDown={handleTaskPointerDown}
+              onDragHandlePointerDown={handleDragHandlePointerDown}
             />
           ))
         )}
