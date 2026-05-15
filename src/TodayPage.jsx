@@ -319,19 +319,49 @@ function TodoItem({
     <div
       data-todo-id={todo.id}
       onClick={() => onSelect(todo)}
-      className={`relative cursor-pointer border-b border-slate-100 px-3 py-2 last:border-b-0 transition-colors ${
+      className={`relative cursor-pointer border-b px-3 py-2 last:border-b-0 transition-all duration-150 ${
         selected ? "bg-emerald-50/70" : "bg-white"
-      } ${dragging ? "bg-emerald-100 scale-[1.015] opacity-90 shadow-[0_10px_24px_rgba(16,185,129,0.18)]" : "opacity-100"} ${dragOver ? "border-t-[3px] border-emerald-400" : ""}`}
+      } ${
+        dragging
+          ? "z-30 mx-1 my-1 scale-[1.035] rounded-[18px] border border-emerald-300 bg-emerald-100 opacity-95 shadow-[0_18px_40px_rgba(16,185,129,0.28)]"
+          : "border-slate-100 opacity-100"
+      } ${
+        dragOver && !dragging
+          ? "border-t-[5px] border-t-emerald-500 bg-emerald-50/95"
+          : ""
+      }`}
     >
+      {dragOver && !dragging && (
+        <div className="mb-1 flex items-center gap-2 rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-black text-white shadow-[0_8px_18px_rgba(16,185,129,0.24)]">
+          <span className="h-2 w-2 rounded-full bg-white" />
+          ここに移動
+        </div>
+      )}
+
+      {dragging && (
+        <div className="mb-1 flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-black text-emerald-600 shadow-[0_8px_18px_rgba(16,185,129,0.18)]">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+          移動中
+        </div>
+      )}
+
       <div className="flex min-h-[46px] items-center gap-2">
         <button
           type="button"
           aria-label="順番を並び替え"
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => onDragHandlePointerDown(event, todo.id)}
-          className="grid h-8 w-6 shrink-0 touch-none select-none place-items-center rounded-lg text-slate-300 active:bg-slate-100 active:text-slate-500"
+          className={`grid h-9 w-7 shrink-0 touch-none select-none place-items-center rounded-xl transition-all ${
+            dragging
+              ? "bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.28)]"
+              : "text-slate-300 active:bg-slate-100 active:text-slate-500"
+          }`}
         >
-          <GripVertical className={`h-[18px] w-[18px] transition-transform ${dragging ? "scale-125" : "scale-100"}`} />
+          <GripVertical
+            className={`h-[18px] w-[18px] transition-transform ${
+              dragging ? "scale-125" : "scale-100"
+            }`}
+          />
         </button>
 
         <button
@@ -470,6 +500,7 @@ function TodoListCard({
     document.body.style.userSelect = "none";
 
     setDraggingId(id);
+    setDragOverId(null);
     setOpenMenuId(null);
   };
 
