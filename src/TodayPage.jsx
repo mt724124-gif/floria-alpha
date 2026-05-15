@@ -186,18 +186,18 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
   const selectedIsReminder = isReminder(selectedTask);
 
   return (
-    <section className="relative overflow-hidden rounded-[26px] border border-emerald-100/70 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.07)]">
+    <section className="relative overflow-hidden rounded-[24px] border border-emerald-100/70 bg-white p-3.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_22%,rgba(187,247,208,0.55),transparent_38%),linear-gradient(135deg,rgba(240,253,244,0.9),white_58%)]" />
 
       <img
         src={mountainImage}
         alt="山のイラスト"
-        className="pointer-events-none absolute -right-1 top-7 z-0 h-[132px] w-[150px] object-contain opacity-95 min-[390px]:h-[148px] min-[390px]:w-[168px]"
+        className="pointer-events-none absolute right-0 top-6 z-0 h-[116px] w-[132px] object-contain opacity-95 min-[390px]:h-[128px] min-[390px]:w-[146px]"
       />
 
-      <div className="relative z-10 min-h-[124px] pr-[118px] min-[390px]:pr-[132px]">
-        <div className="mb-3 flex items-center gap-2 text-[14px] font-extrabold text-slate-900">
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-amber-100 text-[15px]">
+      <div className="relative z-10 min-h-[104px] pr-[104px] min-[390px]:pr-[116px]">
+        <div className="mb-2 flex items-center gap-2 text-[13px] font-extrabold text-slate-900">
+          <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-amber-100 text-[13px]">
             ☀️
           </span>
           {selectedTask ? "選択中のタスク" : "今日の目標"}
@@ -205,18 +205,18 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
 
         {selectedTask ? (
           <>
-            <h1 className="mb-2 line-clamp-2 text-[22px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[24px]">
+            <h1 className="mb-1.5 line-clamp-2 text-[20px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[22px]">
               {selectedTask.title}
             </h1>
 
             {!selectedIsReminder && (
-              <p className="mb-1 text-[13px] font-bold text-slate-400">
+              <p className="mb-0.5 text-[12px] font-bold text-slate-400">
                 {selectedTask.category}・予定{" "}
                 {formatMinutes(selectedTask.estimatedMinutes)}
               </p>
             )}
 
-            <p className="text-[13px] font-bold leading-relaxed text-emerald-600">
+            <p className="text-[12px] font-bold leading-relaxed text-emerald-600">
               {selectedIsReminder
                 ? getReminderLabel(selectedTask)
                 : "このタスクを開始できます。"}
@@ -224,12 +224,12 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
           </>
         ) : (
           <>
-            <h1 className="mb-3 text-[24px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[26px]">
+            <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
               {incompleteCount > 0
                 ? `${incompleteCount}つのタスクを完了しよう！`
                 : "今日のタスクは完了！"}
             </h1>
-            <p className="text-[14px] font-bold leading-relaxed text-slate-400">
+            <p className="text-[12px] font-bold leading-relaxed text-slate-400">
               タスクを選ぶとタイマーを開始できます。
             </p>
           </>
@@ -239,7 +239,7 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
       <button
         onClick={selectedTask ? onStartTimer : undefined}
         disabled={!selectedTask}
-        className={`relative z-10 mt-2 flex h-13 w-full items-center justify-center gap-2 rounded-[17px] text-[15px] font-black active:scale-[0.985] min-[390px]:h-14 min-[390px]:text-[16px] ${
+        className={`relative z-10 mt-1.5 flex h-11 w-full items-center justify-center gap-2 rounded-[16px] text-[14px] font-black active:scale-[0.985] min-[390px]:h-12 min-[390px]:text-[15px] ${
           selectedTask
             ? selectedIsReminder
               ? "bg-emerald-50 text-emerald-600 shadow-none"
@@ -268,15 +268,15 @@ function AddTodoButton({ onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex h-[62px] w-full items-center justify-between rounded-[22px] border border-slate-100 bg-white px-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] active:scale-[0.99] min-[390px]:h-[66px] min-[390px]:px-5"
+      className="flex h-[54px] w-full items-center justify-between rounded-[20px] border border-slate-100 bg-white px-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.055)] active:scale-[0.99] min-[390px]:h-[58px] min-[390px]:px-4"
     >
-      <div className="flex items-center gap-3 min-[390px]:gap-4">
-        <Plus className="h-8 w-8 text-slate-950" strokeWidth={2.25} />
-        <span className="text-[16px] font-black tracking-[-0.02em] text-slate-950 min-[390px]:text-[17px]">
+      <div className="flex items-center gap-2.5 min-[390px]:gap-3">
+        <Plus className="h-7 w-7 text-slate-950" strokeWidth={2.25} />
+        <span className="text-[15px] font-black tracking-[-0.02em] text-slate-950 min-[390px]:text-[16px]">
           Todoを追加
         </span>
       </div>
-      <ChevronRight className="h-6 w-6 text-slate-400" strokeWidth={2.4} />
+      <ChevronRight className="h-5 w-5 text-slate-400" strokeWidth={2.4} />
     </button>
   );
 }
@@ -285,13 +285,13 @@ function TabButton({ active, label, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`relative h-[56px] text-[14px] font-black min-[390px]:h-[60px] min-[390px]:text-[15px] ${
+      className={`relative h-[48px] text-[13px] font-black min-[390px]:h-[52px] min-[390px]:text-[14px] ${
         active ? "text-emerald-500" : "text-slate-400"
       }`}
     >
       {label}
       {active && (
-        <span className="absolute bottom-0 left-1/2 h-1 w-[72%] -translate-x-1/2 rounded-full bg-emerald-400" />
+        <span className="absolute bottom-0 left-1/2 h-0.5 w-[68%] -translate-x-1/2 rounded-full bg-emerald-400" />
       )}
     </button>
   );
@@ -308,9 +308,7 @@ function TodoItem({
   onDelete,
   onWorkLogEdit,
   onToggleMenu,
-  onDragStart,
-  onDragEnd,
-  onDrop,
+  onDragHandlePointerDown,
 }) {
   const config = getCategoryStyle(todo.category);
   const Icon = config.icon;
@@ -318,59 +316,63 @@ function TodoItem({
 
   return (
     <div
-      draggable
-      onDragStart={() => onDragStart(todo.id)}
-      onDragEnd={onDragEnd}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={() => onDrop(todo.id)}
+      data-todo-id={todo.id}
       onClick={() => onSelect(todo)}
-      className={`relative cursor-pointer border-b border-slate-100 px-3 py-3 last:border-b-0 ${
+      className={`relative cursor-pointer border-b border-slate-100 px-3 py-2 last:border-b-0 transition-colors ${
         selected ? "bg-emerald-50/70" : "bg-white"
-      } ${dragging ? "opacity-40" : "opacity-100"}`}
+      } ${dragging ? "bg-emerald-50 opacity-70" : "opacity-100"}`}
     >
-      <div className="flex min-h-[54px] items-center gap-2.5">
-        <GripVertical className="h-5 w-5 shrink-0 text-slate-300" />
+      <div className="flex min-h-[46px] items-center gap-2">
+        <button
+          type="button"
+          aria-label="順番を並び替え"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => onDragHandlePointerDown(event, todo.id)}
+          className="grid h-8 w-6 shrink-0 touch-none select-none place-items-center rounded-lg text-slate-300 active:bg-slate-100 active:text-slate-500"
+        >
+          <GripVertical className="h-[18px] w-[18px]" />
+        </button>
 
         <button
           onClick={(event) => {
             event.stopPropagation();
             onToggle(todo.id);
           }}
-          className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.7px] ${
+          className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
             todo.completed
               ? "border-emerald-500 bg-emerald-500 text-white"
               : "border-slate-300 bg-white text-transparent"
           }`}
         >
-          <Check className="h-4 w-4" strokeWidth={3} />
+          <Check className="h-3.5 w-3.5" strokeWidth={3} />
         </button>
 
         <div className="min-w-0 flex-1">
           <p
-            className={`truncate text-[15px] font-extrabold tracking-[-0.02em] ${
+            className={`truncate text-[14px] font-extrabold tracking-[-0.02em] ${
               todo.completed ? "text-slate-400" : "text-slate-950"
             }`}
           >
             {todo.title}
           </p>
 
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
             {todo.schedule && (
-              <p className="truncate text-[11px] font-bold text-slate-400">
+              <p className="truncate text-[10.5px] font-bold text-slate-400">
                 {formatDateForTodo(todo.schedule.date)} {todo.schedule.time} 開始
               </p>
             )}
 
             <div className={`flex items-center gap-1 ${config.color}`}>
-              <Icon className="h-4 w-4" strokeWidth={2.2} />
-              <span className="max-w-[56px] truncate text-[12px] font-black">
+              <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
+              <span className="max-w-[52px] truncate text-[11px] font-black">
                 {todo.category}
               </span>
             </div>
 
             <div className="flex items-center gap-1 text-slate-400">
-              <Clock className="h-4 w-4" strokeWidth={2.2} />
-              <span className="text-[12px] font-bold">
+              <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
+              <span className="text-[11px] font-bold">
                 {reminder
                   ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
                   : `${todo.estimatedMinutes}分`}
@@ -384,16 +386,16 @@ function TodoItem({
             event.stopPropagation();
             onToggleMenu(todo.id);
           }}
-          className="grid h-9 w-8 shrink-0 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
+          className="grid h-8 w-7 shrink-0 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
         >
-          <MoreVertical className="h-5 w-5" />
+          <MoreVertical className="h-[18px] w-[18px]" />
         </button>
       </div>
 
       {menuOpen && (
         <div
           onClick={(event) => event.stopPropagation()}
-          className="absolute right-3 top-12 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
+          className="absolute right-3 top-10 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
         >
           <button
             onClick={() => onEdit(todo)}
@@ -440,13 +442,74 @@ function TodoListCard({
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
+  const draggingIdRef = useRef(null);
+  const lastTargetIdRef = useRef(null);
+  const previousBodyTouchActionRef = useRef("");
+  const previousBodyUserSelectRef = useRef("");
+
+  const stopDragging = () => {
+    draggingIdRef.current = null;
+    lastTargetIdRef.current = null;
+    setDraggingId(null);
+    document.body.style.touchAction = previousBodyTouchActionRef.current;
+    document.body.style.userSelect = previousBodyUserSelectRef.current;
+  };
+
+  const handleDragHandlePointerDown = (event, id) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    draggingIdRef.current = id;
+    lastTargetIdRef.current = id;
+    previousBodyTouchActionRef.current = document.body.style.touchAction;
+    previousBodyUserSelectRef.current = document.body.style.userSelect;
+    document.body.style.touchAction = "none";
+    document.body.style.userSelect = "none";
+
+    setDraggingId(id);
+    setOpenMenuId(null);
+  };
+
+  useEffect(() => {
+    const handlePointerMove = (event) => {
+      if (!draggingIdRef.current) return;
+
+      event.preventDefault();
+
+      const element = document.elementFromPoint(event.clientX, event.clientY);
+      const targetElement = element?.closest?.("[data-todo-id]");
+      const targetId = Number(targetElement?.dataset?.todoId);
+
+      if (!targetId) return;
+      if (targetId === draggingIdRef.current) return;
+      if (targetId === lastTargetIdRef.current) return;
+
+      lastTargetIdRef.current = targetId;
+      onReorder(draggingIdRef.current, targetId);
+    };
+
+    const handlePointerUp = () => {
+      if (!draggingIdRef.current) return;
+      stopDragging();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [onReorder]);
 
   const incomplete = todos.filter((t) => !t.completed);
   const completed = todos.filter((t) => t.completed);
   const visible = activeTab === "incomplete" ? incomplete : completed;
 
   return (
-    <section className="overflow-visible rounded-[24px] border border-slate-100 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.07)]">
+    <section className="overflow-visible rounded-[22px] border border-slate-100 bg-white shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="grid grid-cols-2 border-b border-slate-100 bg-white">
         <TabButton
           active={activeTab === "incomplete"}
@@ -462,7 +525,7 @@ function TodoListCard({
 
       <div>
         {visible.length === 0 ? (
-          <div className="px-6 py-8 text-center text-[14px] font-bold text-slate-400">
+          <div className="px-6 py-6 text-center text-[13px] font-bold text-slate-400">
             表示するTodoはありません
           </div>
         ) : (
@@ -490,14 +553,7 @@ function TodoListCard({
               onToggleMenu={(id) =>
                 setOpenMenuId((current) => (current === id ? null : id))
               }
-              onDragStart={(id) => setDraggingId(id)}
-              onDragEnd={() => setDraggingId(null)}
-              onDrop={(targetId) => {
-                if (draggingId && draggingId !== targetId) {
-                  onReorder(draggingId, targetId);
-                }
-                setDraggingId(null);
-              }}
+              onDragHandlePointerDown={handleDragHandlePointerDown}
             />
           ))
         )}
@@ -509,10 +565,10 @@ function TodoListCard({
 function RecordStat({ label, value }) {
   return (
     <div className="min-w-0 px-1">
-      <p className="mb-2 text-[10px] font-black text-slate-700 min-[390px]:text-[11px]">
+      <p className="mb-1.5 text-[10px] font-black text-slate-700 min-[390px]:text-[10px]">
         {label}
       </p>
-      <p className="truncate text-[20px] font-black tracking-[-0.04em] text-slate-950 min-[390px]:text-[22px]">
+      <p className="truncate text-[18px] font-black tracking-[-0.04em] text-slate-950 min-[390px]:text-[20px]">
         {value}
       </p>
     </div>
@@ -524,29 +580,29 @@ function TodayRecordCard({ totalMinutes, completedCount, totalCount }) {
     totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
 
   return (
-    <section className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.07)] min-[390px]:p-5">
-      <div className="mb-4 flex items-center justify-between gap-3 min-[390px]:mb-5">
-        <div className="flex items-center gap-2.5">
-          <TrendingUp className="h-6 w-6 text-emerald-500" strokeWidth={2.25} />
-          <h2 className="text-[17px] font-black tracking-[-0.02em] text-slate-950 min-[390px]:text-[18px]">
+    <section className="rounded-[22px] border border-slate-100 bg-white p-3.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)] min-[390px]:p-4">
+      <div className="mb-3 flex items-center justify-between gap-3 min-[390px]:mb-3.5">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-[22px] w-[22px] text-emerald-500" strokeWidth={2.25} />
+          <h2 className="text-[16px] font-black tracking-[-0.02em] text-slate-950 min-[390px]:text-[17px]">
             今日の記録
           </h2>
         </div>
 
-        <button className="flex shrink-0 items-center gap-1 text-[12px] font-black text-slate-400 min-[390px]:text-[13px]">
+        <button className="flex shrink-0 items-center gap-1 text-[11px] font-black text-slate-400 min-[390px]:text-[12px]">
           詳細を見る
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="rounded-[20px] bg-white px-3 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] min-[390px]:px-4 min-[390px]:py-5">
+      <div className="rounded-[18px] bg-white px-3 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.05)] min-[390px]:px-3.5 min-[390px]:py-3.5">
         <div className="grid grid-cols-3 divide-x divide-slate-200 text-center">
           <RecordStat label="総作業時間" value={formatMinutes(totalMinutes)} />
           <RecordStat label="完了タスク" value={`${completedCount} / ${totalCount}`} />
           <RecordStat label="達成率" value={`${rate}%`} />
         </div>
 
-        <div className="mt-5 h-3.5 overflow-hidden rounded-full bg-slate-100">
+        <div className="mt-3.5 h-3 overflow-hidden rounded-full bg-slate-100">
           <div
             className="h-full rounded-full bg-emerald-500 transition-all"
             style={{ width: `${rate}%` }}
@@ -681,7 +737,7 @@ function UndoToast({ visible, taskTitle, onUndo, onClose }) {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom))] left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-[480px] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-[0_16px_40px_rgba(15,23,42,0.28)]">
+    <div className="fixed bottom-[calc(78px+env(safe-area-inset-bottom))] left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-[480px] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-[0_16px_40px_rgba(15,23,42,0.28)]">
       <div className="min-w-0">
         <p className="truncate text-sm font-black">達成済みにしました</p>
         <p className="truncate text-xs font-bold text-slate-300">{taskTitle}</p>
@@ -1066,10 +1122,10 @@ export default function TodayPage({
 
   return (
     <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
-      <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(94px+env(safe-area-inset-bottom))] pt-[calc(10px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
+      <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(82px+env(safe-area-inset-bottom))] pt-[calc(8px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
         <Header selectedDate={selectedDate} onChangeDate={setSelectedDate} />
 
-        <main className="space-y-3.5 min-[390px]:space-y-4">
+        <main className="space-y-2.5 min-[390px]:space-y-3">
           <TodayGoalCard
             incompleteCount={incompleteCount}
             selectedTask={selectedTask}
