@@ -35,10 +35,6 @@ const categoryStyles = {
 
 const initialCategories = ["学習", "仕事", "健康", "その他"];
 
-function getTodayKey() {
-  return new Date().toLocaleDateString("sv-SE");
-}
-
 function getTomorrowKey(dateKey) {
   const date = new Date(`${dateKey}T00:00:00`);
   date.setDate(date.getDate() + 1);
@@ -65,7 +61,7 @@ function getTaskDateKey(task, fallbackDateKey) {
 }
 
 function isReminder(task) {
-  return task?.type === "reminder" || Boolean(task?.reminder) || Number(task?.estimatedMinutes) === 0;
+  return task?.type === "reminder" || Boolean(task?.reminder);
 }
 
 function formatReminderTime(task) {
@@ -149,6 +145,7 @@ function WorkLogModal({ open, targetTask, targetWorkLog, completeAfterSave, onCl
       seconds: minutes * 60,
       completeAfterSave,
     });
+
     onClose();
   };
 
@@ -220,6 +217,7 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
     }
 
     if (Math.abs(dx) < 8) return;
+
     event.preventDefault();
     setDragX(Math.max(-96, Math.min(96, dx)));
   };
@@ -231,8 +229,13 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
       return;
     }
 
-    if (dragX >= 70) onDelete(task);
-    if (dragX <= -70) onPostponeTomorrow(task);
+    if (dragX >= 70) {
+      onPostponeTomorrow(task);
+    }
+
+    if (dragX <= -70) {
+      onDelete(task);
+    }
 
     setStartPoint(null);
     setDragX(0);
@@ -242,13 +245,30 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
     <div className="relative overflow-hidden border-b border-slate-100 last:border-b-0">
       {!completed && !disabled && (
         <>
-          <div className="absolute inset-y-0 left-0 flex w-24 items-center justify-start bg-red-50 pl-4 text-[12px] font-black text-red-500">削除</div>
-          <div className="absolute inset-y-0 right-0 flex w-28 items-center justify-end bg-amber-50 pr-4 text-[12px] font-black text-amber-600">明日に延期</div>
+          <div className="absolute inset-y-0 left-0 flex w-28 items-center justify-start bg-amber-50 pl-4 text-[12px] font-black text-amber-600">明日に延期</div>
+          <div className="absolute inset-y-0 right-0 flex w-24 items-center justify-end bg-red-50 pr-4 text-[12px] font-black text-red-500">削除</div>
         </>
       )}
 
-      <div onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} style={{ transform: `translateX(${dragX}px)` }} className="relative z-10 flex items-center gap-2 bg-white px-0 py-3 transition-transform">
-        <button type="button" disabled={disabled || reminder} onClick={() => { if (disabled || reminder) return; onToggle(task); }} className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${completed ? "border-emerald-500 bg-emerald-500 text-white" : "border-emerald-400 bg-white text-transparent"} ${disabled || reminder ? "cursor-not-allowed opacity-50" : ""}`}>
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{ transform: `translateX(${dragX}px)` }}
+        className="relative z-10 flex items-center gap-2 bg-white px-0 py-3 transition-transform"
+      >
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            if (disabled) return;
+            onToggle(task);
+          }}
+          className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
+            completed ? "border-emerald-500 bg-emerald-500 text-white" : "border-emerald-400 bg-white text-transparent"
+          } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+        >
           <Check className="h-3.5 w-3.5" strokeWidth={3} />
         </button>
 
@@ -267,7 +287,17 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
           </div>
         </div>
 
-        <button type="button" disabled={disabled} data-review-menu-button="true" onClick={(event) => { event.stopPropagation(); if (disabled) return; onToggleMenu(task.id); }} className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${disabled ? "cursor-not-allowed text-slate-200" : "text-slate-400 active:bg-slate-100"}`}>
+        <button
+          type="button"
+          disabled={disabled}
+          data-review-menu-button="true"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (disabled) return;
+            onToggleMenu(task.id);
+          }}
+          className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${disabled ? "cursor-not-allowed text-slate-200" : "text-slate-400 active:bg-slate-100"}`}
+        >
           <MoreVertical className="h-[18px] w-[18px]" />
         </button>
 
@@ -315,7 +345,7 @@ function TaskSection({ record, disabled = false, openMenuId, onToggleTask, onEdi
       </div>
 
       {tasks.length === 0 ? (
-        <div className="rounded-2xl bg-slate-50 px-4 py-5 text-center text-[14px] font-bold text-slate-400">今日はまだ記録されたタスクがありません。</div>
+        <div className="rounded-2xl bg-emerald-50 px-4 py-5 text-center text-[14px] font-bold text-emerald-600">この日は記録されたTodoがありません。振り返りは完了扱いです。</div>
       ) : (
         <>
           <div>
@@ -415,13 +445,27 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
   const reviewTasks = (appData?.tasks ?? []).filter((task) => getTaskDateKey(task, dateKey) === dateKey);
   const syncedDailyRecords = syncDailyRecordFromTasks(appData?.dailyRecords ?? {}, dateKey, reviewTasks);
   const record = getOrCreateDailyRecord(syncedDailyRecords, dateKey);
-  const isConfirmed = record.status === "confirmed" || record.reviewCompleted === true;
-
   const activeTasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
   const incompleteTasks = activeTasks.filter((task) => !isCompleted(task));
+  const taskCount = activeTasks.length;
+  const isAutoCompletedEmptyDay = taskCount === 0;
+  const isConfirmed = record.status === "confirmed" || record.reviewCompleted === true || isAutoCompletedEmptyDay;
   const canConfirm = !isConfirmed && incompleteTasks.length === 0;
 
   const [reflectionText, setReflectionText] = useState(record.reflectionText ?? "");
+
+  useEffect(() => {
+    if (!isAutoCompletedEmptyDay || record.reviewCompleted) return;
+
+    setAppData((current) => ({
+      ...current,
+      dailyRecords: confirmDailyRecord(
+        syncDailyRecordFromTasks(current.dailyRecords ?? {}, dateKey, []),
+        dateKey,
+        { reflectionText: current.dailyRecords?.[dateKey]?.reflectionText ?? "" }
+      ),
+    }));
+  }, [isAutoCompletedEmptyDay, record.reviewCompleted, dateKey, setAppData]);
 
   useEffect(() => {
     return () => {
@@ -443,9 +487,46 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     );
   };
 
-  const handleToggleTask = (task) => {
-    if (isConfirmed || isReminder(task)) return;
+  const completeTask = (task) => {
+    const reminderFlag = isReminder(task);
+    const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
+    const minutes = reminderFlag ? 0 : getInitialActualMinutes(task, workLog);
+    const seconds = reminderFlag ? 0 : minutes * 60;
 
+    setAppData((current) => {
+      const nextTasks = (current.tasks ?? []).map((item) =>
+        item.id === task.id
+          ? {
+              ...item,
+              completed: true,
+              taskStatus: "completed",
+              completedAt: new Date().toISOString(),
+              actualMinutes: minutes,
+              actualSeconds: seconds,
+              workedMinutes: minutes,
+              focusMinutes: minutes,
+            }
+          : item
+      );
+
+      const nextWorkLogs = reminderFlag
+        ? current.workLogs ?? []
+        : [
+            ...(current.workLogs ?? []).filter((log) => log.taskId !== task.id),
+            { id: Date.now(), taskId: task.id, taskTitle: task.title, category: task.category, minutes, seconds, date: dateKey },
+          ];
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        workLogs: nextWorkLogs,
+        dailyRecords: syncCurrentDateRecords(current, nextTasks),
+      };
+    });
+  };
+
+  const handleToggleTask = (task) => {
+    if (isConfirmed) return;
     const nextCompleted = !isCompleted(task);
 
     if (!nextCompleted) {
@@ -457,6 +538,11 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
         );
         return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
       });
+      return;
+    }
+
+    if (isReminder(task)) {
+      completeTask(task);
       return;
     }
 
@@ -473,44 +559,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
       return;
     }
 
-    const minutes = getInitialActualMinutes(task, workLog);
-
-    setAppData((current) => {
-      const nextTasks = (current.tasks ?? []).map((item) =>
-        item.id === task.id
-          ? {
-              ...item,
-              completed: true,
-              taskStatus: "completed",
-              completedAt: new Date().toISOString(),
-              actualMinutes: minutes,
-              actualSeconds: minutes * 60,
-              workedMinutes: minutes,
-              focusMinutes: minutes,
-            }
-          : item
-      );
-
-      const nextWorkLogs = [
-        ...(current.workLogs ?? []).filter((log) => log.taskId !== task.id),
-        {
-          id: Date.now(),
-          taskId: task.id,
-          taskTitle: task.title,
-          category: task.category,
-          minutes,
-          seconds: minutes * 60,
-          date: dateKey,
-        },
-      ];
-
-      return {
-        ...current,
-        tasks: nextTasks,
-        workLogs: nextWorkLogs,
-        dailyRecords: syncCurrentDateRecords(current, nextTasks),
-      };
-    });
+    completeTask(task);
   };
 
   const handleEditTask = (task) => {
@@ -541,13 +590,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
       };
     });
 
-    showUndoToast({
-      type: "delete",
-      message: "削除しました",
-      taskTitle: task.title,
-      task,
-      workLogs: deletedLogs,
-    });
+    showUndoToast({ type: "delete", message: "削除しました", taskTitle: task.title, task, workLogs: deletedLogs });
   };
 
   const handlePostponeTomorrow = (task) => {
@@ -571,22 +614,10 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
             }
           : item
       );
-
-      return {
-        ...current,
-        tasks: nextTasks,
-        dailyRecords: syncCurrentDateRecords(current, nextTasks),
-      };
+      return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
     });
 
-    showUndoToast({
-      type: "postpone",
-      message: "明日に移動しました",
-      taskTitle: task.title,
-      task,
-      originalDate,
-      movedDate: tomorrowKey,
-    });
+    showUndoToast({ type: "postpone", message: "明日に移動しました", taskTitle: task.title, task, originalDate, movedDate: tomorrowKey });
   };
 
   const handleSaveWorkLog = (log) => {
@@ -610,19 +641,10 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
 
       const nextWorkLogs = [
         ...(current.workLogs ?? []).filter((item) => item.taskId !== log.taskId),
-        {
-          ...log,
-          id: Date.now(),
-          date: dateKey,
-        },
+        { ...log, id: Date.now(), date: dateKey },
       ];
 
-      return {
-        ...current,
-        tasks: nextTasks,
-        workLogs: nextWorkLogs,
-        dailyRecords: syncCurrentDateRecords(current, nextTasks),
-      };
+      return { ...current, tasks: nextTasks, workLogs: nextWorkLogs, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
     });
   };
 
@@ -647,7 +669,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
   };
 
   const undoLastAction = () => {
-    if (!undoToast || isConfirmed) return;
+    if (!undoToast) return;
 
     if (undoToast.type === "delete") {
       setAppData((current) => {
@@ -655,17 +677,8 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
         const nextTasks = exists ? current.tasks ?? [] : [...(current.tasks ?? []), undoToast.task];
         const restoredLogs = undoToast.workLogs ?? [];
         const restoredIds = new Set(restoredLogs.map((log) => log.id));
-        const nextWorkLogs = [
-          ...(current.workLogs ?? []).filter((log) => !restoredIds.has(log.id)),
-          ...restoredLogs,
-        ];
-
-        return {
-          ...current,
-          tasks: nextTasks,
-          workLogs: nextWorkLogs,
-          dailyRecords: syncCurrentDateRecords(current, nextTasks),
-        };
+        const nextWorkLogs = [...(current.workLogs ?? []).filter((log) => !restoredIds.has(log.id)), ...restoredLogs];
+        return { ...current, tasks: nextTasks, workLogs: nextWorkLogs, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
       });
     }
 
@@ -681,12 +694,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
               }
             : task
         );
-
-        return {
-          ...current,
-          tasks: nextTasks,
-          dailyRecords: syncCurrentDateRecords(current, nextTasks),
-        };
+        return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
       });
     }
 
@@ -700,11 +708,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     setAppData((current) => ({
       ...current,
       dailyRecords: confirmDailyRecord(
-        syncDailyRecordFromTasks(
-          current.dailyRecords ?? {},
-          dateKey,
-          (current.tasks ?? []).filter((task) => getTaskDateKey(task, dateKey) === dateKey)
-        ),
+        syncDailyRecordFromTasks(current.dailyRecords ?? {}, dateKey, (current.tasks ?? []).filter((task) => getTaskDateKey(task, dateKey) === dateKey)),
         dateKey,
         { reflectionText }
       ),
@@ -725,7 +729,13 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
         <div className="space-y-0">
           <SummaryCard record={record} />
 
-          {isConfirmed && (
+          {isAutoCompletedEmptyDay && (
+            <div className="mb-3 rounded-[20px] bg-emerald-50 px-4 py-3 text-[13px] font-black leading-5 text-emerald-700">
+              この日は記録されたTodoがないため、振り返りは自動で完了しました。
+            </div>
+          )}
+
+          {!isAutoCompletedEmptyDay && isConfirmed && (
             <div className="mb-3 rounded-[20px] bg-emerald-50 px-4 py-3 text-[13px] font-black leading-5 text-emerald-700">
               {formatJapaneseDate(dateKey)}の振り返りは完了しました。
             </div>
@@ -749,13 +759,15 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
             onToggleMenu={(id) => setOpenMenuId((current) => (current === id ? null : id))}
           />
 
-          <LongTaskSection />
+          {!isAutoCompletedEmptyDay && <LongTaskSection />}
 
-          <ReflectionSection
-            reflectionText={reflectionText}
-            setReflectionText={setReflectionText}
-            disabled={isConfirmed}
-          />
+          {!isAutoCompletedEmptyDay && (
+            <ReflectionSection
+              reflectionText={reflectionText}
+              setReflectionText={setReflectionText}
+              disabled={isConfirmed}
+            />
+          )}
         </div>
 
         {!isConfirmed && (

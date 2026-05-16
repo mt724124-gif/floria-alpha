@@ -16,10 +16,13 @@ export function createEmptyDailyRecord(dateKey) {
   return {
     date: dateKey,
 
-    status: "draft", // draft | confirmed
-reviewed: false,
-reviewedAt: null,
-confirmedAt: null,
+    status: "draft",
+    reviewed: false,
+    reviewedAt: null,
+    confirmedAt: null,
+
+    reviewCompleted: false,
+    reviewCompletedAt: null,
 
     tasks: [],
 
@@ -53,11 +56,14 @@ export function getOrCreateDailyRecord(
   return dailyRecords[dateKey] ?? createEmptyDailyRecord(dateKey);
 }
 
+function isRecordConfirmed(record) {
+  return record?.status === "confirmed" || record?.reviewCompleted === true || record?.reviewed === true;
+}
+
 function normalizeTaskStatus(task, options = {}) {
   if (options.taskStatus) return options.taskStatus;
 
   const completed = Boolean(options.completed ?? task?.completed ?? false);
-
   if (completed) return "completed";
 
   return task?.taskStatus ?? "pending";
@@ -108,8 +114,8 @@ export function createTaskSnapshot(task, options = {}) {
     memo: task.memo ?? "",
 
     type: task.type ?? "todo",
-schedule: task.schedule ?? null,
-reminder: task.reminder ?? null,
+    schedule: task.schedule ?? null,
+    reminder: task.reminder ?? null,
 
     createdAt: task.createdAt ?? now,
     updatedAt: now,
@@ -117,12 +123,17 @@ reminder: task.reminder ?? null,
 }
 
 export function recalculateDailyRecord(record) {
+  const now = new Date().toISOString();
   const tasks = record.tasks ?? [];
 
   const activeTasks = tasks.filter((task) => task.taskStatus !== "deleted");
   const completedTasks = activeTasks.filter(
     (task) => task.taskStatus === "completed"
   );
+
+  const pendingTaskCount = activeTasks.filter(
+    (task) => task.taskStatus === "pending"
+  ).length;
 
   const totalEstimatedMinutes = activeTasks.reduce(
     (sum, task) => sum + Number(task.estimatedMinutes ?? 0),
@@ -136,10 +147,6 @@ export function recalculateDailyRecord(record) {
 
   const completedTaskCount = completedTasks.length;
   const createdTaskCount = activeTasks.length;
-
-  const pendingTaskCount = activeTasks.filter(
-    (task) => task.taskStatus === "pending"
-  ).length;
 
   const postponedTaskCount = tasks.filter(
     (task) => task.taskStatus === "postponed"
@@ -162,17 +169,56 @@ export function recalculateDailyRecord(record) {
 
   activeTasks.forEach((task) => {
     const category = task.category ?? "その他";
-
-    if (categoryMinutes[category] == null) {
-      categoryMinutes[category] = 0;
-    }
-
+    if (categoryMinutes[category] == null) categoryMinutes[category] = 0;
     categoryMinutes[category] += Number(task.actualMinutes ?? 0);
   });
+
+  let status = record.status ?? "draft";
+  let reviewed = record.reviewed ?? false;
+  let reviewedAt = record.reviewedAt ?? null;
+  let confirmedAt = record.confirmedAt ?? null;
+  let reviewCompleted = record.reviewCompleted ?? false;
+  let reviewCompletedAt = record.reviewCompletedAt ?? null;
+
+  if (createdTaskCount === 0) {
+    status = "confirmed";
+    reviewed = true;
+    reviewedAt = reviewedAt ?? now;
+    confirmedAt = confirmedAt ?? now;
+    reviewCompleted = true;
+    reviewCompletedAt = reviewCompletedAt ?? confirmedAt ?? now;
+  } else if (pendingTaskCount > 0) {
+    status = "draft";
+    reviewed = false;
+    reviewedAt = null;
+    confirmedAt = null;
+    reviewCompleted = false;
+    reviewCompletedAt = null;
+  } else if (isRecordConfirmed(record)) {
+    status = "confirmed";
+    reviewed = true;
+    reviewedAt = reviewedAt ?? now;
+    confirmedAt = confirmedAt ?? now;
+    reviewCompleted = true;
+    reviewCompletedAt = reviewCompletedAt ?? confirmedAt ?? now;
+  } else {
+    status = "draft";
+    reviewed = false;
+    reviewedAt = null;
+    confirmedAt = null;
+    reviewCompleted = false;
+    reviewCompletedAt = null;
+  }
 
   return {
     ...record,
     tasks,
+    status,
+    reviewed,
+    reviewedAt,
+    confirmedAt,
+    reviewCompleted,
+    reviewCompletedAt,
     totalEstimatedMinutes,
     totalActualMinutes,
     completedTaskCount,
@@ -183,7 +229,7 @@ export function recalculateDailyRecord(record) {
     abandonedTaskCount,
     achievementRate,
     categoryMinutes,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
   };
 }
 
@@ -206,8 +252,6 @@ export function upsertTaskToDailyRecord(record, taskSnapshot) {
   return recalculateDailyRecord({
     ...record,
     tasks: nextTasks,
-    status: record.status ?? "draft",
-    reviewed: record.reviewed ?? false,
     updatedAt: new Date().toISOString(),
   });
 }
@@ -298,6 +342,9 @@ export function confirmDailyRecord(
     reviewedAt: now,
     confirmedAt: now,
 
+    reviewCompleted: true,
+    reviewCompletedAt: now,
+
     reflectionText:
       reviewData.reflectionText ?? currentRecord.reflectionText ?? "",
     mood: reviewData.mood ?? currentRecord.mood ?? null,
@@ -324,6 +371,9 @@ export function unconfirmDailyRecord(dailyRecords = {}, dateKey) {
     reviewedAt: null,
     confirmedAt: null,
 
+    reviewCompleted: false,
+    reviewCompletedAt: null,
+
     updatedAt: new Date().toISOString(),
   });
 
@@ -341,7 +391,7 @@ export function getDailyRecordList(dailyRecords = {}) {
 
 export function getConfirmedDailyRecordList(dailyRecords = {}) {
   return getDailyRecordList(dailyRecords).filter(
-    (record) => record.status === "confirmed"
+    (record) => record.status === "confirmed" || record.reviewCompleted === true
   );
 }
 
@@ -352,15 +402,27 @@ export function syncDailyRecordFromTasks(dailyRecords = {}, dateKey, tasks = [])
 
   const syncedTasks = tasks.map((task) => {
     const existing = existingById.get(task.id);
+    const taskStatus =
+      task.taskStatus ??
+      (task.completed ? "completed" : existing?.taskStatus === "completed" && task.completed ? "completed" : "pending");
 
     return createTaskSnapshot(task, {
-      actualMinutes: task.actualMinutes ?? existing?.actualMinutes ?? 0,
-      actualSeconds: task.actualSeconds ?? existing?.actualSeconds ?? 0,
-      completed: task.completed ?? existing?.completed ?? false,
-      taskStatus: task.completed ? "completed" : "pending",
-      completedAt: task.completed
-        ? task.completedAt ?? existing?.completedAt ?? new Date().toISOString()
-        : null,
+      actualMinutes:
+        task.actualMinutes ??
+        task.workedMinutes ??
+        task.focusMinutes ??
+        existing?.actualMinutes ??
+        0,
+      actualSeconds:
+        task.actualSeconds ??
+        existing?.actualSeconds ??
+        0,
+      completed: taskStatus === "completed",
+      taskStatus,
+      completedAt:
+        taskStatus === "completed"
+          ? task.completedAt ?? existing?.completedAt ?? new Date().toISOString()
+          : null,
       usedTimer: task.usedTimer ?? existing?.usedTimer ?? false,
       timerSessionCount:
         existing?.timerSessionCount ?? task.timerSessionCount ?? 0,

@@ -22,7 +22,6 @@ import {
   TrendingUp,
   X,
   ArrowRight,
-  ArrowLeft,
 } from "lucide-react";
 import {
   getOrCreateDailyRecord,
@@ -97,6 +96,10 @@ function isReminder(todo) {
     Boolean(todo?.reminder) ||
     Number(todo?.estimatedMinutes) === 0
   );
+}
+
+function isCompleted(todo) {
+  return todo?.completed === true || todo?.taskStatus === "completed";
 }
 
 function getReminderLabel(todo) {
@@ -180,6 +183,7 @@ function Header({ selectedDate, onChangeDate }) {
 }
 
 function TodayGoalCard({
+  totalCount,
   incompleteCount,
   selectedTask,
   onStartTimer,
@@ -236,7 +240,7 @@ function TodayGoalCard({
               追加・編集はできます。実行と達成は当日にできます。
             </p>
           </>
-        ) : isReviewConfirmed ? (
+        ) : isReviewConfirmed && totalCount > 0 ? (
           <>
             <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
               今日のタスクは完了しました！
@@ -262,6 +266,15 @@ function TodayGoalCard({
               {selectedIsReminder
                 ? getReminderLabel(selectedTask)
                 : "このタスクを開始できます。"}
+            </p>
+          </>
+        ) : totalCount === 0 ? (
+          <>
+            <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+              まずはTodoを1つ追加しよう
+            </h1>
+            <p className="text-[12px] font-bold leading-relaxed text-slate-400">
+              今日やることを追加すると、ここから集中を始められます。
             </p>
           </>
         ) : (
@@ -292,7 +305,7 @@ function TodayGoalCard({
           ? "過去日は操作できません"
           : isFutureDate
             ? "未来日は開始できません"
-            : isReviewConfirmed
+            : isReviewConfirmed && totalCount > 0
               ? "振り返りは完了済みです"
               : selectedTask
                 ? selectedIsReminder
@@ -374,7 +387,7 @@ function TodoItem({
   const itemDisabled = !canSelect && !canEdit && !canDelete && !canMoveTomorrow;
 
   const startSwipe = (event) => {
-    if (dragging || itemDisabled || todo.completed) return;
+    if (dragging || itemDisabled || isCompleted(todo)) return;
     if (event.pointerType === "mouse") return;
     swipeStartRef.current = { x: event.clientX, y: event.clientY };
     swipeActiveRef.current = true;
@@ -428,17 +441,17 @@ function TodoItem({
         selected ? "bg-emerald-50/70" : "bg-white"
       } ${dropTarget && !dragging ? "bg-slate-50" : ""}`}
     >
-      {!todo.completed && canDelete && (
-        <div className="absolute inset-y-0 left-0 z-0 flex w-28 items-center justify-start bg-red-50 px-4 text-red-500">
-          <Trash2 className="h-5 w-5" />
-          <span className="ml-1.5 text-xs font-black">削除</span>
+      {!isCompleted(todo) && canMoveTomorrow && (
+        <div className="absolute inset-y-0 left-0 z-0 flex w-32 items-center justify-start bg-amber-50 px-4 text-amber-600">
+          <ArrowRight className="h-5 w-5 rotate-180" />
+          <span className="ml-1.5 text-xs font-black">明日へ</span>
         </div>
       )}
 
-      {!todo.completed && canMoveTomorrow && (
-        <div className="absolute inset-y-0 right-0 z-0 flex w-32 items-center justify-end bg-amber-50 px-4 text-amber-600">
-          <span className="mr-1.5 text-xs font-black">明日へ</span>
-          <ArrowRight className="h-5 w-5" />
+      {!isCompleted(todo) && canDelete && (
+        <div className="absolute inset-y-0 right-0 z-0 flex w-28 items-center justify-end bg-red-50 px-4 text-red-500">
+          <span className="mr-1.5 text-xs font-black">削除</span>
+          <Trash2 className="h-5 w-5" />
         </div>
       )}
 
@@ -502,7 +515,7 @@ function TodoItem({
               onToggle(todo.id);
             }}
             className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
-              todo.completed
+              isCompleted(todo)
                 ? "border-emerald-500 bg-emerald-500 text-white"
                 : "border-slate-300 bg-white text-transparent"
             } ${completeDisabled ? "cursor-not-allowed opacity-45" : ""}`}
@@ -519,7 +532,7 @@ function TodoItem({
           >
             <p
               className={`flex items-center gap-1 truncate text-[14px] font-extrabold tracking-[-0.02em] ${
-                todo.completed ? "text-slate-400" : "text-slate-950"
+                isCompleted(todo) ? "text-slate-400" : "text-slate-950"
               }`}
             >
               {reminder && (
@@ -598,7 +611,7 @@ function TodoItem({
               </button>
             )}
 
-            {canMoveTomorrow && !todo.completed && (
+            {canMoveTomorrow && !isCompleted(todo) && (
               <button
                 onClick={() => onMoveTomorrow(todo)}
                 className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-amber-600 active:bg-amber-50"
@@ -772,8 +785,8 @@ function TodoListCard({
     };
   }, [onReorder]);
 
-  const incomplete = todos.filter((t) => !t.completed);
-  const completed = todos.filter((t) => t.completed);
+  const incomplete = todos.filter((t) => !isCompleted(t));
+  const completed = todos.filter((t) => isCompleted(t));
   const visible = activeTab === "incomplete" ? incomplete : completed;
 
   return (
@@ -1092,8 +1105,10 @@ export default function TodayPage({
   }, [appData.dailyRecords, selectedDateKey, filteredTodos]);
 
   const dailyRecord = getOrCreateDailyRecord(syncedDailyRecords, selectedDateKey);
+  const totalCount = filteredTodos.length;
   const isReviewConfirmed =
-    dailyRecord.status === "confirmed" || dailyRecord.reviewCompleted === true;
+    totalCount > 0 &&
+    (dailyRecord.status === "confirmed" || dailyRecord.reviewCompleted === true);
 
   const canAddTodo = !isPastDate;
   const canSelectTask = isTodayDate && !isReviewConfirmed;
@@ -1149,10 +1164,10 @@ export default function TodayPage({
   const undoTimerRef = useRef(null);
 
   const selectedTask =
-    filteredTodos.find((todo) => todo.id === selectedTaskId && !todo.completed) ??
+    filteredTodos.find((todo) => todo.id === selectedTaskId && !isCompleted(todo)) ??
     null;
 
-  const completedCount = filteredTodos.filter((t) => t.completed).length;
+  const completedCount = filteredTodos.filter((t) => isCompleted(t)).length;
   const incompleteCount = filteredTodos.length - completedCount;
 
   const showUndoToast = (toast) => {
@@ -1171,7 +1186,7 @@ export default function TodayPage({
     if (!selectedTaskId) return;
 
     const existsInSelectedDate = filteredTodos.some(
-      (todo) => todo.id === selectedTaskId && !todo.completed
+      (todo) => todo.id === selectedTaskId && !isCompleted(todo)
     );
 
     if (!existsInSelectedDate || !canSelectTask) {
@@ -1209,6 +1224,8 @@ export default function TodayPage({
           ? {
               ...todo,
               completed: timerCompletion.completed === true,
+              taskStatus: timerCompletion.completed === true ? "completed" : todo.taskStatus ?? "pending",
+              completedAt: timerCompletion.completed === true ? new Date().toISOString() : todo.completedAt ?? null,
               actualMinutes: timerCompletion.actualMinutes,
               actualSeconds: timerCompletion.actualSeconds,
               workedMinutes: timerCompletion.actualMinutes,
@@ -1291,7 +1308,7 @@ export default function TodayPage({
 
       if (
         selectedTaskId === normalizedTodoData.id &&
-        (normalizedTodoData.completed || reminderFlag || !canSelectTask)
+        (isCompleted(normalizedTodoData) || reminderFlag || !canSelectTask)
       ) {
         setSelectedTaskId(null);
       }
@@ -1303,6 +1320,8 @@ export default function TodayPage({
       ...normalizedTodoData,
       id: Date.now(),
       completed: false,
+      taskStatus: "pending",
+      completedAt: null,
       createdDate: selectedDateKey,
       targetDate:
         normalizedTodoData.targetDate ??
@@ -1314,7 +1333,7 @@ export default function TodayPage({
 
     setTodos((current) => [...current, newTodo]);
 
-    if (!reminderFlag && canSelectTask) {
+    if (!reminderFlag && isTodayDate) {
       setSelectedTaskId(newTodo.id);
     } else {
       setSelectedTaskId(null);
@@ -1323,7 +1342,7 @@ export default function TodayPage({
     setActiveTab("incomplete");
   };
 
-  const completeTodo = (target) => {
+  const completeTodo = (target, keepIncompleteTab = false) => {
     const savedWorkLog = workLogs.find((log) => log.taskId === target.id);
     const actualMinutes = getInitialActualMinutes(target, savedWorkLog);
 
@@ -1333,6 +1352,8 @@ export default function TodayPage({
           ? {
               ...todo,
               completed: true,
+              taskStatus: "completed",
+              completedAt: new Date().toISOString(),
               actualMinutes,
               actualSeconds: actualMinutes * 60,
               workedMinutes: actualMinutes,
@@ -1357,7 +1378,7 @@ export default function TodayPage({
     ]);
 
     setSelectedTaskId((current) => (current === target.id ? null : current));
-    setActiveTab("completed");
+    setActiveTab(keepIncompleteTab ? "incomplete" : "completed");
   };
 
   const toggleTodo = (id) => {
@@ -1366,12 +1387,19 @@ export default function TodayPage({
     const target = todos.find((todo) => todo.id === id);
     if (!target || isReminder(target)) return;
 
-    const nextCompleted = !target.completed;
+    const nextCompleted = !isCompleted(target);
 
     if (!nextCompleted) {
       setTodos((current) =>
         current.map((todo) =>
-          todo.id === id ? { ...todo, completed: false } : todo
+          todo.id === id
+            ? {
+                ...todo,
+                completed: false,
+                taskStatus: "pending",
+                completedAt: null,
+              }
+            : todo
         )
       );
       setSelectedTaskId(id);
@@ -1431,6 +1459,9 @@ export default function TodayPage({
         item.id === todo.id
           ? {
               ...item,
+              completed: false,
+              taskStatus: "pending",
+              completedAt: null,
               targetDate: tomorrowKey,
               date: item.date === originalDate ? tomorrowKey : item.date,
               schedule: item.schedule
@@ -1474,7 +1505,7 @@ export default function TodayPage({
         ];
       });
 
-      if (getTodoDateKey(undoToast.todo) === selectedDateKey && !undoToast.todo.completed) {
+      if (getTodoDateKey(undoToast.todo) === selectedDateKey && !isCompleted(undoToast.todo)) {
         setSelectedTaskId(undoToast.todo.id);
       }
     }
@@ -1498,7 +1529,7 @@ export default function TodayPage({
         )
       );
 
-      if (!undoToast.todo.completed && undoToast.originalDate === selectedDateKey) {
+      if (!isCompleted(undoToast.todo) && undoToast.originalDate === selectedDateKey) {
         setSelectedTaskId(undoToast.todo.id);
       }
     }
@@ -1559,6 +1590,8 @@ export default function TodayPage({
               workedMinutes: log.minutes,
               focusMinutes: log.minutes,
               completed: log.completeAfterSave ? true : todo.completed,
+              taskStatus: log.completeAfterSave ? "completed" : todo.taskStatus ?? "pending",
+              completedAt: log.completeAfterSave ? new Date().toISOString() : todo.completedAt ?? null,
               targetDate: getTodoDateKey(todo),
             }
           : todo
@@ -1567,7 +1600,7 @@ export default function TodayPage({
 
     if (log.completeAfterSave) {
       setSelectedTaskId(null);
-      setActiveTab("completed");
+      setActiveTab("incomplete");
     }
   };
 
@@ -1607,6 +1640,7 @@ export default function TodayPage({
 
         <main className="space-y-2.5 min-[390px]:space-y-3">
           <TodayGoalCard
+            totalCount={totalCount}
             incompleteCount={incompleteCount}
             selectedTask={selectedTask}
             onStartTimer={startTimer}
@@ -1636,7 +1670,7 @@ export default function TodayPage({
             canReorder={canReorderTask}
             onSelect={(todo) => {
               if (!canSelectTask) return;
-              if (!todo.completed && !isReminder(todo)) setSelectedTaskId(todo.id);
+              if (!isCompleted(todo) && !isReminder(todo)) setSelectedTaskId(todo.id);
             }}
             onToggle={toggleTodo}
             onEdit={(todo) => {
