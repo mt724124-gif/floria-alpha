@@ -37,6 +37,7 @@ export default function App() {
   const [timerTask, setTimerTask] = useState(null);
   const [timerCompletion, setTimerCompletion] = useState(null);
   const [taskUpdateRequest, setTaskUpdateRequest] = useState(null);
+  const [reviewDateKey, setReviewDateKey] = useState(getTodayKey());
 
   const [appData, setAppData] = useState(() => {
     return {
@@ -138,15 +139,19 @@ export default function App() {
     <>
       {screen === "today" && (
         <TodayPage
-          onOpenTimer={openTimer}
-          timerCompletion={timerCompletion}
-          onTimerCompletionHandled={() => setTimerCompletion(null)}
-          taskUpdateRequest={taskUpdateRequest}
-          onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
-          appData={appData}
-          setAppData={updateAppData}
-          onNavigate={setScreen}
-        />
+  onOpenTimer={openTimer}
+  timerCompletion={timerCompletion}
+  onTimerCompletionHandled={() => setTimerCompletion(null)}
+  taskUpdateRequest={taskUpdateRequest}
+  onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
+  appData={appData}
+  setAppData={updateAppData}
+  onNavigate={setScreen}
+  onOpenReview={(dateKey) => {
+    setReviewDateKey(dateKey);
+    setScreen("review");
+  }}
+/>
       )}
 
       {screen === "calendar" && (
@@ -163,6 +168,7 @@ export default function App() {
 
 {screen === "review" && (
   <ReviewPage
+    dateKey={reviewDateKey}
     appData={appData}
     setAppData={updateAppData}
     onNavigate={setScreen}

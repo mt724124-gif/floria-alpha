@@ -22,7 +22,6 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-
 import {
   getOrCreateDailyRecord,
   syncDailyRecordFromTasks,
@@ -46,44 +45,13 @@ function formatDateForInput(date) {
 
 const todayKey = formatDateForInput(new Date());
 
-const initialTodos = [
-  {
-    id: 1,
-    title: "英単語を30個覚える",
-    category: "学習",
-    estimatedMinutes: 30,
-    completed: false,
-    schedule: null,
-    createdDate: todayKey,
-    targetDate: todayKey,
-  },
-  {
-    id: 2,
-    title: "プログラミングの課題に取り組む",
-    category: "仕事",
-    estimatedMinutes: 90,
-    completed: false,
-    schedule: null,
-    createdDate: todayKey,
-    targetDate: todayKey,
-  },
-  {
-    id: 3,
-    title: "ジムでトレーニング",
-    category: "健康",
-    estimatedMinutes: 60,
-    completed: false,
-    schedule: null,
-    createdDate: todayKey,
-    targetDate: todayKey,
-  },
-];
+const initialTodos = [];
 
 const initialWorkLogs = [];
 
 function formatMinutes(totalMinutes) {
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
+  const h = Math.floor((Number(totalMinutes) || 0) / 60);
+  const m = (Number(totalMinutes) || 0) % 60;
   if (h === 0) return `${m}分`;
   if (m === 0) return `${h}時間`;
   return `${h}時間${m}分`;
@@ -124,14 +92,12 @@ function isReminder(todo) {
 
 function getReminderLabel(todo) {
   const lead = todo?.reminder?.reminderLead ?? todo?.schedule?.reminderLead;
-
   if (lead === "0") return "指定時刻にリマインド";
   if (lead === "5") return "5分前にリマインド";
   if (lead === "10") return "10分前にリマインド";
   if (lead === "30") return "30分前にリマインド";
   if (lead === "60") return "1時間前にリマインド";
   if (lead === "1440") return "1日前にリマインド";
-
   return "リマインド予定";
 }
 
@@ -147,7 +113,6 @@ function Header({ selectedDate, onChangeDate }) {
   const handleDateChange = (event) => {
     const value = event.target.value;
     if (!value) return;
-
     const [year, month, day] = value.split("-").map(Number);
     onChangeDate(new Date(year, month - 1, day));
     setCalendarOpen(false);
@@ -156,13 +121,13 @@ function Header({ selectedDate, onChangeDate }) {
   return (
     <div className="relative">
       <AppHeader
-  title={formatDateForHeader(selectedDate)}
-  leftType="menu"
-  rightType="bell"
-  onPrev={() => moveDate(-1)}
-  onNext={() => moveDate(1)}
-  onTitleClick={() => setCalendarOpen((current) => !current)}
-/>
+        title={formatDateForHeader(selectedDate)}
+        leftType="menu"
+        rightType="bell"
+        onPrev={() => moveDate(-1)}
+        onNext={() => moveDate(1)}
+        onTitleClick={() => setCalendarOpen((current) => !current)}
+      />
 
       {calendarOpen && (
         <div className="absolute left-1/2 top-13 z-50 w-[min(280px,calc(100vw-32px))] -translate-x-1/2 rounded-[22px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
@@ -195,6 +160,7 @@ function TodayGoalCard({
   selectedTask,
   onStartTimer,
   isReviewConfirmed = false,
+  isPastDate = false,
 }) {
   const selectedIsReminder = isReminder(selectedTask);
 
@@ -208,7 +174,7 @@ function TodayGoalCard({
         className="pointer-events-none absolute right-0 top-6 z-0 h-[116px] w-[132px] object-contain opacity-95 min-[390px]:h-[128px] min-[390px]:w-[146px]"
       />
 
-     <div className="relative z-10 min-h-[104px] pr-[104px] min-[390px]:pr-[116px]">
+      <div className="relative z-10 min-h-[104px] pr-[104px] min-[390px]:pr-[116px]">
         <div className="mb-2 flex items-center gap-2 text-[13px] font-extrabold text-slate-900">
           <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-amber-100 text-[13px]">
             ☀️
@@ -216,17 +182,34 @@ function TodayGoalCard({
           {selectedTask ? "選択中のタスク" : "今日の目標"}
         </div>
 
-        {isReviewConfirmed ? (
-  <>
-    <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
-      今日のタスクは完了しました！
-    </h1>
-
-    <p className="text-[12px] font-bold leading-relaxed text-slate-400">
-      お疲れ様でした。今日の記録は確定されています。
-    </p>
-  </>
-) : selectedTask ? (
+        {isPastDate && isReviewConfirmed ? (
+          <>
+            <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+              この日の振り返りは完了しました
+            </h1>
+            <p className="text-[12px] font-bold leading-relaxed text-slate-400">
+              過去日のため、Todoの追加・編集はできません。
+            </p>
+          </>
+        ) : isPastDate ? (
+          <>
+            <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+              この日は振り返りが未完了です
+            </h1>
+            <p className="text-[12px] font-bold leading-relaxed text-amber-600">
+              詳細を見るから未達成タスクを整理してください。
+            </p>
+          </>
+        ) : isReviewConfirmed ? (
+          <>
+            <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+              今日のタスクは完了しました！
+            </h1>
+            <p className="text-[12px] font-bold leading-relaxed text-slate-400">
+              お疲れ様でした。追加したいTodoがあれば、まだ追加できます。
+            </p>
+          </>
+        ) : selectedTask ? (
           <>
             <h1 className="mb-1.5 line-clamp-2 text-[20px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[22px]">
               {selectedTask.title}
@@ -260,33 +243,33 @@ function TodayGoalCard({
       </div>
 
       <button
-  onClick={selectedTask && !isReviewConfirmed ? onStartTimer : undefined}
-  disabled={!selectedTask || isReviewConfirmed}
+        onClick={selectedTask && !isReviewConfirmed && !isPastDate ? onStartTimer : undefined}
+        disabled={!selectedTask || isReviewConfirmed || isPastDate}
         className={`relative z-10 mt-1.5 flex h-11 w-full items-center justify-center gap-2 rounded-[16px] text-[14px] font-black active:scale-[0.985] min-[390px]:h-12 min-[390px]:text-[15px] ${
-          selectedTask
+          selectedTask && !isReviewConfirmed && !isPastDate
             ? selectedIsReminder
               ? "bg-emerald-50 text-emerald-600 shadow-none"
               : "bg-emerald-500 text-white shadow-[0_12px_22px_rgba(16,185,129,0.26)]"
             : "cursor-not-allowed bg-slate-200 text-slate-400 shadow-none"
         }`}
       >
-        {selectedTask ? (
-  selectedIsReminder ? (
-    <Bell className="h-5 w-5" />
-  ) : (
-    <Play className="h-5 w-5 fill-white" />
-  )
-) : (
-  <Play className="h-5 w-5 fill-current" />
-)}
+        {selectedTask && !selectedIsReminder ? (
+          <Play className="h-5 w-5 fill-white" />
+        ) : selectedTask && selectedIsReminder ? (
+          <Bell className="h-5 w-5" />
+        ) : (
+          <Play className="h-5 w-5 fill-current" />
+        )}
 
-{isReviewConfirmed
-  ? "今日の振り返りは完了済みです"
-  : selectedTask
-    ? selectedIsReminder
-      ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
-      : "このタスクで集中開始"
-    : "タスクを選択してください"}
+        {isPastDate
+          ? "過去日は操作できません"
+          : isReviewConfirmed
+            ? "振り返りは完了済みです"
+            : selectedTask
+              ? selectedIsReminder
+                ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
+                : "このタスクで集中開始"
+              : "タスクを選択してください"}
       </button>
     </section>
   );
@@ -327,6 +310,7 @@ function TabButton({ active, label, onClick }) {
 
 function TodoItem({
   todo,
+  disabled = false,
   selected,
   menuOpen,
   dragging,
@@ -349,7 +333,7 @@ function TodoItem({
     <div
       data-todo-id={todo.id}
       onClick={(event) => {
-        if (event.defaultPrevented) return;
+        if (event.defaultPrevented || disabled) return;
         onSelect(todo);
       }}
       style={
@@ -359,9 +343,9 @@ function TodoItem({
             }
           : undefined
       }
-      className={`relative cursor-pointer border-b border-slate-100 px-3 py-2 last:border-b-0 transition-transform duration-100 ease-out ${
-        selected ? "bg-emerald-50/70" : "bg-white"
-      } ${
+      className={`relative border-b border-slate-100 px-3 py-2 last:border-b-0 transition-transform duration-100 ease-out ${
+        disabled ? "cursor-default opacity-80" : "cursor-pointer"
+      } ${selected ? "bg-emerald-50/70" : "bg-white"} ${
         dragging
           ? "pointer-events-none z-40 rounded-[16px] bg-white opacity-95 shadow-[0_12px_28px_rgba(15,23,42,0.16)] ring-1 ring-slate-200"
           : "opacity-100"
@@ -371,12 +355,18 @@ function TodoItem({
         <button
           type="button"
           aria-label="順番を並び替え"
+          disabled={disabled}
           onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => onDragHandlePointerDown(event, todo.id)}
+          onPointerDown={(event) => {
+            if (disabled) return;
+            onDragHandlePointerDown(event, todo.id);
+          }}
           className={`grid h-9 w-7 shrink-0 touch-none select-none place-items-center rounded-xl transition-all ${
-            dragging
-              ? "bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
-              : "text-slate-300 active:bg-slate-100 active:text-slate-500"
+            disabled
+              ? "cursor-not-allowed text-slate-200"
+              : dragging
+                ? "bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
+                : "text-slate-300 active:bg-slate-100 active:text-slate-500"
           }`}
         >
           <GripVertical
@@ -387,34 +377,38 @@ function TodoItem({
         </button>
 
         <button
+          disabled={disabled}
           onClick={(event) => {
             event.stopPropagation();
+            if (disabled) return;
             onToggle(todo.id);
           }}
           className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
             todo.completed
               ? "border-emerald-500 bg-emerald-500 text-white"
               : "border-slate-300 bg-white text-transparent"
-          }`}
+          } ${disabled ? "cursor-not-allowed opacity-70" : ""}`}
         >
           <Check className="h-3.5 w-3.5" strokeWidth={3} />
         </button>
 
         <div
           className="min-w-0 flex-1 touch-manipulation select-none"
-          onPointerDown={(event) => onTaskLongPressPointerDown(event, todo.id)}
+          onPointerDown={(event) => {
+            if (disabled) return;
+            onTaskLongPressPointerDown(event, todo.id);
+          }}
         >
           <p
-  className={`flex items-center gap-1 truncate text-[14px] font-extrabold tracking-[-0.02em] ${
-    todo.completed ? "text-slate-400" : "text-slate-950"
-  }`}
->
-  {reminder && (
-    <Bell className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-  )}
-
-  <span className="truncate">{todo.title}</span>
-</p>
+            className={`flex items-center gap-1 truncate text-[14px] font-extrabold tracking-[-0.02em] ${
+              todo.completed ? "text-slate-400" : "text-slate-950"
+            }`}
+          >
+            {reminder && (
+              <Bell className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+            )}
+            <span className="truncate">{todo.title}</span>
+          </p>
 
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
             {todo.schedule && (
@@ -433,33 +427,39 @@ function TodoItem({
             <div className="flex items-center gap-1 text-slate-400">
               <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
               <span className="text-[11px] font-bold">
-  {reminder
-    ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
-    : formatMinutes(todo.estimatedMinutes)}
-</span>
+                {reminder
+                  ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
+                  : formatMinutes(todo.estimatedMinutes)}
+              </span>
             </div>
           </div>
         </div>
 
         <button
-  data-menu-button="true"
-  onClick={(event) => {
-    event.stopPropagation();
-    onToggleMenu(todo.id);
-  }}
-          className="grid h-8 w-7 shrink-0 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
+          data-menu-button="true"
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (disabled) return;
+            onToggleMenu(todo.id);
+          }}
+          className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
+            disabled
+              ? "cursor-not-allowed text-slate-200"
+              : "text-slate-400 active:bg-slate-100"
+          }`}
         >
           <MoreVertical className="h-[18px] w-[18px]" />
         </button>
       </div>
 
-      {menuOpen && (
-  <div
-    data-menu-popup="true"
-    onPointerDown={(event) => event.stopPropagation()}
-    onClick={(event) => event.stopPropagation()}
-    className="absolute right-3 top-10 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
-  >
+      {menuOpen && !disabled && (
+        <div
+          data-menu-popup="true"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          className="absolute right-3 top-10 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
+        >
           <button
             onClick={() => onEdit(todo)}
             className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-slate-700 active:bg-slate-50"
@@ -493,6 +493,7 @@ function TodoItem({
 
 function TodoListCard({
   todos,
+  disabled = false,
   activeTab,
   setActiveTab,
   selectedTaskId,
@@ -532,7 +533,6 @@ function TodoListCard({
     previousBodyUserSelectRef.current = document.body.style.userSelect;
     document.body.style.touchAction = "none";
     document.body.style.userSelect = "none";
-
     setDraggingId(id);
     setDragOffsetY(0);
     setDropTargetId(null);
@@ -551,6 +551,7 @@ function TodoListCard({
   };
 
   const handleDragHandlePointerDown = (event, id) => {
+    if (disabled) return;
     event.preventDefault();
     event.stopPropagation();
     clearLongPressTimer();
@@ -558,54 +559,38 @@ function TodoListCard({
   };
 
   const handleTaskLongPressPointerDown = (event, id) => {
-    if (event.pointerType === "mouse") return;
-
+    if (disabled || event.pointerType === "mouse") return;
     event.stopPropagation();
     clearLongPressTimer();
-
-    longPressStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      id,
-    };
-
+    longPressStartRef.current = { x: event.clientX, y: event.clientY, id };
     longPressTimerRef.current = setTimeout(() => {
       beginDragging(id, longPressStartRef.current.y);
     }, 260);
   };
 
   useEffect(() => {
-  if (!openMenuId) return;
+    if (!openMenuId) return;
 
-  const closeMenu = (event) => {
-    const clickedInsidePopup = event.target?.closest?.("[data-menu-popup='true']");
-    const clickedMenuButton = event.target?.closest?.("[data-menu-button='true']");
+    const closeMenu = (event) => {
+      const clickedInsidePopup = event.target?.closest?.("[data-menu-popup='true']");
+      const clickedMenuButton = event.target?.closest?.("[data-menu-button='true']");
+      if (clickedInsidePopup || clickedMenuButton) return;
+      setOpenMenuId(null);
+    };
 
-    if (clickedInsidePopup || clickedMenuButton) return;
-
-    setOpenMenuId(null);
-  };
-
-  window.addEventListener("pointerdown", closeMenu, true);
-
-  return () => {
-    window.removeEventListener("pointerdown", closeMenu, true);
-  };
-}, [openMenuId]);
+    window.addEventListener("pointerdown", closeMenu, true);
+    return () => window.removeEventListener("pointerdown", closeMenu, true);
+  }, [openMenuId]);
 
   useEffect(() => {
     const handlePointerMove = (event) => {
       if (longPressTimerRef.current && !draggingIdRef.current) {
         const dx = Math.abs(event.clientX - longPressStartRef.current.x);
         const dy = Math.abs(event.clientY - longPressStartRef.current.y);
-
-        if (dx > 8 || dy > 8) {
-          clearLongPressTimer();
-        }
+        if (dx > 8 || dy > 8) clearLongPressTimer();
       }
 
       if (!draggingIdRef.current) return;
-
       event.preventDefault();
 
       const nextOffsetY = event.clientY - startYRef.current;
@@ -628,21 +613,15 @@ function TodoListCard({
       const shouldPreviewReorder = movedSinceLastReorder > 34;
 
       if (shouldPreviewReorder) {
-  onReorder(draggingIdRef.current, targetId);
-  lastReorderYRef.current = event.clientY;
-  startYRef.current = event.clientY;
-
-  requestAnimationFrame(() => {
-    setDragOffsetY(0);
-  });
-}
+        onReorder(draggingIdRef.current, targetId);
+        lastReorderYRef.current = event.clientY;
+        startYRef.current = event.clientY;
+        requestAnimationFrame(() => setDragOffsetY(0));
+      }
     };
 
     const handlePointerUp = () => {
-      if (longPressTimerRef.current) {
-        clearLongPressTimer();
-      }
-
+      if (longPressTimerRef.current) clearLongPressTimer();
       if (!draggingIdRef.current) return;
       stopDragging();
     };
@@ -688,6 +667,7 @@ function TodoListCard({
             <TodoItem
               key={todo.id}
               todo={todo}
+              disabled={disabled}
               selected={selectedTaskId === todo.id}
               menuOpen={openMenuId === todo.id}
               dragging={draggingId === todo.id}
@@ -752,14 +732,14 @@ function TodayRecordCard({
           </h2>
         </div>
 
-       <button
-  type="button"
-  onClick={onOpenReview}
-  className="flex shrink-0 items-center gap-1 text-[11px] font-black text-emerald-500 min-[390px]:text-[12px]"
->
-  詳細を見る
-  <ChevronRight className="h-5 w-5" />
-</button>
+        <button
+          type="button"
+          onClick={onOpenReview}
+          className="flex shrink-0 items-center gap-1 text-[11px] font-black text-emerald-500 min-[390px]:text-[12px]"
+        >
+          詳細を見る
+          <ChevronRight className="h-5 w-5" />
+        </button>
       </div>
 
       <div className="rounded-[18px] bg-white px-3 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.05)] min-[390px]:px-3.5 min-[390px]:py-3.5">
@@ -821,7 +801,7 @@ function WorkLogModal({ open, targetTodo, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-[calc(14px+env(safe-area-inset-bottom))] backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-3 py-4 backdrop-blur-sm">
       <form
         onSubmit={submit}
         className="max-h-[calc(100dvh-28px)] w-full max-w-[480px] overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl"
@@ -939,9 +919,9 @@ export default function TodayPage({
   appData,
   setAppData,
   onNavigate,
+  onOpenReview,
 }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-
   const selectedDateKey = formatDateForInput(selectedDate);
 
   const todos = appData.tasks ?? initialTodos;
@@ -957,19 +937,16 @@ export default function TodayPage({
   }, [workLogs, selectedDateKey]);
 
   const syncedDailyRecords = useMemo(() => {
-  return syncDailyRecordFromTasks(
-    appData.dailyRecords ?? {},
-    selectedDateKey,
-    filteredTodos
-  );
-}, [appData.dailyRecords, selectedDateKey, filteredTodos]);
+    return syncDailyRecordFromTasks(
+      appData.dailyRecords ?? {},
+      selectedDateKey,
+      filteredTodos
+    );
+  }, [appData.dailyRecords, selectedDateKey, filteredTodos]);
 
-const dailyRecord = getOrCreateDailyRecord(
-  syncedDailyRecords,
-  selectedDateKey
-);
-
-const isReviewConfirmed = dailyRecord.status === "confirmed";
+  const dailyRecord = getOrCreateDailyRecord(syncedDailyRecords, selectedDateKey);
+  const isReviewConfirmed = dailyRecord.status === "confirmed";
+  const isPastDate = selectedDateKey < todayKey;
 
   const setTodos = (updater) => {
     setAppData((current) => ({
@@ -1019,11 +996,6 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
   const completedCount = filteredTodos.filter((t) => t.completed).length;
   const incompleteCount = filteredTodos.length - completedCount;
 
-  const totalWorkMinutes = useMemo(
-    () => filteredWorkLogs.reduce((sum, log) => sum + log.minutes, 0),
-    [filteredWorkLogs]
-  );
-
   useEffect(() => {
     return () => {
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -1037,10 +1009,10 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
       (todo) => todo.id === selectedTaskId && !todo.completed
     );
 
-    if (!existsInSelectedDate) {
+    if (!existsInSelectedDate || isPastDate || isReviewConfirmed) {
       setSelectedTaskId(null);
     }
-  }, [selectedDateKey, filteredTodos, selectedTaskId]);
+  }, [selectedDateKey, filteredTodos, selectedTaskId, isPastDate, isReviewConfirmed]);
 
   useEffect(() => {
     if (!taskUpdateRequest?.id) return;
@@ -1124,6 +1096,8 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
   };
 
   const saveTodo = (todoData) => {
+    if (isPastDate) return;
+
     const normalizedTodoData = {
       ...todoData,
       type: todoData.type ?? (todoData.reminder ? "reminder" : "todo"),
@@ -1183,6 +1157,8 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
   };
 
   const toggleTodo = (id) => {
+    if (isPastDate) return;
+
     const target = todos.find((todo) => todo.id === id);
     if (!target) return;
 
@@ -1204,7 +1180,7 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
   };
 
   const undoComplete = () => {
-    if (!undoToast) return;
+    if (!undoToast || isPastDate) return;
 
     setTodos((current) =>
       current.map((todo) =>
@@ -1219,6 +1195,8 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
   };
 
   const deleteTodo = (todo) => {
+    if (isPastDate) return;
+
     setTodos((current) => current.filter((item) => item.id !== todo.id));
     setWorkLogs((current) => current.filter((log) => log.taskId !== todo.id));
 
@@ -1228,6 +1206,8 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
   };
 
   const reorderTodos = (draggingId, targetId) => {
+    if (isPastDate) return;
+
     setTodos((current) => {
       const currentDateTodos = current.filter(
         (todo) => getTodoDateKey(todo) === selectedDateKey
@@ -1253,6 +1233,8 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
   };
 
   const saveWorkLog = (log) => {
+    if (isPastDate) return;
+
     const seconds = log.seconds ?? log.minutes * 60;
 
     setWorkLogs((current) => [
@@ -1280,15 +1262,13 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
   };
 
   const openWorkLogModal = (todo) => {
+    if (isPastDate) return;
     setWorkLogTargetTodo(todo);
   };
 
   const startTimer = () => {
-    if (!selectedTask) return;
-
-    if (isReminder(selectedTask)) {
-      return;
-    }
+    if (!selectedTask || isPastDate || isReviewConfirmed) return;
+    if (isReminder(selectedTask)) return;
 
     const savedWorkLog = workLogs.find((log) => log.taskId === selectedTask.id);
 
@@ -1308,45 +1288,49 @@ const isReviewConfirmed = dailyRecord.status === "confirmed";
         <Header selectedDate={selectedDate} onChangeDate={setSelectedDate} />
 
         <main className="space-y-2.5 min-[390px]:space-y-3">
-  <TodayGoalCard
-    incompleteCount={incompleteCount}
-    selectedTask={selectedTask}
-    onStartTimer={startTimer}
-    isReviewConfirmed={isReviewConfirmed}
-  />
+          <TodayGoalCard
+            incompleteCount={incompleteCount}
+            selectedTask={selectedTask}
+            onStartTimer={startTimer}
+            isReviewConfirmed={isReviewConfirmed}
+            isPastDate={isPastDate}
+          />
 
-  {!isReviewConfirmed && (
-    <>
-      <AddTodoButton
-        onClick={() =>
-          setTodoModal({ open: true, mode: "add", todo: null })
-        }
-      />
+          {!isPastDate && (
+            <AddTodoButton
+              onClick={() =>
+                setTodoModal({ open: true, mode: "add", todo: null })
+              }
+            />
+          )}
 
-      <TodoListCard
-        todos={filteredTodos}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        selectedTaskId={selectedTaskId}
-        onSelect={(todo) => !todo.completed && setSelectedTaskId(todo.id)}
-        onToggle={toggleTodo}
-        onEdit={(todo) =>
-          setTodoModal({ open: true, mode: "edit", todo })
-        }
-        onDelete={deleteTodo}
-        onWorkLogEdit={openWorkLogModal}
-        onReorder={reorderTodos}
-      />
-    </>
-  )}
+          <TodoListCard
+            todos={filteredTodos}
+            disabled={isPastDate}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            selectedTaskId={selectedTaskId}
+            onSelect={(todo) => {
+              if (isPastDate || isReviewConfirmed) return;
+              if (!todo.completed) setSelectedTaskId(todo.id);
+            }}
+            onToggle={toggleTodo}
+            onEdit={(todo) => {
+              if (isPastDate) return;
+              setTodoModal({ open: true, mode: "edit", todo });
+            }}
+            onDelete={deleteTodo}
+            onWorkLogEdit={openWorkLogModal}
+            onReorder={reorderTodos}
+          />
 
-  <TodayRecordCard
-    totalMinutes={dailyRecord.totalActualMinutes ?? 0}
-    completedCount={dailyRecord.completedTaskCount ?? 0}
-    totalCount={dailyRecord.createdTaskCount ?? 0}
-    onOpenReview={() => onNavigate?.("review")}
-  />
-</main>
+          <TodayRecordCard
+            totalMinutes={dailyRecord.totalActualMinutes ?? 0}
+            completedCount={dailyRecord.completedTaskCount ?? 0}
+            totalCount={dailyRecord.createdTaskCount ?? 0}
+            onOpenReview={() => onOpenReview?.(selectedDateKey)}
+          />
+        </main>
       </div>
 
       <BottomNav active="today" onNavigate={onNavigate} />
