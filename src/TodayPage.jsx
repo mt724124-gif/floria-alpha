@@ -23,6 +23,11 @@ import {
   X,
 } from "lucide-react";
 
+import {
+  getOrCreateDailyRecord,
+  syncDailyRecordFromTasks,
+} from "./utils/dailyRecords";
+
 const defaultCategoryStyles = {
   学習: { icon: BookOpen, color: "text-emerald-500", bg: "bg-emerald-50" },
   仕事: { icon: Briefcase, color: "text-blue-500", bg: "bg-blue-50" },
@@ -151,11 +156,13 @@ function Header({ selectedDate, onChangeDate }) {
   return (
     <div className="relative">
       <AppHeader
-        title={formatDateForHeader(selectedDate)}
-        onPrev={() => moveDate(-1)}
-        onNext={() => moveDate(1)}
-        onTitleClick={() => setCalendarOpen((current) => !current)}
-      />
+  title={formatDateForHeader(selectedDate)}
+  leftType="menu"
+  rightType="bell"
+  onPrev={() => moveDate(-1)}
+  onNext={() => moveDate(1)}
+  onTitleClick={() => setCalendarOpen((current) => !current)}
+/>
 
       {calendarOpen && (
         <div className="absolute left-1/2 top-13 z-50 w-[min(280px,calc(100vw-32px))] -translate-x-1/2 rounded-[22px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
@@ -183,7 +190,12 @@ function Header({ selectedDate, onChangeDate }) {
   );
 }
 
-function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
+function TodayGoalCard({
+  incompleteCount,
+  selectedTask,
+  onStartTimer,
+  isReviewConfirmed = false,
+}) {
   const selectedIsReminder = isReminder(selectedTask);
 
   return (
@@ -196,7 +208,7 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
         className="pointer-events-none absolute right-0 top-6 z-0 h-[116px] w-[132px] object-contain opacity-95 min-[390px]:h-[128px] min-[390px]:w-[146px]"
       />
 
-      <div className="relative z-10 min-h-[104px] pr-[104px] min-[390px]:pr-[116px]">
+     <div className="relative z-10 min-h-[104px] pr-[104px] min-[390px]:pr-[116px]">
         <div className="mb-2 flex items-center gap-2 text-[13px] font-extrabold text-slate-900">
           <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-amber-100 text-[13px]">
             ☀️
@@ -204,7 +216,17 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
           {selectedTask ? "選択中のタスク" : "今日の目標"}
         </div>
 
-        {selectedTask ? (
+        {isReviewConfirmed ? (
+  <>
+    <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+      今日のタスクは完了しました！
+    </h1>
+
+    <p className="text-[12px] font-bold leading-relaxed text-slate-400">
+      お疲れ様でした。今日の記録は確定されています。
+    </p>
+  </>
+) : selectedTask ? (
           <>
             <h1 className="mb-1.5 line-clamp-2 text-[20px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[22px]">
               {selectedTask.title}
@@ -238,8 +260,8 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
       </div>
 
       <button
-        onClick={selectedTask ? onStartTimer : undefined}
-        disabled={!selectedTask}
+  onClick={selectedTask && !isReviewConfirmed ? onStartTimer : undefined}
+  disabled={!selectedTask || isReviewConfirmed}
         className={`relative z-10 mt-1.5 flex h-11 w-full items-center justify-center gap-2 rounded-[16px] text-[14px] font-black active:scale-[0.985] min-[390px]:h-12 min-[390px]:text-[15px] ${
           selectedTask
             ? selectedIsReminder
@@ -258,11 +280,13 @@ function TodayGoalCard({ incompleteCount, selectedTask, onStartTimer }) {
   <Play className="h-5 w-5 fill-current" />
 )}
 
-{selectedTask
-  ? selectedIsReminder
-    ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
-    : "このタスクで集中開始"
-  : "タスクを選択してください"}
+{isReviewConfirmed
+  ? "今日の振り返りは完了済みです"
+  : selectedTask
+    ? selectedIsReminder
+      ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
+      : "このタスクで集中開始"
+    : "タスクを選択してください"}
       </button>
     </section>
   );
@@ -649,7 +673,7 @@ function TodoListCard({
         />
         <TabButton
           active={activeTab === "completed"}
-          label={`達成済み（${completed.length}）`}
+          label={`達成（${completed.length}）`}
           onClick={() => setActiveTab("completed")}
         />
       </div>
@@ -709,7 +733,12 @@ function RecordStat({ label, value }) {
   );
 }
 
-function TodayRecordCard({ totalMinutes, completedCount, totalCount }) {
+function TodayRecordCard({
+  totalMinutes,
+  completedCount,
+  totalCount,
+  onOpenReview,
+}) {
   const rate =
     totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
 
@@ -723,10 +752,14 @@ function TodayRecordCard({ totalMinutes, completedCount, totalCount }) {
           </h2>
         </div>
 
-        <button className="flex shrink-0 items-center gap-1 text-[11px] font-black text-slate-400 min-[390px]:text-[12px]">
-          詳細を見る
-          <ChevronRight className="h-5 w-5" />
-        </button>
+       <button
+  type="button"
+  onClick={onOpenReview}
+  className="flex shrink-0 items-center gap-1 text-[11px] font-black text-emerald-500 min-[390px]:text-[12px]"
+>
+  詳細を見る
+  <ChevronRight className="h-5 w-5" />
+</button>
       </div>
 
       <div className="rounded-[18px] bg-white px-3 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.05)] min-[390px]:px-3.5 min-[390px]:py-3.5">
@@ -873,7 +906,7 @@ function UndoToast({ visible, taskTitle, onUndo, onClose }) {
   return (
     <div className="fixed bottom-[calc(78px+env(safe-area-inset-bottom))] left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-[480px] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-[0_16px_40px_rgba(15,23,42,0.28)]">
       <div className="min-w-0">
-        <p className="truncate text-sm font-black">達成済みにしました</p>
+        <p className="truncate text-sm font-black">にしました</p>
         <p className="truncate text-xs font-bold text-slate-300">{taskTitle}</p>
       </div>
 
@@ -922,6 +955,21 @@ export default function TodayPage({
   const filteredWorkLogs = useMemo(() => {
     return workLogs.filter((log) => (log.date ?? todayKey) === selectedDateKey);
   }, [workLogs, selectedDateKey]);
+
+  const syncedDailyRecords = useMemo(() => {
+  return syncDailyRecordFromTasks(
+    appData.dailyRecords ?? {},
+    selectedDateKey,
+    filteredTodos
+  );
+}, [appData.dailyRecords, selectedDateKey, filteredTodos]);
+
+const dailyRecord = getOrCreateDailyRecord(
+  syncedDailyRecords,
+  selectedDateKey
+);
+
+const isReviewConfirmed = dailyRecord.status === "confirmed";
 
   const setTodos = (updater) => {
     setAppData((current) => ({
@@ -1260,39 +1308,45 @@ export default function TodayPage({
         <Header selectedDate={selectedDate} onChangeDate={setSelectedDate} />
 
         <main className="space-y-2.5 min-[390px]:space-y-3">
-          <TodayGoalCard
-            incompleteCount={incompleteCount}
-            selectedTask={selectedTask}
-            onStartTimer={startTimer}
-          />
+  <TodayGoalCard
+    incompleteCount={incompleteCount}
+    selectedTask={selectedTask}
+    onStartTimer={startTimer}
+    isReviewConfirmed={isReviewConfirmed}
+  />
 
-          <AddTodoButton
-            onClick={() =>
-              setTodoModal({ open: true, mode: "add", todo: null })
-            }
-          />
+  {!isReviewConfirmed && (
+    <>
+      <AddTodoButton
+        onClick={() =>
+          setTodoModal({ open: true, mode: "add", todo: null })
+        }
+      />
 
-          <TodoListCard
-            todos={filteredTodos}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            selectedTaskId={selectedTaskId}
-            onSelect={(todo) => !todo.completed && setSelectedTaskId(todo.id)}
-            onToggle={toggleTodo}
-            onEdit={(todo) =>
-              setTodoModal({ open: true, mode: "edit", todo })
-            }
-            onDelete={deleteTodo}
-            onWorkLogEdit={openWorkLogModal}
-            onReorder={reorderTodos}
-          />
+      <TodoListCard
+        todos={filteredTodos}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        selectedTaskId={selectedTaskId}
+        onSelect={(todo) => !todo.completed && setSelectedTaskId(todo.id)}
+        onToggle={toggleTodo}
+        onEdit={(todo) =>
+          setTodoModal({ open: true, mode: "edit", todo })
+        }
+        onDelete={deleteTodo}
+        onWorkLogEdit={openWorkLogModal}
+        onReorder={reorderTodos}
+      />
+    </>
+  )}
 
-          <TodayRecordCard
-            totalMinutes={totalWorkMinutes}
-            completedCount={completedCount}
-            totalCount={filteredTodos.length}
-          />
-        </main>
+  <TodayRecordCard
+    totalMinutes={dailyRecord.totalActualMinutes ?? 0}
+    completedCount={dailyRecord.completedTaskCount ?? 0}
+    totalCount={dailyRecord.createdTaskCount ?? 0}
+    onOpenReview={() => onNavigate?.("review")}
+  />
+</main>
       </div>
 
       <BottomNav active="today" onNavigate={onNavigate} />

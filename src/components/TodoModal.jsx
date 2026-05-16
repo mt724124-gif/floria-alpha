@@ -403,7 +403,7 @@ export default function TodoModal({
         {mode === "edit" && !compactTimerEdit && (
           <label className="mb-4 flex items-center justify-between rounded-[20px] border border-slate-100 bg-slate-50/70 p-4">
             <span className="text-sm font-black text-slate-700">
-              達成済みにする
+              にする
             </span>
 
             <input

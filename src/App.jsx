@@ -4,6 +4,8 @@ import TimerPage from "./TimerPage";
 import CalendarPage from "./CalendarPage";
 import StatsPageDay from "./StatsPage_day";
 import SetPage from "./SetPage";
+import { updateDailyRecordTask } from "./utils/dailyRecords";
+import ReviewPage from "./ReviewPage";
 
 const STORAGE_KEY = "todo-app-data-v1";
 
@@ -37,15 +39,15 @@ export default function App() {
   const [taskUpdateRequest, setTaskUpdateRequest] = useState(null);
 
   const [appData, setAppData] = useState(() => {
-    return (
-      loadSavedData() ?? {
-        tasks: [],
-        categories: ["学習", "仕事", "健康", "その他"],
-        workLogs: [],
-        timerSessions: [],
-        settings: {},
-      }
-    );
+    return {
+      tasks: [],
+      categories: ["学習", "仕事", "健康", "その他"],
+      workLogs: [],
+      timerSessions: [],
+      dailyRecords: {},
+      settings: {},
+      ...(loadSavedData() ?? {}),
+    };
   });
 
   useEffect(() => {
@@ -57,6 +59,7 @@ export default function App() {
       if (typeof updater === "function") {
         return updater(current);
       }
+
       return updater;
     });
   };
@@ -85,17 +88,42 @@ export default function App() {
       date: sessionDate,
       actualMinutes: result?.actualMinutes ?? 0,
       actualSeconds: result?.actualSeconds ?? 0,
-      plannedMinutes: result?.plannedMinutes ?? result?.task?.estimatedMinutes ?? 0,
+      plannedMinutes:
+        result?.plannedMinutes ?? result?.task?.estimatedMinutes ?? 0,
       completed: result?.completed ?? false,
       startedAt: result?.startedAt ?? null,
       endedAt: result?.endedAt ?? Date.now(),
       createdAt: new Date().toISOString(),
     };
 
-    updateAppData((current) => ({
-      ...current,
-      timerSessions: [...(current.timerSessions ?? []), session],
-    }));
+    updateAppData((current) => {
+      const nextTimerSessions = [...(current.timerSessions ?? []), session];
+
+      const timerSessionCount = nextTimerSessions.filter(
+        (item) =>
+          item.taskId === result?.task?.id && item.date === sessionDate
+      ).length;
+
+      const nextDailyRecords = updateDailyRecordTask(
+        current.dailyRecords ?? {},
+        sessionDate,
+        result?.task,
+        {
+          actualMinutes: result?.actualMinutes ?? 0,
+          completed: result?.completed ?? false,
+          taskStatus: result?.completed ? "completed" : "pending",
+          completedAt: result?.completed ? new Date().toISOString() : null,
+          usedTimer: true,
+          timerSessionCount,
+        }
+      );
+
+      return {
+        ...current,
+        timerSessions: nextTimerSessions,
+        dailyRecords: nextDailyRecords,
+      };
+    });
 
     setTimerCompletion(result);
     setScreen("today");
@@ -130,10 +158,18 @@ export default function App() {
       )}
 
       {screen === "stats" && (
-        <StatsPageDay appData={appData} onNavigate={setScreen} />
-      )}
+  <StatsPageDay appData={appData} onNavigate={setScreen} />
+)}
 
-      {screen === "settings" && <SetPage onNavigate={setScreen} />}
+{screen === "review" && (
+  <ReviewPage
+    appData={appData}
+    setAppData={updateAppData}
+    onNavigate={setScreen}
+  />
+)}
+
+{screen === "settings" && <SetPage onNavigate={setScreen} />}
 
       {screen === "timer" && (
         <TimerPage
