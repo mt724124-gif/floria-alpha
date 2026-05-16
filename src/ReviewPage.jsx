@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppHeader from "./components/AppHeader";
 import TodoModal from "./components/TodoModal";
 import mountainImage from "./assets/mountain.png";
@@ -13,10 +13,12 @@ import {
   Flag,
   MoreVertical,
   Pencil,
+  RotateCcw,
   StickyNote,
   Sun,
   Target,
   Trash2,
+  X,
 } from "lucide-react";
 import {
   getOrCreateDailyRecord,
@@ -72,6 +74,24 @@ function formatReminderTime(task) {
   return `${time} 開始`;
 }
 
+function getInitialActualMinutes(task, workLog) {
+  const candidates = [
+    workLog?.minutes,
+    task?.actualMinutes,
+    task?.workedMinutes,
+    task?.focusMinutes,
+    task?.elapsedMinutes,
+    task?.estimatedMinutes,
+    15,
+  ];
+  const found = candidates.find((value) => Number(value) > 0);
+  return Number(found ?? 15);
+}
+
+function isCompleted(task) {
+  return task?.taskStatus === "completed" || task?.completed === true;
+}
+
 function StatItem({ icon: Icon, label, value }) {
   return (
     <div className="min-w-0">
@@ -103,38 +123,118 @@ function SummaryCard({ record }) {
   );
 }
 
-function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete, onPostponeTomorrow, onToggleMenu }) {
+function WorkLogModal({ open, targetTask, targetWorkLog, completeAfterSave, onClose, onSave }) {
+  const [durationHour, setDurationHour] = useState(0);
+  const [durationMinute, setDurationMinute] = useState(15);
+
+  useEffect(() => {
+    if (!open) return;
+    const initialMinutes = getInitialActualMinutes(targetTask, targetWorkLog);
+    setDurationHour(Math.floor(initialMinutes / 60));
+    setDurationMinute(initialMinutes % 60);
+  }, [open, targetTask, targetWorkLog]);
+
+  if (!open) return null;
+
+  const submit = (event) => {
+    event.preventDefault();
+    const minutes = Number(durationHour) * 60 + Number(durationMinute);
+    if (!targetTask || minutes <= 0) return;
+
+    onSave({
+      taskId: targetTask.id,
+      taskTitle: targetTask.title,
+      category: targetTask.category,
+      minutes,
+      seconds: minutes * 60,
+      completeAfterSave,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-3 py-4 backdrop-blur-sm">
+      <form onSubmit={submit} className="max-h-[calc(100dvh-28px)] w-full max-w-[480px] overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-[22px] font-black text-slate-950">{completeAfterSave ? "実測時間を入力" : "作業データを修正"}</h2>
+          <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-sm font-black text-slate-400 active:bg-slate-100">閉じる</button>
+        </div>
+
+        <div className="mb-4 rounded-[20px] bg-emerald-50 p-4">
+          <p className="text-xs font-black text-emerald-600">対象タスク</p>
+          <p className="mt-1 text-base font-black text-slate-950">{targetTask?.title}</p>
+          <p className="mt-1 text-xs font-bold text-slate-400">
+            {completeAfterSave ? "0分のままでは達成にできません。実施した時間を入力してください。" : "入力した時間が、このタスクの実測作業時間になります。"}
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <span className="mb-2 block text-sm font-black text-slate-600">実測の作業時間</span>
+          <div className="grid grid-cols-2 gap-3">
+            <select value={durationHour} onChange={(e) => setDurationHour(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400">
+              {Array.from({ length: 13 }, (_, i) => (
+                <option key={i} value={i}>{i}時間</option>
+              ))}
+            </select>
+            <select value={durationMinute} onChange={(e) => setDurationMinute(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400">
+              {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
+                <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button type="button" onClick={onClose} className="h-14 rounded-2xl bg-slate-100 text-base font-black text-slate-600 active:scale-[0.99]">キャンセル</button>
+          <button type="submit" className="h-14 rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]">保存する</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete, onPostponeTomorrow, onWorkLogEdit, onToggleMenu }) {
   const style = categoryStyles[task.category] ?? categoryStyles["その他"];
   const Icon = style.icon;
-  const completed = task.taskStatus === "completed" || task.completed;
+  const completed = isCompleted(task);
   const reminder = isReminder(task);
   const [dragX, setDragX] = useState(0);
-  const [startX, setStartX] = useState(null);
+  const [startPoint, setStartPoint] = useState(null);
 
   const handlePointerDown = (event) => {
     if (disabled || completed) return;
-    setStartX(event.clientX);
+    if (event.pointerType === "mouse") return;
+    setStartPoint({ x: event.clientX, y: event.clientY });
   };
 
   const handlePointerMove = (event) => {
-    if (disabled || completed || startX == null) return;
-    const nextX = event.clientX - startX;
-    if (nextX > 90) setDragX(90);
-    else if (nextX < -90) setDragX(-90);
-    else setDragX(nextX);
-  };
+    if (disabled || completed || !startPoint) return;
 
-  const handlePointerUp = () => {
-    if (disabled || completed || startX == null) {
-      setStartX(null);
+    const dx = event.clientX - startPoint.x;
+    const dy = event.clientY - startPoint.y;
+
+    if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx)) {
+      setStartPoint(null);
       setDragX(0);
       return;
     }
 
-    if (dragX >= 70) onPostponeTomorrow(task);
-    if (dragX <= -70) onDelete(task);
+    if (Math.abs(dx) < 8) return;
+    event.preventDefault();
+    setDragX(Math.max(-96, Math.min(96, dx)));
+  };
 
-    setStartX(null);
+  const handlePointerUp = () => {
+    if (disabled || completed || !startPoint) {
+      setStartPoint(null);
+      setDragX(0);
+      return;
+    }
+
+    if (dragX >= 70) onDelete(task);
+    if (dragX <= -70) onPostponeTomorrow(task);
+
+    setStartPoint(null);
     setDragX(0);
   };
 
@@ -147,25 +247,8 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
         </>
       )}
 
-      <div
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        style={{ transform: `translateX(${dragX}px)` }}
-        className="relative z-10 flex items-center gap-2 bg-white px-0 py-3 transition-transform"
-      >
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => {
-            if (disabled) return;
-            onToggle(task);
-          }}
-          className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
-            completed ? "border-emerald-500 bg-emerald-500 text-white" : "border-emerald-400 bg-white text-transparent"
-          }`}
-        >
+      <div onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} style={{ transform: `translateX(${dragX}px)` }} className="relative z-10 flex items-center gap-2 bg-white px-0 py-3 transition-transform">
+        <button type="button" disabled={disabled || reminder} onClick={() => { if (disabled || reminder) return; onToggle(task); }} className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${completed ? "border-emerald-500 bg-emerald-500 text-white" : "border-emerald-400 bg-white text-transparent"} ${disabled || reminder ? "cursor-not-allowed opacity-50" : ""}`}>
           <Check className="h-3.5 w-3.5" strokeWidth={3} />
         </button>
 
@@ -178,34 +261,28 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
           <div className="mt-1 flex items-center gap-2">
             <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
               <Clock className="h-3.5 w-3.5" />
-              {reminder ? formatReminderTime(task) : formatMinutes(task.actualMinutes ?? 0)}
+              {reminder ? formatReminderTime(task) : formatMinutes(task.actualMinutes ?? task.workedMinutes ?? task.focusMinutes ?? 0)}
             </span>
             <span className={`rounded-md px-2 py-0.5 text-[10px] font-black ${style.badge}`}>{task.category ?? "その他"}</span>
           </div>
         </div>
 
-        <button
-          type="button"
-          disabled={disabled}
-          data-review-menu-button="true"
-          onClick={(event) => {
-            event.stopPropagation();
-            if (disabled) return;
-            onToggleMenu(task.id);
-          }}
-          className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
-            disabled ? "cursor-not-allowed text-slate-200" : "text-slate-400 active:bg-slate-100"
-          }`}
-        >
+        <button type="button" disabled={disabled} data-review-menu-button="true" onClick={(event) => { event.stopPropagation(); if (disabled) return; onToggleMenu(task.id); }} className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${disabled ? "cursor-not-allowed text-slate-200" : "text-slate-400 active:bg-slate-100"}`}>
           <MoreVertical className="h-[18px] w-[18px]" />
         </button>
 
         {menuOpen && !disabled && (
-          <div data-review-menu-popup="true" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} className="absolute right-2 top-10 z-50 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]">
+          <div data-review-menu-popup="true" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} className="absolute right-2 top-10 z-50 w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]">
             <button type="button" onClick={() => onEdit(task)} className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-slate-700 active:bg-slate-50">
               <Pencil className="h-4 w-4" />
               編集
             </button>
+            {!reminder && (
+              <button type="button" onClick={() => onWorkLogEdit(task)} className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-emerald-600 active:bg-emerald-50">
+                <Clock className="h-4 w-4" />
+                作業データ修正
+              </button>
+            )}
             {!completed && (
               <button type="button" onClick={() => onPostponeTomorrow(task)} className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-amber-600 active:bg-amber-50">
                 <ChevronRight className="h-4 w-4" />
@@ -223,10 +300,10 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
   );
 }
 
-function TaskSection({ record, disabled = false, openMenuId, onToggleTask, onEditTask, onDeleteTask, onPostponeTomorrow, onToggleMenu }) {
+function TaskSection({ record, disabled = false, openMenuId, onToggleTask, onEditTask, onDeleteTask, onPostponeTomorrow, onWorkLogEdit, onToggleMenu }) {
   const tasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
-  const incompleteTasks = tasks.filter((task) => task.taskStatus !== "completed");
-  const completedTasks = tasks.filter((task) => task.taskStatus === "completed");
+  const incompleteTasks = tasks.filter((task) => !isCompleted(task));
+  const completedTasks = tasks.filter((task) => isCompleted(task));
 
   return (
     <section className="mb-3 rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.055)]">
@@ -247,7 +324,7 @@ function TaskSection({ record, disabled = false, openMenuId, onToggleTask, onEdi
               <p className="rounded-2xl bg-emerald-50 p-3 text-[13px] font-bold text-emerald-600">未達成タスクはありません。</p>
             ) : (
               incompleteTasks.map((task) => (
-                <TaskRow key={task.id} task={task} disabled={disabled} menuOpen={openMenuId === task.id} onToggle={onToggleTask} onEdit={onEditTask} onDelete={onDeleteTask} onPostponeTomorrow={onPostponeTomorrow} onToggleMenu={onToggleMenu} />
+                <TaskRow key={task.id} task={task} disabled={disabled} menuOpen={openMenuId === task.id} onToggle={onToggleTask} onEdit={onEditTask} onDelete={onDeleteTask} onPostponeTomorrow={onPostponeTomorrow} onWorkLogEdit={onWorkLogEdit} onToggleMenu={onToggleMenu} />
               ))
             )}
           </div>
@@ -258,7 +335,7 @@ function TaskSection({ record, disabled = false, openMenuId, onToggleTask, onEdi
               <p className="rounded-2xl bg-slate-50 p-3 text-[13px] font-bold text-slate-400">達成タスクはまだありません。</p>
             ) : (
               completedTasks.map((task) => (
-                <TaskRow key={task.id} task={task} disabled={disabled} menuOpen={openMenuId === task.id} onToggle={onToggleTask} onEdit={onEditTask} onDelete={onDeleteTask} onPostponeTomorrow={onPostponeTomorrow} onToggleMenu={onToggleMenu} />
+                <TaskRow key={task.id} task={task} disabled={disabled} menuOpen={openMenuId === task.id} onToggle={onToggleTask} onEdit={onEditTask} onDelete={onDeleteTask} onPostponeTomorrow={onPostponeTomorrow} onWorkLogEdit={onWorkLogEdit} onToggleMenu={onToggleMenu} />
               ))
             )}
           </div>
@@ -286,9 +363,6 @@ function LongTaskSection() {
           </div>
           <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
         </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full w-[40%] rounded-full bg-pink-400" />
-        </div>
       </div>
     </section>
   );
@@ -309,21 +383,57 @@ function ReflectionSection({ reflectionText, setReflectionText, disabled = false
   );
 }
 
+function UndoToast({ toast, onUndo, onClose }) {
+  if (!toast) return null;
+
+  return (
+    <div className="fixed bottom-[max(70px,calc(70px+env(safe-area-inset-bottom)))] left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-[456px] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-[0_16px_40px_rgba(15,23,42,0.28)]">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-black">{toast.message}</p>
+        <p className="truncate text-xs font-bold text-slate-300">{toast.taskTitle}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <button onClick={onUndo} className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-emerald-200 active:scale-[0.98]">
+          <RotateCcw className="h-4 w-4" />
+          元に戻す
+        </button>
+        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 active:scale-[0.98]">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ReviewPage({ dateKey, appData, setAppData, onNavigate }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [todoModal, setTodoModal] = useState({ open: false, mode: "edit", todo: null });
+  const [workLogModal, setWorkLogModal] = useState({ open: false, task: null, completeAfterSave: false });
+  const [undoToast, setUndoToast] = useState(null);
+  const undoTimerRef = useRef(null);
 
   const reviewTasks = (appData?.tasks ?? []).filter((task) => getTaskDateKey(task, dateKey) === dateKey);
   const syncedDailyRecords = syncDailyRecordFromTasks(appData?.dailyRecords ?? {}, dateKey, reviewTasks);
   const record = getOrCreateDailyRecord(syncedDailyRecords, dateKey);
-  const isConfirmed = record.status === "confirmed";
-  const isPastDate = dateKey < getTodayKey();
+  const isConfirmed = record.status === "confirmed" || record.reviewCompleted === true;
 
   const activeTasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
-  const incompleteTasks = activeTasks.filter((task) => task.taskStatus !== "completed");
+  const incompleteTasks = activeTasks.filter((task) => !isCompleted(task));
   const canConfirm = !isConfirmed && incompleteTasks.length === 0;
 
   const [reflectionText, setReflectionText] = useState(record.reflectionText ?? "");
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    };
+  }, []);
+
+  const showUndoToast = (toast) => {
+    setUndoToast(toast);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setUndoToast(null), 4200);
+  };
 
   const syncCurrentDateRecords = (current, nextTasks) => {
     return syncDailyRecordFromTasks(
@@ -334,22 +444,93 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
   };
 
   const handleToggleTask = (task) => {
-    const nextCompleted = !(task.taskStatus === "completed" || task.completed);
+    if (isConfirmed || isReminder(task)) return;
+
+    const nextCompleted = !isCompleted(task);
+
+    if (!nextCompleted) {
+      setAppData((current) => {
+        const nextTasks = (current.tasks ?? []).map((item) =>
+          item.id === task.id
+            ? { ...item, completed: false, taskStatus: "pending", completedAt: null }
+            : item
+        );
+        return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
+      });
+      return;
+    }
+
+    const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
+    const hasActualTime =
+      Number(workLog?.minutes) > 0 ||
+      Number(task.actualMinutes) > 0 ||
+      Number(task.workedMinutes) > 0 ||
+      Number(task.focusMinutes) > 0 ||
+      Number(task.elapsedMinutes) > 0;
+
+    if (!hasActualTime) {
+      setWorkLogModal({ open: true, task, completeAfterSave: true });
+      return;
+    }
+
+    const minutes = getInitialActualMinutes(task, workLog);
+
     setAppData((current) => {
       const nextTasks = (current.tasks ?? []).map((item) =>
-        item.id === task.id ? { ...item, completed: nextCompleted, completedAt: nextCompleted ? new Date().toISOString() : null } : item
+        item.id === task.id
+          ? {
+              ...item,
+              completed: true,
+              taskStatus: "completed",
+              completedAt: new Date().toISOString(),
+              actualMinutes: minutes,
+              actualSeconds: minutes * 60,
+              workedMinutes: minutes,
+              focusMinutes: minutes,
+            }
+          : item
       );
-      return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
+
+      const nextWorkLogs = [
+        ...(current.workLogs ?? []).filter((log) => log.taskId !== task.id),
+        {
+          id: Date.now(),
+          taskId: task.id,
+          taskTitle: task.title,
+          category: task.category,
+          minutes,
+          seconds: minutes * 60,
+          date: dateKey,
+        },
+      ];
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        workLogs: nextWorkLogs,
+        dailyRecords: syncCurrentDateRecords(current, nextTasks),
+      };
     });
   };
 
   const handleEditTask = (task) => {
+    if (isConfirmed) return;
     setOpenMenuId(null);
     setTodoModal({ open: true, mode: "edit", todo: task });
   };
 
-  const handleDeleteTask = (task) => {
+  const handleWorkLogEdit = (task) => {
+    if (isConfirmed || isReminder(task)) return;
     setOpenMenuId(null);
+    setWorkLogModal({ open: true, task, completeAfterSave: false });
+  };
+
+  const handleDeleteTask = (task) => {
+    if (isConfirmed) return;
+    setOpenMenuId(null);
+
+    const deletedLogs = (appData?.workLogs ?? []).filter((log) => log.taskId === task.id);
+
     setAppData((current) => {
       const nextTasks = (current.tasks ?? []).filter((item) => item.id !== task.id);
       return {
@@ -359,10 +540,21 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
         dailyRecords: syncCurrentDateRecords(current, nextTasks),
       };
     });
+
+    showUndoToast({
+      type: "delete",
+      message: "削除しました",
+      taskTitle: task.title,
+      task,
+      workLogs: deletedLogs,
+    });
   };
 
   const handlePostponeTomorrow = (task) => {
+    if (isConfirmed) return;
+
     const tomorrowKey = getTomorrowKey(dateKey);
+    const originalDate = getTaskDateKey(task, dateKey);
     setOpenMenuId(null);
 
     setAppData((current) => {
@@ -371,9 +563,10 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
           ? {
               ...item,
               completed: false,
+              taskStatus: "pending",
               completedAt: null,
               targetDate: tomorrowKey,
-              date: tomorrowKey,
+              date: item.date === originalDate ? tomorrowKey : item.date,
               schedule: item.schedule ? { ...item.schedule, date: tomorrowKey } : item.schedule,
             }
           : item
@@ -385,9 +578,57 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
         dailyRecords: syncCurrentDateRecords(current, nextTasks),
       };
     });
+
+    showUndoToast({
+      type: "postpone",
+      message: "明日に移動しました",
+      taskTitle: task.title,
+      task,
+      originalDate,
+      movedDate: tomorrowKey,
+    });
+  };
+
+  const handleSaveWorkLog = (log) => {
+    if (isConfirmed) return;
+
+    setAppData((current) => {
+      const nextTasks = (current.tasks ?? []).map((task) =>
+        task.id === log.taskId
+          ? {
+              ...task,
+              actualMinutes: log.minutes,
+              actualSeconds: log.seconds,
+              workedMinutes: log.minutes,
+              focusMinutes: log.minutes,
+              completed: log.completeAfterSave ? true : task.completed,
+              taskStatus: log.completeAfterSave ? "completed" : task.taskStatus ?? "pending",
+              completedAt: log.completeAfterSave ? new Date().toISOString() : task.completedAt ?? null,
+            }
+          : task
+      );
+
+      const nextWorkLogs = [
+        ...(current.workLogs ?? []).filter((item) => item.taskId !== log.taskId),
+        {
+          ...log,
+          id: Date.now(),
+          date: dateKey,
+        },
+      ];
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        workLogs: nextWorkLogs,
+        dailyRecords: syncCurrentDateRecords(current, nextTasks),
+      };
+    });
   };
 
   const handleSaveTask = (updatedTask) => {
+    if (isConfirmed) return;
+
     setAppData((current) => {
       const nextTasks = (current.tasks ?? []).map((item) =>
         item.id === updatedTask.id
@@ -403,6 +644,54 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     });
 
     setTodoModal({ open: false, mode: "edit", todo: null });
+  };
+
+  const undoLastAction = () => {
+    if (!undoToast || isConfirmed) return;
+
+    if (undoToast.type === "delete") {
+      setAppData((current) => {
+        const exists = (current.tasks ?? []).some((task) => task.id === undoToast.task.id);
+        const nextTasks = exists ? current.tasks ?? [] : [...(current.tasks ?? []), undoToast.task];
+        const restoredLogs = undoToast.workLogs ?? [];
+        const restoredIds = new Set(restoredLogs.map((log) => log.id));
+        const nextWorkLogs = [
+          ...(current.workLogs ?? []).filter((log) => !restoredIds.has(log.id)),
+          ...restoredLogs,
+        ];
+
+        return {
+          ...current,
+          tasks: nextTasks,
+          workLogs: nextWorkLogs,
+          dailyRecords: syncCurrentDateRecords(current, nextTasks),
+        };
+      });
+    }
+
+    if (undoToast.type === "postpone") {
+      setAppData((current) => {
+        const nextTasks = (current.tasks ?? []).map((task) =>
+          task.id === undoToast.task.id
+            ? {
+                ...task,
+                targetDate: undoToast.originalDate,
+                date: task.date === undoToast.movedDate ? undoToast.originalDate : task.date,
+                schedule: task.schedule ? { ...task.schedule, date: undoToast.originalDate } : task.schedule,
+              }
+            : task
+        );
+
+        return {
+          ...current,
+          tasks: nextTasks,
+          dailyRecords: syncCurrentDateRecords(current, nextTasks),
+        };
+      });
+    }
+
+    setUndoToast(null);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   };
 
   const confirmReview = () => {
@@ -424,6 +713,10 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     onNavigate?.("today");
   };
 
+  const targetWorkLog = workLogModal.task
+    ? (appData?.workLogs ?? []).find((log) => log.taskId === workLogModal.task.id)
+    : null;
+
   return (
     <div className="min-h-[100dvh] bg-[#fbfcfb] text-slate-950 antialiased">
       <main className="mx-auto min-h-[100dvh] w-full max-w-[480px] px-3 pb-22 pt-[max(8px,env(safe-area-inset-top))]">
@@ -431,19 +724,38 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
 
         <div className="space-y-0">
           <SummaryCard record={record} />
+
           {isConfirmed && (
             <div className="mb-3 rounded-[20px] bg-emerald-50 px-4 py-3 text-[13px] font-black leading-5 text-emerald-700">
               {formatJapaneseDate(dateKey)}の振り返りは完了しました。
             </div>
           )}
+
           {!isConfirmed && incompleteTasks.length > 0 && (
             <div className="mb-3 rounded-[20px] bg-amber-50 px-4 py-3 text-[13px] font-bold leading-5 text-amber-700">
               未達成タスクを「達成・明日に延期・削除」のどれかに整理すると、振り返りを完了できます。
             </div>
           )}
-          <TaskSection record={record} disabled={isConfirmed || isPastDate} openMenuId={openMenuId} onToggleTask={handleToggleTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} onPostponeTomorrow={handlePostponeTomorrow} onToggleMenu={(id) => setOpenMenuId((current) => (current === id ? null : id))} />
+
+          <TaskSection
+            record={record}
+            disabled={isConfirmed}
+            openMenuId={openMenuId}
+            onToggleTask={handleToggleTask}
+            onEditTask={handleEditTask}
+            onDeleteTask={handleDeleteTask}
+            onPostponeTomorrow={handlePostponeTomorrow}
+            onWorkLogEdit={handleWorkLogEdit}
+            onToggleMenu={(id) => setOpenMenuId((current) => (current === id ? null : id))}
+          />
+
           <LongTaskSection />
-          <ReflectionSection reflectionText={reflectionText} setReflectionText={setReflectionText} disabled={isConfirmed || isPastDate} />
+
+          <ReflectionSection
+            reflectionText={reflectionText}
+            setReflectionText={setReflectionText}
+            disabled={isConfirmed}
+          />
         </div>
 
         {!isConfirmed && (
@@ -484,6 +796,21 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
             tasks: (current.tasks ?? []).map((task) => (task.category === category ? { ...task, category: "その他" } : task)),
           }));
         }}
+      />
+
+      <WorkLogModal
+        open={workLogModal.open}
+        targetTask={workLogModal.task}
+        targetWorkLog={targetWorkLog}
+        completeAfterSave={workLogModal.completeAfterSave}
+        onClose={() => setWorkLogModal({ open: false, task: null, completeAfterSave: false })}
+        onSave={handleSaveWorkLog}
+      />
+
+      <UndoToast
+        toast={undoToast}
+        onUndo={undoLastAction}
+        onClose={() => setUndoToast(null)}
       />
     </div>
   );
