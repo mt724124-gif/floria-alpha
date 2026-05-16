@@ -163,7 +163,7 @@ export default function TodoModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-[calc(12px+env(safe-area-inset-bottom))] backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-3 py-4 backdrop-blur-sm">
       <form
         onSubmit={submit}
         onPointerDown={(event) => {
@@ -172,9 +172,9 @@ export default function TodoModal({
             setIsAddingCategory(false);
           }
         }}
-        className="max-h-[calc(100dvh-24px)] w-full max-w-[480px] overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl"
+      className="max-h-[calc(100dvh-12px)] w-full max-w-[420px] overflow-y-auto rounded-[24px] bg-white p-3.5 shadow-2xl"
       >
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[22px] font-black tracking-[-0.03em] text-slate-950">
             {mode === "edit" ? "Todoを編集" : "Todoを追加"}
           </h2>
@@ -230,7 +230,7 @@ export default function TodoModal({
                 ? "例：英単語を30個覚える"
                 : "例：13時から会議"
             }
-            className="h-14 w-full rounded-2xl border border-slate-200 px-4 text-base font-bold outline-none focus:border-emerald-400"
+           className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
           />
         </label>
 
@@ -374,7 +374,7 @@ export default function TodoModal({
               <select
                 value={durationHour}
                 onChange={(e) => setDurationHour(e.target.value)}
-                className="h-14 w-full rounded-2xl border border-slate-200 px-4 text-base font-bold outline-none focus:border-emerald-400"
+                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
               >
                 {Array.from({ length: 13 }, (_, i) => (
                   <option key={i} value={i}>
@@ -386,7 +386,7 @@ export default function TodoModal({
               <select
                 value={durationMinute}
                 onChange={(e) => setDurationMinute(e.target.value)}
-                className="h-14 w-full rounded-2xl border border-slate-200 px-4 text-base font-bold outline-none focus:border-emerald-400"
+                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
               >
                 {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(
                   (minute) => (
@@ -400,23 +400,10 @@ export default function TodoModal({
           </div>
         )}
 
-        {mode === "edit" && !compactTimerEdit && (
-          <label className="mb-4 flex items-center justify-between rounded-[20px] border border-slate-100 bg-slate-50/70 p-4">
-            <span className="text-sm font-black text-slate-700">
-              にする
-            </span>
-
-            <input
-              type="checkbox"
-              checked={completed}
-              onChange={(e) => setCompleted(e.target.checked)}
-              className="h-5 w-5 accent-emerald-500"
-            />
-          </label>
-        )}
+        
 
         {!compactTimerEdit && (
-          <div className="mb-5 rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
+          <div className="mb-4 rounded-[20px] border border-slate-100 bg-slate-50/70 p-3.5">
             {itemType === "todo" ? (
               <label className="flex items-center justify-between gap-3">
                 <div>
@@ -442,56 +429,51 @@ export default function TodoModal({
 
             {(useTimeSetting || itemType === "reminder") && (
               <div className="mt-4 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <label>
-                    <span className="mb-2 block text-xs font-black text-slate-500">
-                      日付
-                    </span>
+               <div className="space-y-3">
+  <label className="block w-fit">
+    <span className="mb-2 block text-sm font-black text-slate-600">
+      日付
+    </span>
+    <input
+  type="date"
+  value={scheduledDate}
+  onChange={(e) => setScheduledDate(e.target.value)}
+  className="h-12 w-[220px] rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+/>
+  </label>
 
-                    <input
-                      type="date"
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-                    />
-                  </label>
+  <div>
+    <span className="mb-2 block text-sm font-black text-slate-600">
+      時間
+    </span>
 
-                  <label>
-                    <span className="mb-2 block text-xs font-black text-slate-500">
-                      時間
-                    </span>
+    <div className="grid grid-cols-2 gap-3">
+      <select
+        value={scheduledHour}
+        onChange={(e) => setScheduledHour(e.target.value)}
+        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+      >
+        {Array.from({ length: 24 }, (_, i) => (
+          <option key={i} value={String(i).padStart(2, "0")}>
+            {String(i).padStart(2, "0")}時
+          </option>
+        ))}
+      </select>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={scheduledHour}
-                        onChange={(e) => setScheduledHour(e.target.value)}
-                        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-                      >
-                        {Array.from({ length: 24 }, (_, i) =>
-                          String(i).padStart(2, "0")
-                        ).map((hour) => (
-                          <option key={hour} value={hour}>
-                            {hour}時
-                          </option>
-                        ))}
-                      </select>
-
-                      <select
-                        value={scheduledMinute}
-                        onChange={(e) => setScheduledMinute(e.target.value)}
-                        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-                      >
-                        {Array.from({ length: 12 }, (_, i) =>
-                          String(i * 5).padStart(2, "0")
-                        ).map((minute) => (
-                          <option key={minute} value={minute}>
-                            {minute}分
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </label>
-                </div>
+      <select
+        value={scheduledMinute}
+        onChange={(e) => setScheduledMinute(e.target.value)}
+        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+      >
+        {Array.from({ length: 12 }, (_, i) => i * 5).map((minute) => (
+          <option key={minute} value={String(minute).padStart(2, "0")}>
+            {String(minute).padStart(2, "0")}分
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
+</div>
 
                 <label className="block">
                   <span className="mb-2 block text-xs font-black text-slate-500">
@@ -524,14 +506,14 @@ export default function TodoModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-14 rounded-2xl bg-slate-100 text-base font-black text-slate-600 active:scale-[0.99]"
+            className="h-12 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 active:scale-[0.99]"
           >
             キャンセル
           </button>
 
           <button
             type="submit"
-            className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-base font-black text-white shadow-[0_10px_20px_rgba(16,185,129,0.22)] active:scale-[0.99]"
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-sm font-black text-white shadow-[0_10px_20px_rgba(16,185,129,0.22)] active:scale-[0.99]"
           >
             {mode === "edit" ? (
               <Save className="h-5 w-5" />

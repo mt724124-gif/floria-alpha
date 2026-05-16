@@ -1,6 +1,7 @@
 import { useState } from "react";
 import AppHeader from "./components/AppHeader";
 import TodoModal from "./components/TodoModal";
+import mountainImage from "./assets/mountain.png";
 import {
   BookOpen,
   Briefcase,
@@ -102,15 +103,15 @@ function formatReminderTime(task) {
 
 function StatItem({ icon: Icon, label, value }) {
   return (
-    <div className="min-w-0 flex-1">
+    <div className="min-w-0">
       <div className="mb-1 flex items-center gap-1.5">
         <Icon className="h-4 w-4 shrink-0 text-emerald-500" strokeWidth={2.4} />
-        <p className="truncate text-[11px] font-black text-slate-500">
+        <p className="truncate text-[10px] font-black text-slate-500">
           {label}
         </p>
       </div>
 
-      <p className="truncate text-[22px] font-black tracking-[-0.06em] text-slate-950">
+      <p className="truncate text-[14px] font-black tracking-[-0.05em] text-slate-950 min-[390px]:text-[20px]">
         {value}
       </p>
     </div>
@@ -119,30 +120,38 @@ function StatItem({ icon: Icon, label, value }) {
 
 function SummaryCard({ record }) {
   return (
-    <section className="mb-3 overflow-hidden rounded-[24px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-50 p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
-      <div className="mb-4 flex items-center gap-2">
-        <Sun className="h-5 w-5 text-yellow-400" fill="currentColor" />
-        <h2 className="text-[19px] font-black tracking-[-0.04em] text-slate-950">
-          今日の記録
-        </h2>
-      </div>
+    <section className="relative mb-3 overflow-hidden rounded-[24px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-50 p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
+      <img
+  src={mountainImage}
+  alt="山のイラスト"
+  className="pointer-events-none absolute bottom-2 right-2 h-[92px] w-[108px] object-contain opacity-90"
+/>
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatItem
-          icon={Clock}
-          label="集中時間"
-          value={formatMinutes(record.totalActualMinutes)}
-        />
-        <StatItem
-          icon={Check}
-          label="完了タスク"
-          value={`${record.completedTaskCount ?? 0}件`}
-        />
-        <StatItem
-          icon={Target}
-          label="達成率"
-          value={`${record.achievementRate ?? 0}%`}
-        />
+      <div className="relative z-10">
+        <div className="mb-4 flex items-center gap-2">
+          <Sun className="h-5 w-5 text-yellow-400" fill="currentColor" />
+          <h2 className="text-[19px] font-black tracking-[-0.04em] text-slate-950">
+            今日の記録
+          </h2>
+        </div>
+
+        <div className="flex max-w-[275px] items-start gap-5">
+          <StatItem
+            icon={Clock}
+            label="集中時間"
+            value={formatMinutes(record.totalActualMinutes)}
+          />
+          <StatItem
+            icon={Check}
+            label="完了タスク"
+            value={`${record.completedTaskCount ?? 0}件`}
+          />
+          <StatItem
+            icon={Target}
+            label="達成率"
+            value={`${record.achievementRate ?? 0}%`}
+          />
+        </div>
       </div>
     </section>
   );
@@ -186,7 +195,7 @@ function TaskRow({
         <Icon className={`h-6 w-6 ${style.text}`} strokeWidth={2.2} />
       </div>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <p className="truncate text-[15px] font-black tracking-[-0.03em] text-slate-950">
           {task.title || "無題のタスク"}
         </p>
@@ -287,14 +296,7 @@ function TaskSection({
           </h2>
         </div>
 
-        <div className="flex shrink-0 rounded-2xl border border-slate-100 bg-slate-50 p-1 text-[13px] font-black">
-          <span className="rounded-xl bg-emerald-50 px-3 py-1.5 text-emerald-600">
-            未達成 {incompleteTasks.length}
-          </span>
-          <span className="px-3 py-1.5 text-slate-400">
-            達成 {completedTasks.length}
-          </span>
-        </div>
+        
       </div>
 
       {tasks.length === 0 ? (
@@ -304,9 +306,9 @@ function TaskSection({
       ) : (
         <>
           <div>
-            <p className="mb-1 text-[13px] font-black text-emerald-600">
-              未達成
-            </p>
+            <p className="mb-1 text-[20px] font-black text-slate-700">
+  未達成
+</p>
             {incompleteTasks.length === 0 ? (
               <p className="rounded-2xl bg-emerald-50 p-3 text-[13px] font-bold text-emerald-600">
                 未達成タスクはありません。
@@ -328,9 +330,9 @@ function TaskSection({
           </div>
 
           <div>
-            <p className="mb-1 mt-4 text-[13px] font-black text-emerald-600">
-              達成
-            </p>
+            <p className="mb-1 mt-4 text-[20px] font-black text-slate-700">
+  達成
+</p>
             {completedTasks.length === 0 ? (
               <p className="rounded-2xl bg-slate-50 p-3 text-[13px] font-bold text-slate-400">
                 達成タスクはまだありません。

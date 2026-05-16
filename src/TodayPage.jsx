@@ -857,7 +857,7 @@ function WorkLogModal({ open, targetTodo, onClose, onSave }) {
             <select
               value={durationHour}
               onChange={(e) => setDurationHour(e.target.value)}
-              className="h-14 w-full rounded-2xl border border-slate-200 px-4 text-base font-bold outline-none focus:border-emerald-400"
+              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
             >
               {Array.from({ length: 13 }, (_, i) => (
                 <option key={i} value={i}>
@@ -869,7 +869,7 @@ function WorkLogModal({ open, targetTodo, onClose, onSave }) {
             <select
               value={durationMinute}
               onChange={(e) => setDurationMinute(e.target.value)}
-              className="h-14 w-full rounded-2xl border border-slate-200 px-4 text-base font-bold outline-none focus:border-emerald-400"
+              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
             >
               {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
                 <option key={minute} value={minute}>
