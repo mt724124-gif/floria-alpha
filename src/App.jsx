@@ -58,6 +58,7 @@ export default function App() {
   const [timerCompletion, setTimerCompletion] = useState(null);
   const [taskUpdateRequest, setTaskUpdateRequest] = useState(null);
   const [reviewDateKey, setReviewDateKey] = useState(getTodayKey());
+  const [todayInitialDateKey, setTodayInitialDateKey] = useState(null);
 
   const [appData, setAppData] = useState(createInitialAppData);
 
@@ -136,26 +137,40 @@ export default function App() {
       const updatedTask = nextTasks.find((task) => task.id === result?.task?.id) ?? result?.task;
 
       const nextDailyRecords = updateDailyRecordTask(
-        current.dailyRecords ?? {},
-        sessionDate,
-        updatedTask,
-        {
-          actualMinutes,
-          actualSeconds,
-          completed,
-          taskStatus: completed ? "completed" : "pending",
-          completedAt: completed ? new Date().toISOString() : null,
-          usedTimer: true,
-          timerSessionCount,
-        }
-      );
+  current.dailyRecords ?? {},
+  sessionDate,
+  updatedTask,
+  {
+    actualMinutes,
+    actualSeconds,
+    completed,
+    taskStatus: completed ? "completed" : "pending",
+    completedAt: completed ? new Date().toISOString() : null,
+    usedTimer: true,
+    timerSessionCount,
+  }
+);
 
-      return {
-        ...current,
-        tasks: nextTasks,
-        timerSessions: nextTimerSessions,
-        dailyRecords: nextDailyRecords,
-      };
+const nextWorkLogs = [
+  ...(current.workLogs ?? []).filter((log) => log.taskId !== result?.task?.id),
+  {
+    id: Date.now(),
+    taskId: result?.task?.id,
+    taskTitle: result?.task?.title,
+    category: result?.task?.category,
+    minutes: actualMinutes,
+    seconds: actualSeconds,
+    date: sessionDate,
+  },
+];
+
+return {
+  ...current,
+  tasks: nextTasks,
+  workLogs: nextWorkLogs,
+  timerSessions: nextTimerSessions,
+  dailyRecords: nextDailyRecords,
+};
     });
 
     setTimerCompletion({
@@ -184,19 +199,20 @@ export default function App() {
     <>
       {screen === "today" && (
         <TodayPage
-          onOpenTimer={openTimer}
-          timerCompletion={timerCompletion}
-          onTimerCompletionHandled={() => setTimerCompletion(null)}
-          taskUpdateRequest={taskUpdateRequest}
-          onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
-          appData={appData}
-          setAppData={updateAppData}
-          onNavigate={setScreen}
-          onOpenReview={(dateKey) => {
-            setReviewDateKey(dateKey);
-            setScreen("review");
-          }}
-        />
+  initialDateKey={todayInitialDateKey}
+  onOpenTimer={openTimer}
+  timerCompletion={timerCompletion}
+  onTimerCompletionHandled={() => setTimerCompletion(null)}
+  taskUpdateRequest={taskUpdateRequest}
+  onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
+  appData={appData}
+  setAppData={updateAppData}
+  onNavigate={setScreen}
+  onOpenReview={(dateKey) => {
+    setReviewDateKey(dateKey);
+    setScreen("review");
+  }}
+/>
       )}
 
       {screen === "calendar" && (
@@ -213,11 +229,16 @@ export default function App() {
 
       {screen === "review" && (
         <ReviewPage
-          dateKey={reviewDateKey}
-          appData={appData}
-          setAppData={updateAppData}
-          onNavigate={setScreen}
-        />
+  dateKey={reviewDateKey}
+  appData={appData}
+  setAppData={updateAppData}
+  onNavigate={(nextScreen) => {
+    if (nextScreen === "today") {
+      setTodayInitialDateKey(reviewDateKey);
+    }
+    setScreen(nextScreen);
+  }}
+/>
       )}
 
       {screen === "settings" && <SetPage onNavigate={setScreen} />}

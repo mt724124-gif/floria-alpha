@@ -242,7 +242,11 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
   };
 
   return (
-    <div className="relative overflow-hidden border-b border-slate-100 last:border-b-0">
+    <div
+  className={`relative border-b border-slate-100 last:border-b-0 ${
+    menuOpen ? "z-50 overflow-visible" : "z-0 overflow-hidden"
+  }`}
+>
       {!completed && !disabled && (
         <>
           <div className="absolute inset-y-0 left-0 flex w-28 items-center justify-start bg-amber-50 pl-4 text-[12px] font-black text-amber-600">明日に延期</div>
@@ -302,7 +306,12 @@ function TaskRow({ task, menuOpen, disabled = false, onToggle, onEdit, onDelete,
         </button>
 
         {menuOpen && !disabled && (
-          <div data-review-menu-popup="true" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} className="absolute right-2 top-10 z-50 w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]">
+          <div
+  data-review-menu-popup="true"
+  onPointerDown={(event) => event.stopPropagation()}
+  onClick={(event) => event.stopPropagation()}
+  className="absolute right-2 top-10 z-[999] w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
+>
             <button type="button" onClick={() => onEdit(task)} className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-slate-700 active:bg-slate-50">
               <Pencil className="h-4 w-4" />
               編集
@@ -336,7 +345,7 @@ function TaskSection({ record, disabled = false, openMenuId, onToggleTask, onEdi
   const completedTasks = tasks.filter((task) => isCompleted(task));
 
   return (
-    <section className="mb-3 rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.055)]">
+    <section className="relative z-20 mb-3 overflow-visible rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.055)]">
       <div className="mb-4 flex items-center gap-2.5">
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-500">
           <Check className="h-5 w-5" strokeWidth={2.5} />

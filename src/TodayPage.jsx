@@ -93,8 +93,7 @@ function getCategoryStyle(category) {
 function isReminder(todo) {
   return (
     todo?.type === "reminder" ||
-    Boolean(todo?.reminder) ||
-    Number(todo?.estimatedMinutes) === 0
+    Boolean(todo?.reminder)
   );
 }
 
@@ -213,13 +212,19 @@ function TodayGoalCard({
           {selectedTask ? "選択中のタスク" : "今日の目標"}
         </div>
 
-        {isPastDate && isReviewConfirmed ? (
+        {isPastDate && isReviewConfirmed && totalCount === 0 ? (
+  <>
+    <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+      この日は記録されたTodoがありません
+    </h1>
+  </>
+) : isPastDate && isReviewConfirmed ? (
           <>
             <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
               この日の振り返りは完了しました
             </h1>
             <p className="text-[12px] font-bold leading-relaxed text-slate-400">
-              過去日のため、TodayPageでは閲覧のみできます。
+              過去日のため、閲覧のみできます。
             </p>
           </>
         ) : isPastDate ? (
@@ -382,7 +387,7 @@ function TodoItem({
   const swipeStartRef = useRef({ x: 0, y: 0 });
   const swipeActiveRef = useRef(false);
 
-  const completeDisabled = !canComplete || reminder;
+  const completeDisabled = !canComplete;
   const menuDisabled = !canEdit && !canDelete;
   const itemDisabled = !canSelect && !canEdit && !canDelete && !canMoveTomorrow;
 
@@ -437,9 +442,11 @@ function TodoItem({
   return (
     <div
       data-todo-id={todo.id}
-      className={`relative overflow-hidden border-b border-slate-100 last:border-b-0 ${
-        selected ? "bg-emerald-50/70" : "bg-white"
-      } ${dropTarget && !dragging ? "bg-slate-50" : ""}`}
+      className={`relative overflow-visible border-b border-slate-100 last:border-b-0 ${
+  menuOpen ? "z-50" : "z-0"
+} ${
+  selected ? "bg-emerald-50/70" : "bg-white"
+} ${dropTarget && !dragging ? "bg-slate-50" : ""}`}
     >
       {!isCompleted(todo) && canMoveTomorrow && (
         <div className="absolute inset-y-0 left-0 z-0 flex w-32 items-center justify-start bg-amber-50 px-4 text-amber-600">
@@ -589,7 +596,7 @@ function TodoItem({
             data-menu-popup="true"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
-            className="absolute right-3 top-10 z-50 w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
+            className="absolute right-3 top-10 z-[999] w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
           >
             {canEdit && (
               <button
@@ -790,7 +797,7 @@ function TodoListCard({
   const visible = activeTab === "incomplete" ? incomplete : completed;
 
   return (
-    <section className="overflow-visible rounded-[22px] border border-slate-100 bg-white shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
+    <section className="relative z-20 overflow-visible rounded-[22px] border border-slate-100 bg-white shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="grid grid-cols-2 border-b border-slate-100 bg-white">
         <TabButton
           active={activeTab === "incomplete"}
@@ -1066,6 +1073,7 @@ function UndoToast({ toast, onUndo, onClose }) {
 }
 
 export default function TodayPage({
+  initialDateKey,
   onOpenTimer,
   timerCompletion,
   onTimerCompletionHandled,
@@ -1076,9 +1084,19 @@ export default function TodayPage({
   onNavigate,
   onOpenReview,
 }) {
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState(() => {
+  if (!initialDateKey) return new Date();
+  const [year, month, day] = initialDateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+});
   const selectedDateKey = formatDateForInput(selectedDate);
-  const todayDateKey = getTodayKey();
+const todayDateKey = getTodayKey();
+
+useEffect(() => {
+  if (!initialDateKey) return;
+  const [year, month, day] = initialDateKey.split("-").map(Number);
+  setSelectedDate(new Date(year, month - 1, day));
+}, [initialDateKey]);
 
   const todos = appData.tasks ?? initialTodos;
   const categories = appData.categories ?? initialCategories;
@@ -1106,9 +1124,14 @@ export default function TodayPage({
 
   const dailyRecord = getOrCreateDailyRecord(syncedDailyRecords, selectedDateKey);
   const totalCount = filteredTodos.length;
-  const isReviewConfirmed =
+const isEmptyPastDate = isPastDate && totalCount === 0;
+
+const isReviewConfirmed =
+  isEmptyPastDate ||
+  (
     totalCount > 0 &&
-    (dailyRecord.status === "confirmed" || dailyRecord.reviewCompleted === true);
+    (dailyRecord.status === "confirmed" || dailyRecord.reviewCompleted === true)
+  );
 
   const canAddTodo = !isPastDate;
   const canSelectTask = isTodayDate && !isReviewConfirmed;
@@ -1385,27 +1408,51 @@ export default function TodayPage({
     if (!canCompleteTask) return;
 
     const target = todos.find((todo) => todo.id === id);
-    if (!target || isReminder(target)) return;
+if (!target) return;
 
-    const nextCompleted = !isCompleted(target);
+const reminderFlag = isReminder(target);
+const nextCompleted = !isCompleted(target);
 
-    if (!nextCompleted) {
-      setTodos((current) =>
-        current.map((todo) =>
-          todo.id === id
-            ? {
-                ...todo,
-                completed: false,
-                taskStatus: "pending",
-                completedAt: null,
-              }
-            : todo
-        )
-      );
-      setSelectedTaskId(id);
-      setActiveTab("incomplete");
-      return;
-    }
+if (!nextCompleted) {
+  setTodos((current) =>
+    current.map((todo) =>
+      todo.id === id
+        ? {
+            ...todo,
+            completed: false,
+            taskStatus: "pending",
+            completedAt: null,
+          }
+        : todo
+    )
+  );
+  if (!reminderFlag) setSelectedTaskId(id);
+  setActiveTab("incomplete");
+  return;
+}
+
+if (reminderFlag) {
+  setTodos((current) =>
+    current.map((todo) =>
+      todo.id === id
+        ? {
+            ...todo,
+            completed: true,
+            taskStatus: "completed",
+            completedAt: new Date().toISOString(),
+            actualMinutes: 0,
+            actualSeconds: 0,
+            workedMinutes: 0,
+            focusMinutes: 0,
+            targetDate: getTodoDateKey(todo),
+          }
+        : todo
+    )
+  );
+  setSelectedTaskId(null);
+  setActiveTab("incomplete");
+  return;
+}
 
     const savedWorkLog = workLogs.find((log) => log.taskId === id);
     const hasActualTime =
