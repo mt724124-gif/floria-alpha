@@ -395,41 +395,54 @@ function TodayGoalCard({
   );
 }
 
-function SortModeSwitch({ sortMode, onChange }) {
+function SortModeSwitch({ sortMode, onChange, showAllTasks, onToggleShowAll }) {
   return (
-    <section className="rounded-[22px] border border-slate-100 bg-white p-3 shadow-[0_10px_26px_rgba(15,23,42,0.055)]">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[13px] font-black text-slate-700">並び替え</p>
-        <p className="text-[11px] font-bold text-slate-400">
-          未達成タスクのみ表示
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
+    <section className="grid grid-cols-[1fr_auto] items-center gap-3">
+      <div className="grid grid-cols-2 gap-1.5 rounded-full border border-slate-200 bg-white p-1 shadow-[0_8px_18px_rgba(15,23,42,0.045)]">
         <button
           type="button"
           onClick={() => onChange("priority")}
-          className={`h-10 rounded-2xl text-[13px] font-black active:scale-[0.99] ${
+          className={`h-8 rounded-full px-3 text-[12px] font-black active:scale-[0.98] ${
             sortMode === "priority"
-              ? "bg-emerald-500 text-white shadow-[0_10px_18px_rgba(16,185,129,0.22)]"
-              : "border border-slate-100 bg-white text-slate-500"
+              ? "bg-emerald-500 text-white shadow-[0_6px_12px_rgba(16,185,129,0.20)]"
+              : "text-slate-500"
           }`}
         >
-          重要度順
+          重要度
         </button>
 
         <button
           type="button"
           onClick={() => onChange("category")}
-          className={`h-10 rounded-2xl text-[13px] font-black active:scale-[0.99] ${
+          className={`h-8 rounded-full px-3 text-[12px] font-black active:scale-[0.98] ${
             sortMode === "category"
-              ? "bg-emerald-500 text-white shadow-[0_10px_18px_rgba(16,185,129,0.22)]"
-              : "border border-slate-100 bg-white text-slate-500"
+              ? "bg-emerald-500 text-white shadow-[0_6px_12px_rgba(16,185,129,0.20)]"
+              : "text-slate-500"
           }`}
         >
-          カテゴリ順
+          カテゴリ
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={onToggleShowAll}
+        className="flex h-10 shrink-0 items-center gap-2 rounded-full px-1 active:scale-[0.98]"
+      >
+        <span className="text-[13px] font-black text-slate-700">全表示</span>
+
+        <span
+          className={`relative block h-8 w-14 rounded-full transition-colors ${
+            showAllTasks ? "bg-emerald-500" : "bg-slate-300"
+          }`}
+        >
+          <span
+            className={`absolute left-1 top-1 block h-6 w-6 rounded-full bg-white shadow transition-transform ${
+              showAllTasks ? "translate-x-6" : "translate-x-0"
+            }`}
+          />
+        </span>
+      </button>
     </section>
   );
 }
@@ -681,15 +694,18 @@ const categoryNumberClass =
 
           <div className="min-w-0 flex-1 touch-manipulation select-none">
             <p
-              className={`flex items-center gap-1 truncate text-[14px] font-extrabold tracking-[-0.02em] ${
-                isCompleted(todo) ? "text-slate-400" : "text-slate-950"
-              }`}
-            >
-              {reminder && (
-                <Bell className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              )}
-              <span className="truncate">{todo.title}</span>
-            </p>
+  className={`flex items-start gap-1 text-[13px] font-bold leading-tight tracking-[-0.01em] ${
+    isCompleted(todo) ? "text-slate-400" : "text-slate-950"
+  }`}
+>
+  {reminder && (
+    <Bell className="mt-[1px] h-3.5 w-3.5 shrink-0 text-amber-500" />
+  )}
+
+  <span className="line-clamp-2 break-words">
+    {todo.title}
+  </span>
+</p>
 
             <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
               {todo.schedule && (
@@ -775,6 +791,8 @@ function SectionHeader({ label, count, type, groupKey }) {
 function TodoSection({
   section,
   sortMode,
+  collapsed,
+  onToggleCollapse,
   selectedTaskId,
   canSelect,
   canComplete,
@@ -807,69 +825,81 @@ function TodoSection({
         sortMode === "priority" ? priorityConfig.border : "border-slate-100"
       } ${sortMode === "priority" ? priorityConfig.bg : "bg-white"} p-2`}
     >
-      <SectionHeader
-        label={section.label}
-        count={section.todos.length}
-        type={sortMode}
-        groupKey={section.key}
-      />
+      <button
+  type="button"
+  onClick={onToggleCollapse}
+  className="mb-1.5 flex w-full items-center justify-between rounded-2xl px-1 py-1 active:bg-slate-50"
+>
+  <SectionHeader
+    label={section.label}
+    count={section.todos.length}
+    type={sortMode}
+    groupKey={section.key}
+  />
 
-      <div
-        className={`overflow-visible rounded-[16px] bg-white ${
-          dropTargetGroup === section.key && !dropTargetId
-            ? "ring-2 ring-emerald-200"
-            : ""
-        }`}
-      >
-        {isEmpty ? (
-          <div className="rounded-[16px] bg-white/75 px-4 py-4 text-center text-[12px] font-bold text-slate-400">
-            表示するTodoはありません
-          </div>
-        ) : (
-          section.todos.map((todo) => (
-            <TodoItem
-              key={todo.id}
-              todo={todo}
-              sortMode={sortMode}
-              displayRank={todo.displayRank}
-              canSelect={canSelect}
-              canComplete={canComplete}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              canMoveTomorrow={canMoveTomorrow}
-              canReorder={canReorder}
-              selected={selectedTaskId === todo.id}
-              menuOpen={openMenuId === todo.id}
-              dragging={draggingId === todo.id}
-              dragOffsetY={draggingId === todo.id ? dragOffsetY : 0}
-              dropTarget={dropTargetId === todo.id}
-              onSelect={onSelect}
-              onToggle={onToggle}
-              onEdit={(target) => {
-                setOpenMenuId(null);
-                onEdit(target);
-              }}
-              onDelete={(target) => {
-                setOpenMenuId(null);
-                onDelete(target);
-              }}
-              onMoveTomorrow={(target) => {
-                setOpenMenuId(null);
-                onMoveTomorrow(target);
-              }}
-              onWorkLogEdit={(target) => {
-                setOpenMenuId(null);
-                onWorkLogEdit(target);
-              }}
-              onToggleMenu={(id) =>
-                setOpenMenuId((current) => (current === id ? null : id))
-              }
-              onDragHandlePointerDown={onDragHandlePointerDown}
-              onTaskLongPressPointerDown={onTaskLongPressPointerDown}
-            />
-          ))
-        )}
+  <span className="text-[13px] font-black text-slate-400">
+    {collapsed ? "開く" : "閉じる"}
+  </span>
+</button>
+
+      {!collapsed && (
+  <div
+    className={`overflow-visible rounded-[16px] bg-white ${
+      dropTargetGroup === section.key && !dropTargetId
+        ? "ring-2 ring-emerald-200"
+        : ""
+    }`}
+  >
+    {isEmpty ? (
+      <div className="rounded-[16px] bg-white/75 px-4 py-4 text-center text-[12px] font-bold text-slate-400">
+        表示するTodoはありません
       </div>
+    ) : (
+      section.todos.map((todo) => (
+        <TodoItem
+          key={todo.id}
+          todo={todo}
+          sortMode={sortMode}
+          displayRank={todo.displayRank}
+          canSelect={canSelect}
+          canComplete={canComplete}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          canMoveTomorrow={canMoveTomorrow}
+          canReorder={canReorder}
+          selected={selectedTaskId === todo.id}
+          menuOpen={openMenuId === todo.id}
+          dragging={draggingId === todo.id}
+          dragOffsetY={draggingId === todo.id ? dragOffsetY : 0}
+          dropTarget={dropTargetId === todo.id}
+          onSelect={onSelect}
+          onToggle={onToggle}
+          onEdit={(target) => {
+            setOpenMenuId(null);
+            onEdit(target);
+          }}
+          onDelete={(target) => {
+            setOpenMenuId(null);
+            onDelete(target);
+          }}
+          onMoveTomorrow={(target) => {
+            setOpenMenuId(null);
+            onMoveTomorrow(target);
+          }}
+          onWorkLogEdit={(target) => {
+            setOpenMenuId(null);
+            onWorkLogEdit(target);
+          }}
+          onToggleMenu={(id) =>
+            setOpenMenuId((current) => (current === id ? null : id))
+          }
+          onDragHandlePointerDown={onDragHandlePointerDown}
+          onTaskLongPressPointerDown={onTaskLongPressPointerDown}
+        />
+      ))
+    )}
+  </div>
+)}
     </div>
   );
 }
@@ -877,6 +907,7 @@ function TodoSection({
 function TodoListCard({
   todos,
   categories,
+  showAllTasks,
   sortMode,
   selectedTaskId,
   canSelect,
@@ -894,8 +925,9 @@ function TodoListCard({
   onReorder,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
-  const [draggingId, setDraggingId] = useState(null);
-  const [dragOffsetY, setDragOffsetY] = useState(0);
+const [openSectionKeys, setOpenSectionKeys] = useState([]);
+const [draggingId, setDraggingId] = useState(null);
+const [dragOffsetY, setDragOffsetY] = useState(0);
   const [dropTargetId, setDropTargetId] = useState(null);
   const [dropTargetGroup, setDropTargetGroup] = useState(null);
   const draggingIdRef = useRef(null);
@@ -1007,12 +1039,21 @@ setOpenMenuId(null);
   };
 
   const handleDragHandlePointerDown = (event, id) => {
-    if (!canReorder) return;
-    event.preventDefault();
-    event.stopPropagation();
-    clearLongPressTimer();
-    beginDragging(id, event.clientY);
+  if (!canReorder) return;
+  event.preventDefault();
+  event.stopPropagation();
+  clearLongPressTimer();
+
+  longPressStartRef.current = {
+    x: event.clientX,
+    y: event.clientY,
+    id,
   };
+
+  longPressTimerRef.current = setTimeout(() => {
+    beginDragging(id, longPressStartRef.current.y);
+  }, 50);
+};
 
   const handleTaskLongPressPointerDown = (event, id) => {
     if (!canReorder || event.pointerType === "mouse") return;
@@ -1021,7 +1062,7 @@ setOpenMenuId(null);
     longPressStartRef.current = { x: event.clientX, y: event.clientY, id };
     longPressTimerRef.current = setTimeout(() => {
       beginDragging(id, longPressStartRef.current.y);
-    }, 260);
+    }, 50);
   };
 
   useEffect(() => {
@@ -1107,34 +1148,46 @@ setOpenMenuId(null);
         </div>
       ) : (
         <div className="space-y-2.5">
-          {sections.map((section) => (
-            <TodoSection
-              key={section.key}
-              section={section}
-              sortMode={sortMode}
-              selectedTaskId={selectedTaskId}
-              canSelect={canSelect}
-              canComplete={canComplete}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              canMoveTomorrow={canMoveTomorrow}
-              canReorder={canReorder}
-              openMenuId={openMenuId}
-              setOpenMenuId={setOpenMenuId}
-              draggingId={draggingId}
-              dragOffsetY={dragOffsetY}
-              dropTargetId={dropTargetId}
-              dropTargetGroup={dropTargetGroup}
-              onSelect={onSelect}
-              onToggle={onToggle}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onMoveTomorrow={onMoveTomorrow}
-              onWorkLogEdit={onWorkLogEdit}
-              onDragHandlePointerDown={handleDragHandlePointerDown}
-              onTaskLongPressPointerDown={handleTaskLongPressPointerDown}
-            />
-          ))}
+          {sections.map((section) => {
+  const collapsed = !showAllTasks && !openSectionKeys.includes(section.key);
+
+  return (
+    <TodoSection
+      key={section.key}
+      section={section}
+      sortMode={sortMode}
+      collapsed={collapsed}
+      onToggleCollapse={() =>
+        setOpenSectionKeys((current) =>
+          current.includes(section.key)
+            ? current.filter((key) => key !== section.key)
+            : [...current, section.key]
+        )
+      }
+      selectedTaskId={selectedTaskId}
+      canSelect={canSelect}
+      canComplete={canComplete}
+      canEdit={canEdit}
+      canDelete={canDelete}
+      canMoveTomorrow={canMoveTomorrow}
+      canReorder={canReorder}
+      openMenuId={openMenuId}
+      setOpenMenuId={setOpenMenuId}
+      draggingId={draggingId}
+      dragOffsetY={dragOffsetY}
+      dropTargetId={dropTargetId}
+      dropTargetGroup={dropTargetGroup}
+      onSelect={onSelect}
+      onToggle={onToggle}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onMoveTomorrow={onMoveTomorrow}
+      onWorkLogEdit={onWorkLogEdit}
+      onDragHandlePointerDown={handleDragHandlePointerDown}
+      onTaskLongPressPointerDown={handleTaskLongPressPointerDown}
+    />
+  );
+})}
         </div>
       )}
     </section>
@@ -1453,6 +1506,7 @@ export default function TodayPage({
   };
 
   const [sortMode, setSortMode] = useState("priority");
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [todoModal, setTodoModal] = useState({
     open: false,
@@ -2052,10 +2106,16 @@ export default function TodayPage({
             isFutureDate={isFutureDate}
           />
 
-          <SortModeSwitch sortMode={sortMode} onChange={setSortMode} />
+          <SortModeSwitch
+          sortMode={sortMode}
+          onChange={setSortMode}
+          showAllTasks={showAllTasks}
+          onToggleShowAll={() => setShowAllTasks((current) => !current)}
+          />
 
           <TodoListCard
-            todos={incompleteTodos}
+            todos={showAllTasks ? filteredTodos : incompleteTodos}
+            showAllTasks={showAllTasks}
             categories={categories}
             sortMode={sortMode}
             selectedTaskId={selectedTaskId}

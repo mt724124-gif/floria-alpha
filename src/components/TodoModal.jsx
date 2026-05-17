@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Plus, Save, X } from "lucide-react";
 
 function formatDateForInput(date) {
@@ -20,119 +20,6 @@ const priorityOptions = [
   { value: "low", label: "低", subLabel: "軽め", activeClass: "border-slate-300 bg-slate-100 text-slate-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
 ];
 
-function WheelColumn({ values, value, onChange, formatter = (item) => item }) {
-  const itemHeight = 34;
-  const ref = useRef(null);
-  const scrollTimerRef = useRef(null);
-
-  useEffect(() => {
-    const index = values.findIndex((item) => String(item) === String(value));
-    if (index < 0 || !ref.current) return;
-
-    ref.current.scrollTo({
-      top: index * itemHeight,
-      behavior: "auto",
-    });
-  }, [value, values]);
-
-  const handleScroll = () => {
-    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-
-    scrollTimerRef.current = setTimeout(() => {
-      if (!ref.current) return;
-
-      const index = Math.round(ref.current.scrollTop / itemHeight);
-      const safeIndex = Math.max(0, Math.min(values.length - 1, index));
-      const nextValue = values[safeIndex];
-
-      ref.current.scrollTo({
-        top: safeIndex * itemHeight,
-        behavior: "smooth",
-      });
-
-      if (String(nextValue) !== String(value)) {
-        onChange(nextValue);
-      }
-    }, 80);
-  };
-
-  return (
-    <div
-      ref={ref}
-      onScroll={handleScroll}
-      className="relative h-[102px] flex-1 snap-y snap-mandatory overflow-y-auto py-[34px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
-      {values.map((item) => {
-        const selected = String(value) === String(item);
-
-        return (
-          <button
-            key={item}
-            type="button"
-            onClick={() => onChange(item)}
-            className={`block h-[34px] w-full snap-center text-center text-[21px] font-bold leading-[34px] transition ${
-              selected ? "scale-100 text-slate-950" : "scale-[0.86] text-slate-300"
-            }`}
-          >
-            {formatter(item)}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function DurationWheel({ enabled = true, hour, minute, onHourChange, onMinuteChange }) {
-  if (!enabled) return null;
-
-  return (
-    <div className="relative rounded-[18px] bg-slate-50 px-2 py-1.5">
-      <div className="pointer-events-none absolute left-2 right-2 top-1/2 h-[34px] -translate-y-1/2 rounded-xl bg-white shadow-sm" />
-      <div className="relative z-10 flex items-center">
-        <WheelColumn
-          values={Array.from({ length: 13 }, (_, i) => i)}
-          value={hour}
-          onChange={onHourChange}
-        />
-        <WheelColumn
-          values={[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]}
-          value={minute}
-          onChange={onMinuteChange}
-          formatter={(item) => String(item).padStart(2, "0")}
-        />
-      </div>
-      <div className="relative z-10 grid grid-cols-2 text-center text-[11px] font-black text-slate-400">
-        <span>時間</span>
-        <span>分</span>
-      </div>
-    </div>
-  );
-}
-
-function ClockWheel({ hour, minute, onHourChange, onMinuteChange }) {
-  return (
-    <div className="relative rounded-[18px] bg-slate-50 px-2 py-1.5">
-      <div className="pointer-events-none absolute left-2 right-2 top-1/2 h-[34px] -translate-y-1/2 rounded-xl bg-white shadow-sm" />
-      <div className="relative z-10 flex items-center">
-        <WheelColumn
-          values={Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))}
-          value={hour}
-          onChange={onHourChange}
-        />
-        <WheelColumn
-          values={Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0"))}
-          value={minute}
-          onChange={onMinuteChange}
-        />
-      </div>
-      <div className="relative z-10 grid grid-cols-2 text-center text-[11px] font-black text-slate-400">
-        <span>時</span>
-        <span>分</span>
-      </div>
-    </div>
-  );
-}
-
 export default function TodoModal({ open, mode = "add", initialTodo, categories, onClose, onSave, onAddCategory, onDeleteCategory, compactTimerEdit = false }) {
   const isEditMode = mode === "edit";
   const [title, setTitle] = useState("");
@@ -140,9 +27,8 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
   const [priority, setPriority] = useState("medium");
   const [itemType, setItemType] = useState("todo");
   const [newCategory, setNewCategory] = useState("");
-  const [useEstimatedTime, setUseEstimatedTime] = useState(false);
-  const [durationHour, setDurationHour] = useState(1);
-  const [durationMinute, setDurationMinute] = useState(0);
+  const [durationHour, setDurationHour] = useState("");
+  const [durationMinute, setDurationMinute] = useState("");
   const [actualHour, setActualHour] = useState(0);
   const [actualMinute, setActualMinute] = useState(0);
   const [completed, setCompleted] = useState(false);
@@ -168,9 +54,8 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
       setCategory(initialTodo.category ?? "学習");
       setPriority(initialTodo.priority ?? "medium");
       setNewCategory("");
-      setUseEstimatedTime(estimated != null);
-      setDurationHour(estimated == null ? 1 : Math.floor(estimated / 60));
-      setDurationMinute(estimated == null ? 0 : estimated % 60);
+      setDurationHour(estimated == null ? "" : Math.floor(estimated / 60));
+      setDurationMinute(estimated == null ? "" : estimated % 60);
       setActualHour(Math.floor(actual / 60));
       setActualMinute(actual % 60);
       setCompleted(Boolean(initialTodo.completed));
@@ -187,9 +72,8 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
       setCategory("学習");
       setPriority("medium");
       setNewCategory("");
-      setUseEstimatedTime(false);
-      setDurationHour(1);
-      setDurationMinute(0);
+      setDurationHour("");
+      setDurationMinute("");
       setActualHour(0);
       setActualMinute(0);
       setCompleted(false);
@@ -206,6 +90,8 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
 
   if (!open) return null;
 
+  const hasEstimated = durationHour !== "" || durationMinute !== "";
+
   const handleDeleteCategory = (targetCategory) => {
     if (targetCategory === "その他") return;
     const fallback = categories.find((item) => item !== targetCategory) ?? "その他";
@@ -217,7 +103,7 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
     event.preventDefault();
     if (!title.trim()) return;
 
-    const estimatedMinutes = useEstimatedTime ? Number(durationHour || 0) * 60 + Number(durationMinute || 0) : null;
+    const estimatedMinutes = hasEstimated ? Number(durationHour || 0) * 60 + Number(durationMinute || 0) : null;
     const actualMinutes = Number(actualHour || 0) * 60 + Number(actualMinute || 0);
 
     let finalCategory = isEditMode ? initialTodo?.category ?? category : category;
@@ -417,41 +303,84 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
 
         {itemType === "todo" && (
           <div className="mb-4">
-            <label className="mb-2 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-black text-slate-600">予定時間</p>
-                <p className="mt-0.5 text-[11px] font-bold text-slate-400">
-                  未設定でも保存できます
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={useEstimatedTime}
-                onChange={(e) => setUseEstimatedTime(e.target.checked)}
-                className="h-5 w-5 accent-emerald-500"
-              />
-            </label>
+            <span className="mb-2 block text-sm font-black text-slate-600">予定時間（任意）</span>
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={durationHour}
+                onChange={(e) => {
+  const value = e.target.value;
+  setDurationHour(value);
 
-            <DurationWheel
-              enabled={useEstimatedTime}
-              hour={durationHour}
-              minute={durationMinute}
-              onHourChange={setDurationHour}
-              onMinuteChange={setDurationMinute}
-            />
+  if (value !== "" && durationMinute === "") {
+    setDurationMinute(0);
+  }
+
+  if (value === "" && durationMinute === 0) {
+    setDurationMinute("");
+  }
+}}
+                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+              >
+                <option value="">未設定</option>
+                {Array.from({ length: 13 }, (_, i) => (
+                  <option key={i} value={i}>{i}時間</option>
+                ))}
+              </select>
+
+              <select
+                value={durationMinute}
+                onChange={(e) => {
+  const value = e.target.value;
+  setDurationMinute(value);
+
+  if (value !== "" && durationHour === "") {
+    setDurationHour(0);
+  }
+
+  if (value === "" && durationHour === 0) {
+    setDurationHour("");
+  }
+}}
+                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+              >
+                <option value="">未設定</option>
+                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
+                  <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
+                ))}
+              </select>
+            </div>
+            {!hasEstimated && (
+              <p className="mt-2 text-[11px] font-bold leading-relaxed text-slate-400">
+                入力すると予定と実測の差を振り返りやすくなります。
+              </p>
+            )}
           </div>
         )}
 
         {isEditMode && itemType === "todo" && (
           <div className="mb-4">
             <span className="mb-2 block text-sm font-black text-slate-600">実測時間</span>
-            <DurationWheel
-              enabled
-              hour={actualHour}
-              minute={actualMinute}
-              onHourChange={setActualHour}
-              onMinuteChange={setActualMinute}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={actualHour}
+                onChange={(e) => setActualHour(e.target.value)}
+                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+              >
+                {Array.from({ length: 13 }, (_, i) => (
+                  <option key={i} value={i}>{i}時間</option>
+                ))}
+              </select>
+
+              <select
+                value={actualMinute}
+                onChange={(e) => setActualMinute(e.target.value)}
+                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+              >
+                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
+                  <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
 
@@ -483,12 +412,31 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
 
               <div>
                 <span className="mb-2 block text-sm font-black text-slate-600">時間</span>
-                <ClockWheel
-                  hour={scheduledHour}
-                  minute={scheduledMinute}
-                  onHourChange={setScheduledHour}
-                  onMinuteChange={setScheduledMinute}
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    value={scheduledHour}
+                    onChange={(e) => setScheduledHour(e.target.value)}
+                    className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={String(i).padStart(2, "0")}>
+                        {String(i).padStart(2, "0")}時
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={scheduledMinute}
+                    onChange={(e) => setScheduledMinute(e.target.value)}
+                    className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i * 5).map((minute) => (
+                      <option key={minute} value={String(minute).padStart(2, "0")}>
+                        {String(minute).padStart(2, "0")}分
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <label className="block">
