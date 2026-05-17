@@ -452,6 +452,7 @@ function FloatingAddButton({ show, onClick }) {
 function TodoItem({
   todo,
   displayRank,
+  sortMode,
   canSelect = true,
   canComplete = true,
   canEdit = true,
@@ -476,6 +477,15 @@ function TodoItem({
   const config = getCategoryStyle(todo.category);
   const priority = getPriority(todo);
   const priorityConfig = priorityStyles[priority] ?? priorityStyles.medium;
+
+const categoryNumberClass =
+  todo.category === "学習"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-500"
+    : todo.category === "仕事"
+      ? "border-blue-200 bg-blue-50 text-blue-500"
+      : todo.category === "健康"
+        ? "border-violet-200 bg-violet-50 text-violet-500"
+        : "border-slate-200 bg-slate-50 text-slate-500";
   const Icon = config.icon;
   const reminder = isReminder(todo);
 
@@ -483,109 +493,147 @@ function TodoItem({
   const [isSwiping, setIsSwiping] = useState(false);
   const swipeStartRef = useRef({ x: 0, y: 0 });
   const swipeActiveRef = useRef(false);
+  const swipeLatestXRef = useRef(0);
+  const swipeFrameRef = useRef(null);
+  const swipePointerIdRef = useRef(null);
 
   const completeDisabled = !canComplete;
   const menuDisabled = !canEdit && !canDelete;
   const itemDisabled = !canSelect && !canEdit && !canDelete && !canMoveTomorrow;
 
   const startSwipe = (event) => {
-    if (dragging || itemDisabled || isCompleted(todo)) return;
-    if (event.pointerType === "mouse") return;
-    swipeStartRef.current = { x: event.clientX, y: event.clientY };
-    swipeActiveRef.current = true;
-    setIsSwiping(false);
-  };
+  if (dragging || itemDisabled || isCompleted(todo)) return;
+  if (event.pointerType === "mouse") return;
+
+  swipePointerIdRef.current = event.pointerId;
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+
+  swipeStartRef.current = { x: event.clientX, y: event.clientY };
+  swipeActiveRef.current = true;
+  swipeLatestXRef.current = 0;
+  setIsSwiping(false);
+};
 
   const moveSwipe = (event) => {
-    if (!swipeActiveRef.current) return;
+  if (!swipeActiveRef.current) return;
 
-    const dx = event.clientX - swipeStartRef.current.x;
-    const dy = event.clientY - swipeStartRef.current.y;
+  const dx = event.clientX - swipeStartRef.current.x;
+  const dy = event.clientY - swipeStartRef.current.y;
 
-    if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx)) {
-      swipeActiveRef.current = false;
-      setSwipeX(0);
-      setIsSwiping(false);
-      return;
-    }
-
-    if (Math.abs(dx) < 8) return;
-
-    event.preventDefault();
-    setIsSwiping(true);
-
-    const limited = Math.max(-110, Math.min(110, dx));
-    setSwipeX(limited);
-  };
-
-  const endSwipe = () => {
-    if (!swipeActiveRef.current) return;
-
-    const finalX = swipeX;
+  if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 0.7) {
     swipeActiveRef.current = false;
-    setIsSwiping(false);
+    swipeLatestXRef.current = 0;
     setSwipeX(0);
+    setIsSwiping(false);
+    return;
+  }
 
-    if (finalX > 72 && canDelete) {
-      onDelete(todo);
-      return;
-    }
+  if (Math.abs(dx) < 24) return;
 
-    if (finalX < -72 && canMoveTomorrow) {
-      onMoveTomorrow(todo);
-    }
-  };
+  event.preventDefault();
+
+  if (!isSwiping) {
+    setIsSwiping(true);
+  }
+
+  const limited = Math.max(-118, Math.min(118, dx));
+  swipeLatestXRef.current = limited;
+
+  if (swipeFrameRef.current) return;
+
+  swipeFrameRef.current = requestAnimationFrame(() => {
+    setSwipeX(swipeLatestXRef.current);
+    swipeFrameRef.current = null;
+  });
+};
+
+  const endSwipe = (event) => {
+  if (!swipeActiveRef.current) return;
+
+  const finalX = swipeLatestXRef.current || swipeX;
+
+  if (swipePointerIdRef.current != null) {
+    event?.currentTarget?.releasePointerCapture?.(swipePointerIdRef.current);
+  }
+
+  swipeActiveRef.current = false;
+  swipeLatestXRef.current = 0;
+  swipePointerIdRef.current = null;
+
+  if (swipeFrameRef.current) {
+    cancelAnimationFrame(swipeFrameRef.current);
+    swipeFrameRef.current = null;
+  }
+
+  setIsSwiping(false);
+  setSwipeX(0);
+
+  const deleteThreshold = 84;
+  const moveTomorrowThreshold = 104;
+
+  if (finalX < -deleteThreshold && canDelete) {
+    onDelete(todo);
+    return;
+  }
+
+  if (finalX > moveTomorrowThreshold && canMoveTomorrow) {
+    onMoveTomorrow(todo);
+  }
+};
 
   return (
     <div
-      data-todo-id={todo.id}
-      className={`relative overflow-visible border-b border-slate-100 last:border-b-0 ${
-        menuOpen ? "z-50" : "z-0"
-      } ${selected ? "bg-emerald-50/70" : "bg-white"} ${
-        dropTarget && !dragging ? "bg-slate-50" : ""
-      }`}
-    >
-      {!isCompleted(todo) && canMoveTomorrow && (
-        <div className="absolute inset-y-0 left-0 z-0 flex w-32 items-center justify-start bg-amber-50 px-4 text-amber-600">
-          <ArrowRight className="h-5 w-5 rotate-180" />
-          <span className="ml-1.5 text-xs font-black">明日へ</span>
-        </div>
-      )}
+  data-todo-id={todo.id}
+  className={`relative overflow-visible border-b border-slate-100 last:border-b-0 ${
+    dragging ? "z-[999]" : menuOpen ? "z-50" : "z-0"
+  } ${selected ? "bg-emerald-50/70" : "bg-white"} ${
+    dropTarget && !dragging ? "bg-slate-50" : ""
+  }`}
+>
+      {!dragging && !isCompleted(todo) && canMoveTomorrow && (
+  <div className="absolute inset-y-0 left-0 z-0 flex w-32 items-center justify-start bg-amber-50 px-4 text-amber-600">
+    <span className="text-xs font-black">明日へ</span>
+  </div>
+)}
 
-      {!isCompleted(todo) && canDelete && (
-        <div className="absolute inset-y-0 right-0 z-0 flex w-28 items-center justify-end bg-red-50 px-4 text-red-500">
-          <span className="mr-1.5 text-xs font-black">削除</span>
-          <Trash2 className="h-5 w-5" />
-        </div>
-      )}
+      {!dragging && !isCompleted(todo) && canDelete && (
+  <div className="absolute inset-y-0 right-0 z-0 flex w-28 items-center justify-end bg-red-50 px-4 text-red-500">
+    <span className="mr-1.5 text-xs font-black">削除</span>
+    <Trash2 className="h-5 w-5" />
+  </div>
+)}
 
       <div
-        onPointerDown={startSwipe}
-        onPointerMove={moveSwipe}
-        onPointerUp={endSwipe}
-        onPointerCancel={endSwipe}
-        onClick={(event) => {
-          if (event.defaultPrevented || dragging || itemDisabled || isSwiping) return;
-          if (!canSelect) return;
-          onSelect(todo);
-        }}
-        style={
-          dragging
-            ? {
-                transform: `translate3d(0, ${dragOffsetY}px, 0) scale(1.015)`,
-              }
-            : swipeX !== 0
-              ? {
-                  transform: `translate3d(${swipeX}px, 0, 0)`,
-                }
-              : undefined
+  onPointerDown={startSwipe}
+  onPointerMove={moveSwipe}
+  onPointerUp={endSwipe}
+  onPointerCancel={endSwipe}
+  onClick={(event) => {
+    if (event.defaultPrevented || dragging || itemDisabled || isSwiping) return;
+    if (!canSelect) return;
+    onSelect(todo);
+  }}
+  style={
+    dragging
+      ? {
+          transform: `translate3d(0, ${dragOffsetY}px, 0) scale(1.015)`,
         }
-        className={`relative z-10 px-3 py-2 transition-transform ${
-          dragging
-            ? "pointer-events-none z-40 rounded-[16px] bg-white opacity-95 shadow-[0_12px_28px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 duration-100"
-            : "bg-white duration-200"
-        } ${itemDisabled ? "cursor-default opacity-80" : "cursor-pointer"}`}
-      >
+      : swipeX !== 0
+        ? {
+            transform: `translate3d(${swipeX}px, 0, 0)`,
+          }
+        : undefined
+  }
+  className={`relative z-10 px-3 py-2 transition-transform ${
+  reminder
+    ? "before:absolute before:left-0 before:top-0 before:h-full before:w-[5px] before:bg-amber-400"
+    : ""
+} ${
+    dragging
+      ? "pointer-events-none z-[1000] rounded-[16px] bg-white opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.20)] ring-1 ring-slate-200 duration-100"
+      : "bg-white duration-200"
+  } ${itemDisabled ? "cursor-default opacity-80" : "cursor-pointer"}`}
+>
         <div className="flex min-h-[48px] items-center gap-2">
           <button
             type="button"
@@ -601,6 +649,8 @@ function TodoItem({
                 ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
                 : dragging
                   ? "border-slate-900 bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
+                  : sortMode === "category"
+                  ? categoryNumberClass
                   : priorityConfig.number
             }`}
           >
@@ -630,13 +680,7 @@ function TodoItem({
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
           </button>
 
-          <div
-            className="min-w-0 flex-1 touch-manipulation select-none"
-            onPointerDown={(event) => {
-              if (!canReorder) return;
-              onTaskLongPressPointerDown(event, todo.id);
-            }}
-          >
+          <div className="min-w-0 flex-1 touch-manipulation select-none">
             <p
               className={`flex items-center gap-1 truncate text-[14px] font-extrabold tracking-[-0.02em] ${
                 isCompleted(todo) ? "text-slate-400" : "text-slate-950"
@@ -836,6 +880,7 @@ function TodoSection({
             <TodoItem
               key={todo.id}
               todo={todo}
+              sortMode={sortMode}
               displayRank={todo.displayRank}
               canSelect={canSelect}
               canComplete={canComplete}
@@ -904,9 +949,14 @@ function TodoListCard({
   const [dropTargetId, setDropTargetId] = useState(null);
   const [dropTargetGroup, setDropTargetGroup] = useState(null);
   const draggingIdRef = useRef(null);
-  const startYRef = useRef(0);
-  const lastReorderYRef = useRef(0);
-  const longPressTimerRef = useRef(null);
+const startYRef = useRef(0);
+const lastReorderYRef = useRef(0);
+const pendingDropRef = useRef({
+  targetId: null,
+  targetGroup: null,
+  visibleOrderIds: [],
+});
+const longPressTimerRef = useRef(null);
   const longPressStartRef = useRef({ x: 0, y: 0, id: null });
   const previousBodyTouchActionRef = useRef("");
   const previousBodyUserSelectRef = useRef("");
@@ -985,9 +1035,14 @@ function TodoListCard({
     document.body.style.userSelect = "none";
     setDraggingId(id);
     setDragOffsetY(0);
-    setDropTargetId(null);
-    setDropTargetGroup(null);
-    setOpenMenuId(null);
+    pendingDropRef.current = {
+  targetId: null,
+  targetGroup: null,
+  visibleOrderIds: rankedTodos.map((todo) => todo.id),
+};
+setDropTargetId(null);
+setDropTargetGroup(null);
+setOpenMenuId(null);
   };
 
   const stopDragging = () => {
@@ -1056,22 +1111,26 @@ function TodoListCard({
       setDropTargetId(targetId || null);
       setDropTargetGroup(targetGroup);
 
-      const movedSinceLastReorder = Math.abs(event.clientY - lastReorderYRef.current);
-      const shouldPreviewReorder = movedSinceLastReorder > 34;
-
-      if (shouldPreviewReorder && (targetId || targetGroup)) {
-        onReorder(draggingIdRef.current, targetId || null, targetGroup);
-        lastReorderYRef.current = event.clientY;
-        startYRef.current = event.clientY;
-        requestAnimationFrame(() => setDragOffsetY(0));
-      }
+      pendingDropRef.current = {
+  targetId: targetId || null,
+  targetGroup,
+  visibleOrderIds: rankedTodos.map((todo) => todo.id),
+};
     };
 
     const handlePointerUp = () => {
-      if (longPressTimerRef.current) clearLongPressTimer();
-      if (!draggingIdRef.current) return;
-      stopDragging();
-    };
+  if (longPressTimerRef.current) clearLongPressTimer();
+  if (!draggingIdRef.current) return;
+
+  const draggingId = draggingIdRef.current;
+  const { targetId, targetGroup, visibleOrderIds } = pendingDropRef.current;
+
+  if (targetId || targetGroup) {
+    onReorder(draggingId, targetId, targetGroup, visibleOrderIds);
+  }
+
+  stopDragging();
+};
 
     window.addEventListener("pointermove", handlePointerMove, { passive: false });
     window.addEventListener("pointerup", handlePointerUp);
@@ -1083,7 +1142,7 @@ function TodoListCard({
       window.removeEventListener("pointercancel", handlePointerUp);
       clearLongPressTimer();
     };
-  }, [onReorder]);
+  }, [onReorder, rankedTodos]);
 
   return (
     <section className="relative z-20 overflow-visible rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
@@ -1874,84 +1933,89 @@ export default function TodayPage({
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   };
 
-  const reorderTodos = (draggingId, targetId, targetGroup) => {
-    if (!canReorderTask) return;
+  const reorderTodos = (draggingId, targetId, targetGroup, visibleOrderIds = []) => {
+  if (!canReorderTask) return;
 
-    setTodos((current) => {
-      const currentDateTodos = current.filter(
-        (todo) => getTodoDateKey(todo) === selectedDateKey && !isCompleted(todo)
-      );
+  setTodos((current) => {
+    const currentDateTodos = current.filter(
+      (todo) => getTodoDateKey(todo) === selectedDateKey && !isCompleted(todo)
+    );
 
-      const otherTodos = current.filter(
-        (todo) => !(getTodoDateKey(todo) === selectedDateKey && !isCompleted(todo))
-      );
+    const otherTodos = current.filter(
+      (todo) => !(getTodoDateKey(todo) === selectedDateKey && !isCompleted(todo))
+    );
 
-      const normalized = sortByRank(currentDateTodos).map((todo, index) => ({
-        ...todo,
-        rank: index + 1,
-        priority: getPriority(todo),
-      }));
+    const todoById = new Map(currentDateTodos.map((todo) => [todo.id, todo]));
 
-      const draggingIndex = normalized.findIndex((todo) => todo.id === draggingId);
-      if (draggingIndex < 0) return current;
+    const visibleOrderedTodos = visibleOrderIds
+      .map((id) => todoById.get(id))
+      .filter(Boolean);
 
-      const [draggingTodo] = normalized.splice(draggingIndex, 1);
+    const missingTodos = currentDateTodos.filter(
+      (todo) => !visibleOrderIds.includes(todo.id)
+    );
 
-      const movedTodo = {
-        ...draggingTodo,
-        priority:
-          sortMode === "priority" && targetGroup
-            ? targetGroup
-            : getPriority(draggingTodo),
-        category:
-          sortMode === "category" && targetGroup
-            ? targetGroup
-            : draggingTodo.category,
-      };
+    const normalized = [...visibleOrderedTodos, ...missingTodos].map((todo, index) => ({
+      ...todo,
+      rank: getRank(todo, index + 1),
+      priority: getPriority(todo),
+    }));
 
-      let insertIndex = normalized.length;
+    const draggingIndex = normalized.findIndex((todo) => todo.id === draggingId);
+    if (draggingIndex < 0) return current;
 
-      if (targetId) {
-        const targetIndex = normalized.findIndex((todo) => todo.id === targetId);
-        if (targetIndex >= 0) {
-          insertIndex = targetIndex;
-        }
-      } else if (targetGroup) {
-        const lastInGroupIndex = normalized.reduce((lastIndex, todo, index) => {
-          if (sortMode === "priority" && getPriority(todo) === targetGroup) return index;
-          if (sortMode === "category" && (todo.category ?? "その他") === targetGroup) return index;
-          return lastIndex;
-        }, -1);
+    const [draggingTodo] = normalized.splice(draggingIndex, 1);
 
-        insertIndex = lastInGroupIndex >= 0 ? lastInGroupIndex + 1 : normalized.length;
+    const movedTodo = {
+      ...draggingTodo,
+      priority:
+        sortMode === "priority" && targetGroup
+          ? targetGroup
+          : getPriority(draggingTodo),
+      category:
+        sortMode === "category" && targetGroup
+          ? targetGroup
+          : draggingTodo.category,
+    };
+
+    let insertIndex = normalized.length;
+
+    if (targetId) {
+      const targetIndex = normalized.findIndex((todo) => todo.id === targetId);
+      if (targetIndex >= 0) {
+        insertIndex = targetIndex;
       }
+    } else if (targetGroup) {
+      const lastInGroupIndex = normalized.reduce((lastIndex, todo, index) => {
+        if (sortMode === "priority" && getPriority(todo) === targetGroup) return index;
+        if (sortMode === "category" && (todo.category ?? "その他") === targetGroup) return index;
+        return lastIndex;
+      }, -1);
 
-      normalized.splice(insertIndex, 0, movedTodo);
+      insertIndex = lastInGroupIndex >= 0 ? lastInGroupIndex + 1 : normalized.length;
+    }
 
-      const rerankedSource =
-  sortMode === "priority"
-    ? [...normalized].sort((a, b) => {
-        const priorityDiff =
-          priorityOrder.indexOf(getPriority(a)) -
-          priorityOrder.indexOf(getPriority(b));
+    normalized.splice(insertIndex, 0, movedTodo);
 
-        if (priorityDiff !== 0) return priorityDiff;
+    const reranked =
+      sortMode === "priority"
+        ? priorityOrder
+            .flatMap((priority) =>
+              normalized.filter((todo) => getPriority(todo) === priority)
+            )
+            .map((todo, index) => ({
+              ...todo,
+              rank: index + 1,
+            }))
+        : normalized.map((todo) => ({
+            ...todo,
+            rank: todo.rank,
+            priority: getPriority(todo),
+          }));
 
-        const rankDiff = getRank(a) - getRank(b);
-        if (rankDiff !== 0) return rankDiff;
-
-        return Number(a.id ?? 0) - Number(b.id ?? 0);
-      })
-    : normalized;
-
-const reranked = rerankedSource.map((todo, index) => ({
-  ...todo,
-  rank: index + 1,
-}));
-
-      return [...otherTodos, ...reranked];
-    });
-  };
+    return [...otherTodos, ...reranked];
+  });
+};
 
   const saveWorkLog = (log) => {
     if (isPastDate) return;
