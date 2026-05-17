@@ -12,7 +12,6 @@ import {
   Clock,
   Dumbbell,
   GripVertical,
-  MoreVertical,
   Pencil,
   Play,
   Plus,
@@ -718,71 +717,22 @@ const categoryNumberClass =
           </div>
 
           <button
-            data-menu-button="true"
-            disabled={menuDisabled}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (menuDisabled) return;
-              onToggleMenu(todo.id);
-            }}
-            className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
-              menuDisabled
-                ? "cursor-not-allowed text-slate-200"
-                : "text-slate-400 active:bg-slate-100"
-            }`}
-          >
-            <MoreVertical className="h-[18px] w-[18px]" />
-          </button>
+  type="button"
+  disabled={!canEdit}
+  onClick={(event) => {
+    event.stopPropagation();
+    if (!canEdit) return;
+    onEdit(todo);
+  }}
+  className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
+    !canEdit
+      ? "cursor-not-allowed text-slate-200"
+      : "text-emerald-500 active:bg-emerald-50"
+  }`}
+>
+  <Pencil className="h-[17px] w-[17px]" />
+</button>
         </div>
-
-        {menuOpen && !menuDisabled && (
-          <div
-            data-menu-popup="true"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-            className="absolute right-3 top-10 z-[999] w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
-          >
-            {canEdit && (
-              <button
-                onClick={() => onEdit(todo)}
-                className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-slate-700 active:bg-slate-50"
-              >
-                <Pencil className="h-4 w-4" />
-                編集
-              </button>
-            )}
-
-            {canEdit && !reminder && (
-              <button
-                onClick={() => onWorkLogEdit(todo)}
-                className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-emerald-600 active:bg-emerald-50"
-              >
-                <Clock className="h-4 w-4" />
-                作業データ修正
-              </button>
-            )}
-
-            {canMoveTomorrow && !isCompleted(todo) && (
-              <button
-                onClick={() => onMoveTomorrow(todo)}
-                className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-amber-600 active:bg-amber-50"
-              >
-                <ArrowRight className="h-4 w-4" />
-                明日に移動
-              </button>
-            )}
-
-            {canDelete && (
-              <button
-                onClick={() => onDelete(todo)}
-                className="flex h-11 w-full items-center gap-2 px-4 text-sm font-black text-red-500 active:bg-red-50"
-              >
-                <Trash2 className="h-4 w-4" />
-                削除
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
