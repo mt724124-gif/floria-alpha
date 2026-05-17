@@ -129,6 +129,19 @@ function getInitialActualMinutes(todo, workLog) {
 
 function Header({ selectedDate, onChangeDate }) {
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const calendarRef = useRef(null);
+
+  useEffect(() => {
+    if (!calendarOpen) return;
+
+    const handleClickOutside = (event) => {
+      if (calendarRef.current?.contains(event.target)) return;
+      setCalendarOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handleClickOutside);
+    return () => window.removeEventListener("pointerdown", handleClickOutside);
+  }, [calendarOpen]);
 
   const moveDate = (diffDays) => {
     const nextDate = new Date(selectedDate);
@@ -156,16 +169,20 @@ function Header({ selectedDate, onChangeDate }) {
       />
 
       {calendarOpen && (
-        <div className="absolute left-1/2 top-13 z-50 w-[min(280px,calc(100vw-32px))] -translate-x-1/2 rounded-[22px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+  <div
+    ref={calendarRef}
+    onPointerDown={(event) => event.stopPropagation()}
+    className="fixed left-1/2 top-[calc(92px+env(safe-area-inset-top))] z-50 box-border w-[calc(100vw-64px)] max-w-[300px] min-w-0 -translate-x-1/2 rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]"
+  >
           <p className="mb-3 text-center text-sm font-black text-slate-700">
             日付を選択
           </p>
           <input
-            type="date"
-            value={formatDateForInput(selectedDate)}
-            onChange={handleDateChange}
-            className="h-12 w-full rounded-2xl border border-slate-200 px-4 text-center text-base font-extrabold text-slate-900 outline-none focus:border-emerald-400"
-          />
+  type="date"
+  value={formatDateForInput(selectedDate)}
+  onChange={handleDateChange}
+  className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-slate-200 px-2 text-center text-[15px] font-extrabold leading-[48px] text-slate-900 outline-none focus:border-emerald-400"
+/>
           <button
             onClick={() => {
               onChangeDate(new Date());
