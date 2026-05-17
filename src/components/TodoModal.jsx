@@ -18,6 +18,30 @@ function getDefaultScheduledTime() {
   };
 }
 
+const priorityOptions = [
+  {
+    value: "high",
+    label: "高",
+    subLabel: "重要",
+    activeClass: "border-red-300 bg-red-50 text-red-500",
+    inactiveClass: "border-slate-200 bg-white text-slate-400",
+  },
+  {
+    value: "medium",
+    label: "中",
+    subLabel: "標準",
+    activeClass: "border-amber-300 bg-amber-50 text-amber-500",
+    inactiveClass: "border-slate-200 bg-white text-slate-400",
+  },
+  {
+    value: "low",
+    label: "低",
+    subLabel: "軽め",
+    activeClass: "border-slate-300 bg-slate-100 text-slate-500",
+    inactiveClass: "border-slate-200 bg-white text-slate-400",
+  },
+];
+
 export default function TodoModal({
   open,
   mode = "add",
@@ -31,6 +55,7 @@ export default function TodoModal({
 }) {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("学習");
+  const [priority, setPriority] = useState("medium");
   const [itemType, setItemType] = useState("todo");
   const [newCategory, setNewCategory] = useState("");
   const [durationHour, setDurationHour] = useState(1);
@@ -62,6 +87,7 @@ export default function TodoModal({
       setItemType(initialTodo.type ?? "todo");
       setTitle(initialTodo.title ?? "");
       setCategory(initialTodo.category ?? "学習");
+      setPriority(initialTodo.priority ?? "medium");
       setNewCategory("");
       setDurationHour(Math.floor((initialTodo.estimatedMinutes ?? 60) / 60));
       setDurationMinute((initialTodo.estimatedMinutes ?? 60) % 60);
@@ -85,6 +111,7 @@ export default function TodoModal({
       setItemType("todo");
       setTitle("");
       setCategory("学習");
+      setPriority("medium");
       setNewCategory("");
       setDurationHour(1);
       setDurationMinute(0);
@@ -137,6 +164,8 @@ export default function TodoModal({
       type: itemType,
       title: title.trim().slice(0, 30),
       category: finalCategory,
+      priority: priority ?? "medium",
+      rank: initialTodo?.rank,
       estimatedMinutes: itemType === "todo" ? estimatedMinutes : 0,
       completed,
       schedule:
@@ -172,7 +201,7 @@ export default function TodoModal({
             setIsAddingCategory(false);
           }
         }}
-      className="max-h-[calc(100dvh-12px)] w-full max-w-[420px] overflow-y-auto rounded-[24px] bg-white p-3.5 shadow-2xl"
+        className="max-h-[calc(100dvh-12px)] w-full max-w-[420px] overflow-y-auto rounded-[24px] bg-white p-3.5 shadow-2xl"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[22px] font-black tracking-[-0.03em] text-slate-950">
@@ -230,9 +259,37 @@ export default function TodoModal({
                 ? "例：英単語を30個覚える"
                 : "例：13時から会議"
             }
-           className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+            className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
           />
         </label>
+
+        <div className="mb-4">
+          <span className="mb-2 block text-sm font-black text-slate-600">
+            重要度
+          </span>
+
+          <div className="grid grid-cols-3 gap-2">
+            {priorityOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setPriority(option.value)}
+                className={`h-14 rounded-2xl border text-center active:scale-[0.99] ${
+                  priority === option.value
+                    ? option.activeClass
+                    : option.inactiveClass
+                }`}
+              >
+                <p className="text-[16px] font-black leading-none">
+                  {option.label}
+                </p>
+                <p className="mt-1 text-[10px] font-black opacity-70">
+                  {option.subLabel}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div data-category-dropdown className="relative z-30 mb-4 block">
           <span className="mb-2 block text-sm font-black text-slate-600">
@@ -400,8 +457,6 @@ export default function TodoModal({
           </div>
         )}
 
-        
-
         {!compactTimerEdit && (
           <div className="mb-4 rounded-[20px] border border-slate-100 bg-slate-50/70 p-3.5">
             {itemType === "todo" ? (
@@ -429,51 +484,56 @@ export default function TodoModal({
 
             {(useTimeSetting || itemType === "reminder") && (
               <div className="mt-4 space-y-4">
-               <div className="space-y-3">
-  <label className="block w-fit">
-    <span className="mb-2 block text-sm font-black text-slate-600">
-      日付
-    </span>
-    <input
-  type="date"
-  value={scheduledDate}
-  onChange={(e) => setScheduledDate(e.target.value)}
-  className="h-12 w-[220px] rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-/>
-  </label>
+                <div className="space-y-3">
+                  <label className="block w-fit">
+                    <span className="mb-2 block text-sm font-black text-slate-600">
+                      日付
+                    </span>
+                    <input
+                      type="date"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      className="h-12 w-[220px] rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+                    />
+                  </label>
 
-  <div>
-    <span className="mb-2 block text-sm font-black text-slate-600">
-      時間
-    </span>
+                  <div>
+                    <span className="mb-2 block text-sm font-black text-slate-600">
+                      時間
+                    </span>
 
-    <div className="grid grid-cols-2 gap-3">
-      <select
-        value={scheduledHour}
-        onChange={(e) => setScheduledHour(e.target.value)}
-        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-      >
-        {Array.from({ length: 24 }, (_, i) => (
-          <option key={i} value={String(i).padStart(2, "0")}>
-            {String(i).padStart(2, "0")}時
-          </option>
-        ))}
-      </select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <select
+                        value={scheduledHour}
+                        onChange={(e) => setScheduledHour(e.target.value)}
+                        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+                      >
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <option key={i} value={String(i).padStart(2, "0")}>
+                            {String(i).padStart(2, "0")}時
+                          </option>
+                        ))}
+                      </select>
 
-      <select
-        value={scheduledMinute}
-        onChange={(e) => setScheduledMinute(e.target.value)}
-        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-      >
-        {Array.from({ length: 12 }, (_, i) => i * 5).map((minute) => (
-          <option key={minute} value={String(minute).padStart(2, "0")}>
-            {String(minute).padStart(2, "0")}分
-          </option>
-        ))}
-      </select>
-    </div>
-  </div>
-</div>
+                      <select
+                        value={scheduledMinute}
+                        onChange={(e) => setScheduledMinute(e.target.value)}
+                        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+                      >
+                        {Array.from({ length: 12 }, (_, i) => i * 5).map(
+                          (minute) => (
+                            <option
+                              key={minute}
+                              value={String(minute).padStart(2, "0")}
+                            >
+                              {String(minute).padStart(2, "0")}分
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                </div>
 
                 <label className="block">
                   <span className="mb-2 block text-xs font-black text-slate-500">

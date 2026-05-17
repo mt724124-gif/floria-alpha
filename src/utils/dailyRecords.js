@@ -5,11 +5,29 @@ const DEFAULT_CATEGORY_MINUTES = {
   その他: 0,
 };
 
+const DEFAULT_PRIORITY_COUNTS = {
+  high: 0,
+  medium: 0,
+  low: 0,
+};
+
+const PRIORITY_ORDER = ["high", "medium", "low"];
+
 export function getTodayKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function normalizePriority(priority) {
+  return PRIORITY_ORDER.includes(priority) ? priority : "medium";
+}
+
+function normalizeRank(rank, fallback = null) {
+  const numericRank = Number(rank);
+  if (Number.isFinite(numericRank) && numericRank > 0) return numericRank;
+  return fallback;
 }
 
 export function createEmptyDailyRecord(dateKey) {
@@ -38,6 +56,7 @@ export function createEmptyDailyRecord(dateKey) {
     achievementRate: 0,
 
     categoryMinutes: { ...DEFAULT_CATEGORY_MINUTES },
+    priorityCounts: { ...DEFAULT_PRIORITY_COUNTS },
 
     reflectionText: "",
     mood: null,
@@ -57,7 +76,11 @@ export function getOrCreateDailyRecord(
 }
 
 function isRecordConfirmed(record) {
-  return record?.status === "confirmed" || record?.reviewCompleted === true || record?.reviewed === true;
+  return (
+    record?.status === "confirmed" ||
+    record?.reviewCompleted === true ||
+    record?.reviewed === true
+  );
 }
 
 function normalizeTaskStatus(task, options = {}) {
@@ -78,6 +101,9 @@ export function createTaskSnapshot(task, options = {}) {
     id: task.id,
     title: task.title ?? "",
     category: task.category ?? "その他",
+
+    priority: normalizePriority(options.priority ?? task.priority),
+    rank: normalizeRank(options.rank ?? task.rank),
 
     estimatedMinutes: Number(task.estimatedMinutes ?? 0),
     actualMinutes: Number(
@@ -110,7 +136,6 @@ export function createTaskSnapshot(task, options = {}) {
       options.extensionCount ?? task.extensionCount ?? 0
     ),
 
-    priority: task.priority ?? "medium",
     memo: task.memo ?? "",
 
     type: task.type ?? "todo",
@@ -122,9 +147,24 @@ export function createTaskSnapshot(task, options = {}) {
   };
 }
 
+function normalizeTaskRanks(tasks = []) {
+  return [...tasks]
+    .sort((a, b) => {
+      const rankA = normalizeRank(a.rank, 9999);
+      const rankB = normalizeRank(b.rank, 9999);
+      if (rankA !== rankB) return rankA - rankB;
+      return Number(a.id ?? 0) - Number(b.id ?? 0);
+    })
+    .map((task, index) => ({
+      ...task,
+      priority: normalizePriority(task.priority),
+      rank: normalizeRank(task.rank, index + 1),
+    }));
+}
+
 export function recalculateDailyRecord(record) {
   const now = new Date().toISOString();
-  const tasks = record.tasks ?? [];
+  const tasks = normalizeTaskRanks(record.tasks ?? []);
 
   const activeTasks = tasks.filter((task) => task.taskStatus !== "deleted");
   const completedTasks = activeTasks.filter(
@@ -166,11 +206,16 @@ export function recalculateDailyRecord(record) {
       : Math.round((completedTaskCount / createdTaskCount) * 100);
 
   const categoryMinutes = { ...DEFAULT_CATEGORY_MINUTES };
+  const priorityCounts = { ...DEFAULT_PRIORITY_COUNTS };
 
   activeTasks.forEach((task) => {
     const category = task.category ?? "その他";
     if (categoryMinutes[category] == null) categoryMinutes[category] = 0;
     categoryMinutes[category] += Number(task.actualMinutes ?? 0);
+
+    const priority = normalizePriority(task.priority);
+    if (priorityCounts[priority] == null) priorityCounts[priority] = 0;
+    priorityCounts[priority] += 1;
   });
 
   let status = record.status ?? "draft";
@@ -229,6 +274,7 @@ export function recalculateDailyRecord(record) {
     abandonedTaskCount,
     achievementRate,
     categoryMinutes,
+    priorityCounts,
     updatedAt: now,
   };
 }
@@ -243,6 +289,8 @@ export function upsertTaskToDailyRecord(record, taskSnapshot) {
           ? {
               ...task,
               ...taskSnapshot,
+              priority: normalizePriority(taskSnapshot.priority ?? task.priority),
+              rank: normalizeRank(taskSnapshot.rank ?? task.rank),
               updatedAt: new Date().toISOString(),
             }
           : task
@@ -279,6 +327,8 @@ export function addTaskToDailyRecord(dailyRecords = {}, dateKey, task) {
     completed: false,
     taskStatus: "pending",
     completedAt: null,
+    priority: task.priority ?? "medium",
+    rank: task.rank,
   });
 }
 
@@ -287,6 +337,8 @@ export function updateTaskInDailyRecord(dailyRecords = {}, dateKey, task) {
     taskStatus: task.completed ? "completed" : task.taskStatus ?? "pending",
     completed: task.completed ?? false,
     completedAt: task.completed ? task.completedAt ?? new Date().toISOString() : null,
+    priority: task.priority ?? "medium",
+    rank: task.rank,
   });
 }
 
@@ -300,6 +352,8 @@ export function completeTaskInDailyRecord(
     completed,
     taskStatus: completed ? "completed" : "pending",
     completedAt: completed ? new Date().toISOString() : null,
+    priority: task.priority ?? "medium",
+    rank: task.rank,
   });
 }
 
@@ -315,6 +369,8 @@ export function updateTaskActualTimeInDailyRecord(
     actualSeconds: actualSeconds ?? actualMinutes * 60,
     taskStatus: task.completed ? "completed" : task.taskStatus ?? "pending",
     completed: task.completed ?? false,
+    priority: task.priority ?? "medium",
+    rank: task.rank,
   });
 }
 
@@ -323,6 +379,8 @@ export function markTaskDeletedInDailyRecord(dailyRecords = {}, dateKey, task) {
     completed: false,
     taskStatus: "deleted",
     completedAt: null,
+    priority: task.priority ?? "medium",
+    rank: task.rank,
   });
 }
 
@@ -400,11 +458,17 @@ export function syncDailyRecordFromTasks(dailyRecords = {}, dateKey, tasks = [])
   const existingTasks = currentRecord.tasks ?? [];
   const existingById = new Map(existingTasks.map((task) => [task.id, task]));
 
-  const syncedTasks = tasks.map((task) => {
+  const syncedTasks = tasks.map((task, index) => {
     const existing = existingById.get(task.id);
     const taskStatus =
       task.taskStatus ??
-      (task.completed ? "completed" : existing?.taskStatus === "completed" && task.completed ? "completed" : "pending");
+      (
+        task.completed
+          ? "completed"
+          : existing?.taskStatus === "completed" && task.completed
+            ? "completed"
+            : "pending"
+      );
 
     return createTaskSnapshot(task, {
       actualMinutes:
@@ -427,6 +491,8 @@ export function syncDailyRecordFromTasks(dailyRecords = {}, dateKey, tasks = [])
       timerSessionCount:
         existing?.timerSessionCount ?? task.timerSessionCount ?? 0,
       extensionCount: existing?.extensionCount ?? task.extensionCount ?? 0,
+      priority: task.priority ?? existing?.priority ?? "medium",
+      rank: task.rank ?? existing?.rank ?? index + 1,
     });
   });
 

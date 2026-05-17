@@ -35,6 +35,44 @@ const defaultCategoryStyles = {
   その他: { icon: CalendarDays, color: "text-slate-500", bg: "bg-slate-50" },
 };
 
+const priorityStyles = {
+  high: {
+    label: "高",
+    fullLabel: "高（HIGH）",
+    text: "text-red-500",
+    badge: "bg-red-500 text-white",
+    border: "border-red-100",
+    bg: "bg-red-50/70",
+    line: "bg-red-400",
+    number: "border-red-200 bg-red-50 text-red-500",
+    empty: "低い重要度のタスクはありません",
+  },
+  medium: {
+    label: "中",
+    fullLabel: "中（MEDIUM）",
+    text: "text-amber-500",
+    badge: "bg-amber-500 text-white",
+    border: "border-amber-100",
+    bg: "bg-amber-50/70",
+    line: "bg-amber-400",
+    number: "border-amber-200 bg-amber-50 text-amber-500",
+    empty: "中くらいの重要度のタスクはありません",
+  },
+  low: {
+    label: "低",
+    fullLabel: "低（LOW）",
+    text: "text-slate-500",
+    badge: "bg-slate-400 text-white",
+    border: "border-slate-100",
+    bg: "bg-slate-50/80",
+    line: "bg-slate-300",
+    number: "border-slate-200 bg-slate-50 text-slate-500",
+    empty: "低い重要度のタスクはありません",
+  },
+};
+
+const priorityOrder = ["high", "medium", "low"];
+
 const initialCategories = ["学習", "仕事", "健康", "その他"];
 const initialTodos = [];
 const initialWorkLogs = [];
@@ -90,11 +128,17 @@ function getCategoryStyle(category) {
   return defaultCategoryStyles[category] ?? defaultCategoryStyles["その他"];
 }
 
+function getPriority(todo) {
+  return priorityOrder.includes(todo?.priority) ? todo.priority : "medium";
+}
+
+function getRank(todo, fallback = 9999) {
+  const rank = Number(todo?.rank);
+  return Number.isFinite(rank) && rank > 0 ? rank : fallback;
+}
+
 function isReminder(todo) {
-  return (
-    todo?.type === "reminder" ||
-    Boolean(todo?.reminder)
-  );
+  return todo?.type === "reminder" || Boolean(todo?.reminder);
 }
 
 function isCompleted(todo) {
@@ -125,6 +169,14 @@ function getInitialActualMinutes(todo, workLog) {
 
   const found = candidates.find((value) => Number(value) > 0);
   return Number(found ?? 15);
+}
+
+function sortByRank(todos) {
+  return [...todos].sort((a, b) => {
+    const rankDiff = getRank(a) - getRank(b);
+    if (rankDiff !== 0) return rankDiff;
+    return Number(a.id ?? 0) - Number(b.id ?? 0);
+  });
 }
 
 function Header({ selectedDate, onChangeDate }) {
@@ -169,21 +221,22 @@ function Header({ selectedDate, onChangeDate }) {
       />
 
       {calendarOpen && (
-  <div
-    ref={calendarRef}
-    onPointerDown={(event) => event.stopPropagation()}
-    className="fixed left-1/2 top-[calc(92px+env(safe-area-inset-top))] z-50 box-border w-[calc(100vw-64px)] max-w-[300px] min-w-0 -translate-x-1/2 rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]"
-  >
+        <div
+          ref={calendarRef}
+          onPointerDown={(event) => event.stopPropagation()}
+          className="fixed left-1/2 top-[calc(92px+env(safe-area-inset-top))] z-50 box-border w-[calc(100vw-64px)] max-w-[300px] min-w-0 -translate-x-1/2 rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]"
+        >
           <p className="mb-3 text-center text-sm font-black text-slate-700">
             日付を選択
           </p>
           <input
-  type="date"
-  value={formatDateForInput(selectedDate)}
-  onChange={handleDateChange}
-  className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-slate-200 px-2 text-center text-[15px] font-extrabold leading-[48px] text-slate-900 outline-none focus:border-emerald-400"
-/>
+            type="date"
+            value={formatDateForInput(selectedDate)}
+            onChange={handleDateChange}
+            className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-slate-200 px-2 text-center text-[15px] font-extrabold leading-[48px] text-slate-900 outline-none focus:border-emerald-400"
+          />
           <button
+            type="button"
             onClick={() => {
               onChangeDate(new Date());
               setCalendarOpen(false);
@@ -209,7 +262,11 @@ function TodayGoalCard({
 }) {
   const selectedIsReminder = isReminder(selectedTask);
   const canStartTimer =
-    selectedTask && !selectedIsReminder && !isReviewConfirmed && !isPastDate && !isFutureDate;
+    selectedTask &&
+    !selectedIsReminder &&
+    !isReviewConfirmed &&
+    !isPastDate &&
+    !isFutureDate;
 
   return (
     <section className="relative overflow-hidden rounded-[24px] border border-emerald-100/70 bg-white p-3.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
@@ -230,12 +287,12 @@ function TodayGoalCard({
         </div>
 
         {isPastDate && isReviewConfirmed && totalCount === 0 ? (
-  <>
-    <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
-      この日は記録されたTodoがありません
-    </h1>
-  </>
-) : isPastDate && isReviewConfirmed ? (
+          <>
+            <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+              この日は記録されたTodoがありません
+            </h1>
+          </>
+        ) : isPastDate && isReviewConfirmed ? (
           <>
             <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
               この日の振り返りは完了しました
@@ -339,41 +396,62 @@ function TodayGoalCard({
   );
 }
 
-function AddTodoButton({ onClick }) {
+function SortModeSwitch({ sortMode, onChange }) {
   return (
-    <button
-      onClick={onClick}
-      className="flex h-[54px] w-full items-center justify-between rounded-[20px] border border-slate-100 bg-white px-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.055)] active:scale-[0.99] min-[390px]:h-[58px] min-[390px]:px-4"
-    >
-      <div className="flex items-center gap-2.5 min-[390px]:gap-3">
-        <Plus className="h-7 w-7 text-slate-950" strokeWidth={2.25} />
-        <span className="text-[15px] font-black tracking-[-0.02em] text-slate-950 min-[390px]:text-[16px]">
-          Todoを追加
-        </span>
+    <section className="rounded-[22px] border border-slate-100 bg-white p-3 shadow-[0_10px_26px_rgba(15,23,42,0.055)]">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[13px] font-black text-slate-700">並び替え</p>
+        <p className="text-[11px] font-bold text-slate-400">
+          未達成タスクのみ表示
+        </p>
       </div>
-      <ChevronRight className="h-5 w-5 text-slate-400" strokeWidth={2.4} />
-    </button>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onChange("priority")}
+          className={`h-10 rounded-2xl text-[13px] font-black active:scale-[0.99] ${
+            sortMode === "priority"
+              ? "bg-emerald-500 text-white shadow-[0_10px_18px_rgba(16,185,129,0.22)]"
+              : "border border-slate-100 bg-white text-slate-500"
+          }`}
+        >
+          重要度順
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onChange("category")}
+          className={`h-10 rounded-2xl text-[13px] font-black active:scale-[0.99] ${
+            sortMode === "category"
+              ? "bg-emerald-500 text-white shadow-[0_10px_18px_rgba(16,185,129,0.22)]"
+              : "border border-slate-100 bg-white text-slate-500"
+          }`}
+        >
+          カテゴリ順
+        </button>
+      </div>
+    </section>
   );
 }
 
-function TabButton({ active, label, onClick }) {
+function FloatingAddButton({ show, onClick }) {
+  if (!show) return null;
+
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`relative h-[48px] text-[13px] font-black min-[390px]:h-[52px] min-[390px]:text-[14px] ${
-        active ? "text-emerald-500" : "text-slate-400"
-      }`}
+      className="fixed bottom-[calc(94px+env(safe-area-inset-bottom))] right-[max(18px,env(safe-area-inset-right))] z-40 grid h-14 w-14 place-items-center rounded-full bg-emerald-500 text-white shadow-[0_14px_30px_rgba(16,185,129,0.32)] active:scale-[0.96]"
     >
-      {label}
-      {active && (
-        <span className="absolute bottom-0 left-1/2 h-0.5 w-[68%] -translate-x-1/2 rounded-full bg-emerald-400" />
-      )}
+      <Plus className="h-8 w-8" strokeWidth={2.5} />
     </button>
   );
 }
 
 function TodoItem({
   todo,
+  displayRank,
   canSelect = true,
   canComplete = true,
   canEdit = true,
@@ -396,6 +474,8 @@ function TodoItem({
   onTaskLongPressPointerDown,
 }) {
   const config = getCategoryStyle(todo.category);
+  const priority = getPriority(todo);
+  const priorityConfig = priorityStyles[priority] ?? priorityStyles.medium;
   const Icon = config.icon;
   const reminder = isReminder(todo);
 
@@ -460,10 +540,10 @@ function TodoItem({
     <div
       data-todo-id={todo.id}
       className={`relative overflow-visible border-b border-slate-100 last:border-b-0 ${
-  menuOpen ? "z-50" : "z-0"
-} ${
-  selected ? "bg-emerald-50/70" : "bg-white"
-} ${dropTarget && !dragging ? "bg-slate-50" : ""}`}
+        menuOpen ? "z-50" : "z-0"
+      } ${selected ? "bg-emerald-50/70" : "bg-white"} ${
+        dropTarget && !dragging ? "bg-slate-50" : ""
+      }`}
     >
       {!isCompleted(todo) && canMoveTomorrow && (
         <div className="absolute inset-y-0 left-0 z-0 flex w-32 items-center justify-start bg-amber-50 px-4 text-amber-600">
@@ -506,7 +586,7 @@ function TodoItem({
             : "bg-white duration-200"
         } ${itemDisabled ? "cursor-default opacity-80" : "cursor-pointer"}`}
       >
-        <div className="flex min-h-[46px] items-center gap-2">
+        <div className="flex min-h-[48px] items-center gap-2">
           <button
             type="button"
             aria-label="順番を並び替え"
@@ -516,16 +596,19 @@ function TodoItem({
               if (!canReorder) return;
               onDragHandlePointerDown(event, todo.id);
             }}
-            className={`grid h-9 w-7 shrink-0 touch-none select-none place-items-center rounded-xl transition-all ${
+            className={`flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
               !canReorder
-                ? "cursor-not-allowed text-slate-200"
+                ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
                 : dragging
-                  ? "bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
-                  : "text-slate-300 active:bg-slate-100 active:text-slate-500"
+                  ? "border-slate-900 bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
+                  : priorityConfig.number
             }`}
           >
+            <span className="text-[14px] font-black leading-none">
+              {displayRank}
+            </span>
             <GripVertical
-              className={`h-[18px] w-[18px] transition-transform ${
+              className={`mt-0.5 h-3 w-3 transition-transform ${
                 dragging ? "scale-110" : "scale-100"
               }`}
             />
@@ -661,10 +744,145 @@ function TodoItem({
   );
 }
 
+function SectionHeader({ label, count, type, groupKey }) {
+  const priorityConfig = priorityStyles[groupKey] ?? priorityStyles.medium;
+
+  if (type === "priority") {
+    return (
+      <div className="mb-1.5 flex items-center gap-2 px-1">
+        <p className={`text-[14px] font-black ${priorityConfig.text}`}>
+          {label}
+        </p>
+        <span
+          className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-black ${priorityConfig.badge}`}
+        >
+          {count}
+        </span>
+      </div>
+    );
+  }
+
+  const categoryStyle = getCategoryStyle(groupKey);
+  const Icon = categoryStyle.icon;
+
+  return (
+    <div className="mb-1.5 flex items-center gap-2 px-1">
+      <div className={`grid h-6 w-6 place-items-center rounded-xl ${categoryStyle.bg}`}>
+        <Icon className={`h-4 w-4 ${categoryStyle.color}`} strokeWidth={2.3} />
+      </div>
+      <p className="text-[14px] font-black text-slate-800">{label}</p>
+      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-slate-100 px-1.5 text-[11px] font-black text-slate-500">
+        {count}
+      </span>
+    </div>
+  );
+}
+
+function TodoSection({
+  section,
+  sortMode,
+  selectedTaskId,
+  canSelect,
+  canComplete,
+  canEdit,
+  canDelete,
+  canMoveTomorrow,
+  canReorder,
+  openMenuId,
+  setOpenMenuId,
+  draggingId,
+  dragOffsetY,
+  dropTargetId,
+  dropTargetGroup,
+  onSelect,
+  onToggle,
+  onEdit,
+  onDelete,
+  onMoveTomorrow,
+  onWorkLogEdit,
+  onDragHandlePointerDown,
+  onTaskLongPressPointerDown,
+}) {
+  const isEmpty = section.todos.length === 0;
+  const priorityConfig = priorityStyles[section.key] ?? priorityStyles.medium;
+
+  return (
+    <div
+      data-drop-section={section.key}
+      className={`rounded-[20px] border ${
+        sortMode === "priority" ? priorityConfig.border : "border-slate-100"
+      } ${sortMode === "priority" ? priorityConfig.bg : "bg-white"} p-2`}
+    >
+      <SectionHeader
+        label={section.label}
+        count={section.todos.length}
+        type={sortMode}
+        groupKey={section.key}
+      />
+
+      <div
+        className={`overflow-visible rounded-[16px] bg-white ${
+          dropTargetGroup === section.key && !dropTargetId
+            ? "ring-2 ring-emerald-200"
+            : ""
+        }`}
+      >
+        {isEmpty ? (
+          <div className="rounded-[16px] bg-white/75 px-4 py-4 text-center text-[12px] font-bold text-slate-400">
+            表示するTodoはありません
+          </div>
+        ) : (
+          section.todos.map((todo) => (
+            <TodoItem
+              key={todo.id}
+              todo={todo}
+              displayRank={todo.displayRank}
+              canSelect={canSelect}
+              canComplete={canComplete}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              canMoveTomorrow={canMoveTomorrow}
+              canReorder={canReorder}
+              selected={selectedTaskId === todo.id}
+              menuOpen={openMenuId === todo.id}
+              dragging={draggingId === todo.id}
+              dragOffsetY={draggingId === todo.id ? dragOffsetY : 0}
+              dropTarget={dropTargetId === todo.id}
+              onSelect={onSelect}
+              onToggle={onToggle}
+              onEdit={(target) => {
+                setOpenMenuId(null);
+                onEdit(target);
+              }}
+              onDelete={(target) => {
+                setOpenMenuId(null);
+                onDelete(target);
+              }}
+              onMoveTomorrow={(target) => {
+                setOpenMenuId(null);
+                onMoveTomorrow(target);
+              }}
+              onWorkLogEdit={(target) => {
+                setOpenMenuId(null);
+                onWorkLogEdit(target);
+              }}
+              onToggleMenu={(id) =>
+                setOpenMenuId((current) => (current === id ? null : id))
+              }
+              onDragHandlePointerDown={onDragHandlePointerDown}
+              onTaskLongPressPointerDown={onTaskLongPressPointerDown}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TodoListCard({
   todos,
-  activeTab,
-  setActiveTab,
+  categories,
+  sortMode,
   selectedTaskId,
   canSelect,
   canComplete,
@@ -684,6 +902,7 @@ function TodoListCard({
   const [draggingId, setDraggingId] = useState(null);
   const [dragOffsetY, setDragOffsetY] = useState(0);
   const [dropTargetId, setDropTargetId] = useState(null);
+  const [dropTargetGroup, setDropTargetGroup] = useState(null);
   const draggingIdRef = useRef(null);
   const startYRef = useRef(0);
   const lastReorderYRef = useRef(0);
@@ -691,6 +910,63 @@ function TodoListCard({
   const longPressStartRef = useRef({ x: 0, y: 0, id: null });
   const previousBodyTouchActionRef = useRef("");
   const previousBodyUserSelectRef = useRef("");
+
+  const rankedTodos = useMemo(() => {
+  const baseSorted = sortByRank(todos);
+
+  const displaySorted =
+    sortMode === "priority"
+      ? [...baseSorted].sort((a, b) => {
+          const priorityDiff =
+            priorityOrder.indexOf(getPriority(a)) -
+            priorityOrder.indexOf(getPriority(b));
+
+          if (priorityDiff !== 0) return priorityDiff;
+
+          const rankDiff = getRank(a) - getRank(b);
+          if (rankDiff !== 0) return rankDiff;
+
+          return Number(a.id ?? 0) - Number(b.id ?? 0);
+        })
+      : baseSorted;
+
+  return displaySorted.map((todo, index) => ({
+    ...todo,
+    displayRank: index + 1,
+  }));
+}, [todos, sortMode]);
+
+  const sections = useMemo(() => {
+    if (sortMode === "category") {
+      const categoryKeys = [
+        ...categories.filter((item) => item !== "その他"),
+        "その他",
+      ].filter((item, index, array) => array.indexOf(item) === index);
+
+      const unknownCategories = rankedTodos
+        .map((todo) => todo.category ?? "その他")
+        .filter((item) => !categoryKeys.includes(item));
+
+      const keys = [
+        ...categoryKeys,
+        ...unknownCategories.filter(
+          (item, index, array) => array.indexOf(item) === index
+        ),
+      ];
+
+      return keys.map((key) => ({
+        key,
+        label: key,
+        todos: rankedTodos.filter((todo) => (todo.category ?? "その他") === key),
+      }));
+    }
+
+    return priorityOrder.map((key) => ({
+      key,
+      label: priorityStyles[key].fullLabel,
+      todos: rankedTodos.filter((todo) => getPriority(todo) === key),
+    }));
+  }, [categories, rankedTodos, sortMode]);
 
   const clearLongPressTimer = () => {
     if (longPressTimerRef.current) {
@@ -710,6 +986,7 @@ function TodoListCard({
     setDraggingId(id);
     setDragOffsetY(0);
     setDropTargetId(null);
+    setDropTargetGroup(null);
     setOpenMenuId(null);
   };
 
@@ -719,6 +996,7 @@ function TodoListCard({
     setDraggingId(null);
     setDragOffsetY(0);
     setDropTargetId(null);
+    setDropTargetGroup(null);
     document.body.style.touchAction = previousBodyTouchActionRef.current;
     document.body.style.userSelect = previousBodyUserSelectRef.current;
   };
@@ -771,20 +1049,18 @@ function TodoListCard({
 
       const element = document.elementFromPoint(event.clientX, event.clientY);
       const targetElement = element?.closest?.("[data-todo-id]");
+      const sectionElement = element?.closest?.("[data-drop-section]");
       const targetId = Number(targetElement?.dataset?.todoId);
+      const targetGroup = sectionElement?.dataset?.dropSection ?? null;
 
-      if (!targetId || targetId === draggingIdRef.current) {
-        setDropTargetId(null);
-        return;
-      }
-
-      setDropTargetId(targetId);
+      setDropTargetId(targetId || null);
+      setDropTargetGroup(targetGroup);
 
       const movedSinceLastReorder = Math.abs(event.clientY - lastReorderYRef.current);
       const shouldPreviewReorder = movedSinceLastReorder > 34;
 
-      if (shouldPreviewReorder) {
-        onReorder(draggingIdRef.current, targetId);
+      if (shouldPreviewReorder && (targetId || targetGroup)) {
+        onReorder(draggingIdRef.current, targetId || null, targetGroup);
         lastReorderYRef.current = event.clientY;
         startYRef.current = event.clientY;
         requestAnimationFrame(() => setDragOffsetY(0));
@@ -809,73 +1085,49 @@ function TodoListCard({
     };
   }, [onReorder]);
 
-  const incomplete = todos.filter((t) => !isCompleted(t));
-  const completed = todos.filter((t) => isCompleted(t));
-  const visible = activeTab === "incomplete" ? incomplete : completed;
-
   return (
-    <section className="relative z-20 overflow-visible rounded-[22px] border border-slate-100 bg-white shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
-      <div className="grid grid-cols-2 border-b border-slate-100 bg-white">
-        <TabButton
-          active={activeTab === "incomplete"}
-          label={`未達成（${incomplete.length}）`}
-          onClick={() => setActiveTab("incomplete")}
-        />
-        <TabButton
-          active={activeTab === "completed"}
-          label={`達成（${completed.length}）`}
-          onClick={() => setActiveTab("completed")}
-        />
-      </div>
-
-      <div>
-        {visible.length === 0 ? (
-          <div className="px-6 py-6 text-center text-[13px] font-bold text-slate-400">
+    <section className="relative z-20 overflow-visible rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
+      {rankedTodos.length === 0 ? (
+        <div className="rounded-[18px] bg-slate-50/80 px-6 py-7 text-center">
+          <p className="text-[13px] font-black text-slate-500">
             表示するTodoはありません
-          </div>
-        ) : (
-          visible.map((todo) => (
-            <TodoItem
-              key={todo.id}
-              todo={todo}
+          </p>
+          <p className="mt-1 text-[11px] font-bold text-slate-400">
+            達成済みタスクは詳細ページで確認できます。
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {sections.map((section) => (
+            <TodoSection
+              key={section.key}
+              section={section}
+              sortMode={sortMode}
+              selectedTaskId={selectedTaskId}
               canSelect={canSelect}
               canComplete={canComplete}
               canEdit={canEdit}
               canDelete={canDelete}
               canMoveTomorrow={canMoveTomorrow}
               canReorder={canReorder}
-              selected={selectedTaskId === todo.id}
-              menuOpen={openMenuId === todo.id}
-              dragging={draggingId === todo.id}
-              dragOffsetY={draggingId === todo.id ? dragOffsetY : 0}
-              dropTarget={dropTargetId === todo.id}
+              openMenuId={openMenuId}
+              setOpenMenuId={setOpenMenuId}
+              draggingId={draggingId}
+              dragOffsetY={dragOffsetY}
+              dropTargetId={dropTargetId}
+              dropTargetGroup={dropTargetGroup}
               onSelect={onSelect}
               onToggle={onToggle}
-              onEdit={(target) => {
-                setOpenMenuId(null);
-                onEdit(target);
-              }}
-              onDelete={(target) => {
-                setOpenMenuId(null);
-                onDelete(target);
-              }}
-              onMoveTomorrow={(target) => {
-                setOpenMenuId(null);
-                onMoveTomorrow(target);
-              }}
-              onWorkLogEdit={(target) => {
-                setOpenMenuId(null);
-                onWorkLogEdit(target);
-              }}
-              onToggleMenu={(id) =>
-                setOpenMenuId((current) => (current === id ? null : id))
-              }
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onMoveTomorrow={onMoveTomorrow}
+              onWorkLogEdit={onWorkLogEdit}
               onDragHandlePointerDown={handleDragHandlePointerDown}
               onTaskLongPressPointerDown={handleTaskLongPressPointerDown}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -967,6 +1219,8 @@ function WorkLogModal({ open, targetTodo, targetWorkLog, completeAfterSave, onCl
       taskId: targetTodo.id,
       taskTitle: targetTodo.title,
       category: targetTodo.category,
+      priority: getPriority(targetTodo),
+      rank: targetTodo.rank,
       minutes,
       seconds: minutes * 60,
       completeAfterSave,
@@ -1102,18 +1356,19 @@ export default function TodayPage({
   onOpenReview,
 }) {
   const [selectedDate, setSelectedDate] = useState(() => {
-  if (!initialDateKey) return new Date();
-  const [year, month, day] = initialDateKey.split("-").map(Number);
-  return new Date(year, month - 1, day);
-});
-  const selectedDateKey = formatDateForInput(selectedDate);
-const todayDateKey = getTodayKey();
+    if (!initialDateKey) return new Date();
+    const [year, month, day] = initialDateKey.split("-").map(Number);
+    return new Date(year, month - 1, day);
+  });
 
-useEffect(() => {
-  if (!initialDateKey) return;
-  const [year, month, day] = initialDateKey.split("-").map(Number);
-  setSelectedDate(new Date(year, month - 1, day));
-}, [initialDateKey]);
+  const selectedDateKey = formatDateForInput(selectedDate);
+  const todayDateKey = getTodayKey();
+
+  useEffect(() => {
+    if (!initialDateKey) return;
+    const [year, month, day] = initialDateKey.split("-").map(Number);
+    setSelectedDate(new Date(year, month - 1, day));
+  }, [initialDateKey]);
 
   const todos = appData.tasks ?? initialTodos;
   const categories = appData.categories ?? initialCategories;
@@ -1141,14 +1396,14 @@ useEffect(() => {
 
   const dailyRecord = getOrCreateDailyRecord(syncedDailyRecords, selectedDateKey);
   const totalCount = filteredTodos.length;
-const isEmptyPastDate = isPastDate && totalCount === 0;
+  const isEmptyPastDate = isPastDate && totalCount === 0;
 
-const isReviewConfirmed =
-  isEmptyPastDate ||
-  (
-    totalCount > 0 &&
-    (dailyRecord.status === "confirmed" || dailyRecord.reviewCompleted === true)
-  );
+  const isReviewConfirmed =
+    isEmptyPastDate ||
+    (
+      totalCount > 0 &&
+      (dailyRecord.status === "confirmed" || dailyRecord.reviewCompleted === true)
+    );
 
   const canAddTodo = !isPastDate;
   const canSelectTask = isTodayDate && !isReviewConfirmed;
@@ -1188,7 +1443,7 @@ const isReviewConfirmed =
     }));
   };
 
-  const [activeTab, setActiveTab] = useState("incomplete");
+  const [sortMode, setSortMode] = useState("priority");
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [todoModal, setTodoModal] = useState({
     open: false,
@@ -1208,7 +1463,8 @@ const isReviewConfirmed =
     null;
 
   const completedCount = filteredTodos.filter((t) => isCompleted(t)).length;
-  const incompleteCount = filteredTodos.length - completedCount;
+  const incompleteTodos = filteredTodos.filter((t) => !isCompleted(t));
+  const incompleteCount = incompleteTodos.length;
 
   const showUndoToast = (toast) => {
     setUndoToast(toast);
@@ -1243,6 +1499,8 @@ const isReviewConfirmed =
           ? {
               ...todo,
               ...taskUpdateRequest,
+              priority: getPriority(taskUpdateRequest),
+              rank: taskUpdateRequest.rank ?? todo.rank,
               targetDate: taskUpdateRequest.targetDate ?? getTodoDateKey(todo),
             }
           : todo
@@ -1270,6 +1528,8 @@ const isReviewConfirmed =
               actualSeconds: timerCompletion.actualSeconds,
               workedMinutes: timerCompletion.actualMinutes,
               focusMinutes: timerCompletion.actualMinutes,
+              priority: getPriority(todo),
+              rank: todo.rank,
               targetDate: getTodoDateKey(todo),
             }
           : todo
@@ -1283,6 +1543,8 @@ const isReviewConfirmed =
         taskId: finishedTask.id,
         taskTitle: finishedTask.title,
         category: finishedTask.category,
+        priority: getPriority(finishedTask),
+        rank: finishedTask.rank,
         minutes: timerCompletion.actualMinutes,
         seconds: timerCompletion.actualSeconds,
         date: taskDateKey,
@@ -1290,7 +1552,6 @@ const isReviewConfirmed =
     ]);
 
     setSelectedTaskId(timerCompletion.completed ? null : finishedTask.id);
-    setActiveTab(timerCompletion.completed ? "completed" : "incomplete");
 
     onTimerCompletionHandled?.();
   }, [timerCompletion, onTimerCompletionHandled]);
@@ -1325,6 +1586,7 @@ const isReviewConfirmed =
     const normalizedTodoData = {
       ...todoData,
       type: todoData.type ?? (todoData.reminder ? "reminder" : "todo"),
+      priority: todoData.priority ?? "medium",
     };
 
     const reminderFlag = isReminder(normalizedTodoData);
@@ -1336,6 +1598,8 @@ const isReviewConfirmed =
             ? {
                 ...todo,
                 ...normalizedTodoData,
+                priority: normalizedTodoData.priority ?? getPriority(todo),
+                rank: normalizedTodoData.rank ?? todo.rank,
                 targetDate: normalizedTodoData.targetDate ?? getTodoDateKey(todo),
                 createdDate:
                   normalizedTodoData.createdDate ??
@@ -1356,9 +1620,16 @@ const isReviewConfirmed =
       return;
     }
 
+    const currentDateTodos = todos.filter((todo) => getTodoDateKey(todo) === selectedDateKey);
+    const maxRank = currentDateTodos.reduce(
+      (max, todo, index) => Math.max(max, getRank(todo, index + 1)),
+      0
+    );
+
     const newTodo = {
       ...normalizedTodoData,
       id: Date.now(),
+      rank: maxRank + 1,
       completed: false,
       taskStatus: "pending",
       completedAt: null,
@@ -1378,11 +1649,9 @@ const isReviewConfirmed =
     } else {
       setSelectedTaskId(null);
     }
-
-    setActiveTab("incomplete");
   };
 
-  const completeTodo = (target, keepIncompleteTab = false) => {
+  const completeTodo = (target) => {
     const savedWorkLog = workLogs.find((log) => log.taskId === target.id);
     const actualMinutes = getInitialActualMinutes(target, savedWorkLog);
 
@@ -1398,6 +1667,8 @@ const isReviewConfirmed =
               actualSeconds: actualMinutes * 60,
               workedMinutes: actualMinutes,
               focusMinutes: actualMinutes,
+              priority: getPriority(todo),
+              rank: todo.rank,
               targetDate: getTodoDateKey(todo),
             }
           : todo
@@ -1411,6 +1682,8 @@ const isReviewConfirmed =
         taskId: target.id,
         taskTitle: target.title,
         category: target.category,
+        priority: getPriority(target),
+        rank: target.rank,
         minutes: actualMinutes,
         seconds: actualMinutes * 60,
         date: selectedDateKey,
@@ -1418,58 +1691,57 @@ const isReviewConfirmed =
     ]);
 
     setSelectedTaskId((current) => (current === target.id ? null : current));
-    setActiveTab(keepIncompleteTab ? "incomplete" : "completed");
   };
 
   const toggleTodo = (id) => {
     if (!canCompleteTask) return;
 
     const target = todos.find((todo) => todo.id === id);
-if (!target) return;
+    if (!target) return;
 
-const reminderFlag = isReminder(target);
-const nextCompleted = !isCompleted(target);
+    const reminderFlag = isReminder(target);
+    const nextCompleted = !isCompleted(target);
 
-if (!nextCompleted) {
-  setTodos((current) =>
-    current.map((todo) =>
-      todo.id === id
-        ? {
-            ...todo,
-            completed: false,
-            taskStatus: "pending",
-            completedAt: null,
-          }
-        : todo
-    )
-  );
-  if (!reminderFlag) setSelectedTaskId(id);
-  setActiveTab("incomplete");
-  return;
-}
+    if (!nextCompleted) {
+      setTodos((current) =>
+        current.map((todo) =>
+          todo.id === id
+            ? {
+                ...todo,
+                completed: false,
+                taskStatus: "pending",
+                completedAt: null,
+              }
+            : todo
+        )
+      );
+      if (!reminderFlag) setSelectedTaskId(id);
+      return;
+    }
 
-if (reminderFlag) {
-  setTodos((current) =>
-    current.map((todo) =>
-      todo.id === id
-        ? {
-            ...todo,
-            completed: true,
-            taskStatus: "completed",
-            completedAt: new Date().toISOString(),
-            actualMinutes: 0,
-            actualSeconds: 0,
-            workedMinutes: 0,
-            focusMinutes: 0,
-            targetDate: getTodoDateKey(todo),
-          }
-        : todo
-    )
-  );
-  setSelectedTaskId(null);
-  setActiveTab("incomplete");
-  return;
-}
+    if (reminderFlag) {
+      setTodos((current) =>
+        current.map((todo) =>
+          todo.id === id
+            ? {
+                ...todo,
+                completed: true,
+                taskStatus: "completed",
+                completedAt: new Date().toISOString(),
+                actualMinutes: 0,
+                actualSeconds: 0,
+                workedMinutes: 0,
+                focusMinutes: 0,
+                priority: getPriority(todo),
+                rank: todo.rank,
+                targetDate: getTodoDateKey(todo),
+              }
+            : todo
+        )
+      );
+      setSelectedTaskId(null);
+      return;
+    }
 
     const savedWorkLog = workLogs.find((log) => log.taskId === id);
     const hasActualTime =
@@ -1602,30 +1874,82 @@ if (reminderFlag) {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   };
 
-  const reorderTodos = (draggingId, targetId) => {
+  const reorderTodos = (draggingId, targetId, targetGroup) => {
     if (!canReorderTask) return;
 
     setTodos((current) => {
       const currentDateTodos = current.filter(
-        (todo) => getTodoDateKey(todo) === selectedDateKey
+        (todo) => getTodoDateKey(todo) === selectedDateKey && !isCompleted(todo)
       );
 
-      const otherDateTodos = current.filter(
-        (todo) => getTodoDateKey(todo) !== selectedDateKey
+      const otherTodos = current.filter(
+        (todo) => !(getTodoDateKey(todo) === selectedDateKey && !isCompleted(todo))
       );
 
-      const fromIndex = currentDateTodos.findIndex(
-        (todo) => todo.id === draggingId
-      );
-      const toIndex = currentDateTodos.findIndex((todo) => todo.id === targetId);
+      const normalized = sortByRank(currentDateTodos).map((todo, index) => ({
+        ...todo,
+        rank: index + 1,
+        priority: getPriority(todo),
+      }));
 
-      if (fromIndex < 0 || toIndex < 0) return current;
+      const draggingIndex = normalized.findIndex((todo) => todo.id === draggingId);
+      if (draggingIndex < 0) return current;
 
-      const nextDateTodos = [...currentDateTodos];
-      const [moved] = nextDateTodos.splice(fromIndex, 1);
-      nextDateTodos.splice(toIndex, 0, moved);
+      const [draggingTodo] = normalized.splice(draggingIndex, 1);
 
-      return [...otherDateTodos, ...nextDateTodos];
+      const movedTodo = {
+        ...draggingTodo,
+        priority:
+          sortMode === "priority" && targetGroup
+            ? targetGroup
+            : getPriority(draggingTodo),
+        category:
+          sortMode === "category" && targetGroup
+            ? targetGroup
+            : draggingTodo.category,
+      };
+
+      let insertIndex = normalized.length;
+
+      if (targetId) {
+        const targetIndex = normalized.findIndex((todo) => todo.id === targetId);
+        if (targetIndex >= 0) {
+          insertIndex = targetIndex;
+        }
+      } else if (targetGroup) {
+        const lastInGroupIndex = normalized.reduce((lastIndex, todo, index) => {
+          if (sortMode === "priority" && getPriority(todo) === targetGroup) return index;
+          if (sortMode === "category" && (todo.category ?? "その他") === targetGroup) return index;
+          return lastIndex;
+        }, -1);
+
+        insertIndex = lastInGroupIndex >= 0 ? lastInGroupIndex + 1 : normalized.length;
+      }
+
+      normalized.splice(insertIndex, 0, movedTodo);
+
+      const rerankedSource =
+  sortMode === "priority"
+    ? [...normalized].sort((a, b) => {
+        const priorityDiff =
+          priorityOrder.indexOf(getPriority(a)) -
+          priorityOrder.indexOf(getPriority(b));
+
+        if (priorityDiff !== 0) return priorityDiff;
+
+        const rankDiff = getRank(a) - getRank(b);
+        if (rankDiff !== 0) return rankDiff;
+
+        return Number(a.id ?? 0) - Number(b.id ?? 0);
+      })
+    : normalized;
+
+const reranked = rerankedSource.map((todo, index) => ({
+  ...todo,
+  rank: index + 1,
+}));
+
+      return [...otherTodos, ...reranked];
     });
   };
 
@@ -1656,6 +1980,8 @@ if (reminderFlag) {
               completed: log.completeAfterSave ? true : todo.completed,
               taskStatus: log.completeAfterSave ? "completed" : todo.taskStatus ?? "pending",
               completedAt: log.completeAfterSave ? new Date().toISOString() : todo.completedAt ?? null,
+              priority: getPriority(todo),
+              rank: todo.rank,
               targetDate: getTodoDateKey(todo),
             }
           : todo
@@ -1664,7 +1990,6 @@ if (reminderFlag) {
 
     if (log.completeAfterSave) {
       setSelectedTaskId(null);
-      setActiveTab("incomplete");
     }
   };
 
@@ -1713,18 +2038,12 @@ if (reminderFlag) {
             isFutureDate={isFutureDate}
           />
 
-          {canAddTodo && (
-            <AddTodoButton
-              onClick={() =>
-                setTodoModal({ open: true, mode: "add", todo: null })
-              }
-            />
-          )}
+          <SortModeSwitch sortMode={sortMode} onChange={setSortMode} />
 
           <TodoListCard
-            todos={filteredTodos}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            todos={incompleteTodos}
+            categories={categories}
+            sortMode={sortMode}
             selectedTaskId={selectedTaskId}
             canSelect={canSelectTask}
             canComplete={canCompleteTask}
@@ -1755,6 +2074,11 @@ if (reminderFlag) {
           />
         </main>
       </div>
+
+      <FloatingAddButton
+        show={canAddTodo}
+        onClick={() => setTodoModal({ open: true, mode: "add", todo: null })}
+      />
 
       <BottomNav active="today" onNavigate={onNavigate} />
 
