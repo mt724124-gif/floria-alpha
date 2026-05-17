@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Plus, Save, X } from "lucide-react";
 
 function formatDateForInput(date) {
@@ -21,17 +21,57 @@ const priorityOptions = [
 ];
 
 function WheelColumn({ values, value, onChange, formatter = (item) => item }) {
+  const itemHeight = 34;
+  const ref = useRef(null);
+  const scrollTimerRef = useRef(null);
+
+  useEffect(() => {
+    const index = values.findIndex((item) => String(item) === String(value));
+    if (index < 0 || !ref.current) return;
+
+    ref.current.scrollTo({
+      top: index * itemHeight,
+      behavior: "auto",
+    });
+  }, [value, values]);
+
+  const handleScroll = () => {
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+
+    scrollTimerRef.current = setTimeout(() => {
+      if (!ref.current) return;
+
+      const index = Math.round(ref.current.scrollTop / itemHeight);
+      const safeIndex = Math.max(0, Math.min(values.length - 1, index));
+      const nextValue = values[safeIndex];
+
+      ref.current.scrollTo({
+        top: safeIndex * itemHeight,
+        behavior: "smooth",
+      });
+
+      if (String(nextValue) !== String(value)) {
+        onChange(nextValue);
+      }
+    }, 80);
+  };
+
   return (
-    <div className="relative h-[108px] flex-1 overflow-y-auto py-[35px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div
+      ref={ref}
+      onScroll={handleScroll}
+      className="relative h-[102px] flex-1 snap-y snap-mandatory overflow-y-auto py-[34px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {values.map((item) => {
         const selected = String(value) === String(item);
+
         return (
           <button
             key={item}
             type="button"
             onClick={() => onChange(item)}
-            className={`block h-[38px] w-full text-center text-[19px] font-bold transition ${
-              selected ? "scale-100 text-slate-950" : "scale-[0.92] text-slate-300"
+            className={`block h-[34px] w-full snap-center text-center text-[21px] font-bold leading-[34px] transition ${
+              selected ? "scale-100 text-slate-950" : "scale-[0.86] text-slate-300"
             }`}
           >
             {formatter(item)}
@@ -47,7 +87,7 @@ function DurationWheel({ enabled = true, hour, minute, onHourChange, onMinuteCha
 
   return (
     <div className="relative rounded-[18px] bg-slate-50 px-2 py-1.5">
-      <div className="pointer-events-none absolute left-3 right-3 top-1/2 h-[38px] -translate-y-1/2 rounded-xl bg-white shadow-sm" />
+      <div className="pointer-events-none absolute left-2 right-2 top-1/2 h-[34px] -translate-y-1/2 rounded-xl bg-white shadow-sm" />
       <div className="relative z-10 flex items-center">
         <WheelColumn
           values={Array.from({ length: 13 }, (_, i) => i)}
@@ -72,7 +112,7 @@ function DurationWheel({ enabled = true, hour, minute, onHourChange, onMinuteCha
 function ClockWheel({ hour, minute, onHourChange, onMinuteChange }) {
   return (
     <div className="relative rounded-[18px] bg-slate-50 px-2 py-1.5">
-      <div className="pointer-events-none absolute left-3 right-3 top-1/2 h-[38px] -translate-y-1/2 rounded-xl bg-white shadow-sm" />
+      <div className="pointer-events-none absolute left-2 right-2 top-1/2 h-[34px] -translate-y-1/2 rounded-xl bg-white shadow-sm" />
       <div className="relative z-10 flex items-center">
         <WheelColumn
           values={Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))}
