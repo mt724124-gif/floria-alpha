@@ -571,7 +571,7 @@ function TodoItem({
       return;
     }
 
-    if (Math.abs(dx) < 6) return;
+    if (Math.abs(dx) < 12) return;
 
     event.preventDefault();
 
@@ -629,7 +629,7 @@ function TodoItem({
     setIsSwiping(false);
     setSwipeX(0);
 
-    const moveTomorrowThreshold = 65;
+    const moveTomorrowThreshold = 40;
 const deleteThreshold = Math.round(moveTomorrowThreshold * 0.5);
 
     if (finalX < -deleteThreshold && canDelete) {
