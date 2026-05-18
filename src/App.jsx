@@ -87,101 +87,164 @@ export default function App() {
     setScreen("today");
   };
 
-  const handleTimerResult = (result) => {
-    const sessionDate = getTaskDateKey(result?.task);
-    const actualMinutes = Math.max(0, Number(result?.actualMinutes ?? 0));
-    const actualSeconds = Math.max(0, Number(result?.actualSeconds ?? actualMinutes * 60));
-    const plannedMinutes = Number(result?.plannedMinutes ?? result?.task?.estimatedMinutes ?? 0);
+const saveTimerResultToAppData = (result) => {
+  const sessionDate = getTaskDateKey(result?.task);
+  const actualMinutes = Math.max(
+    0,
+    Number(result?.actualMinutes ?? 0)
+  );
 
-    const session = {
-      id: crypto.randomUUID(),
-      taskId: result?.task?.id,
-      taskTitle: result?.task?.title,
-      category: result?.task?.category,
-      date: sessionDate,
-      actualMinutes,
-      actualSeconds,
-      plannedMinutes,
-      completed: result?.completed ?? false,
-      startedAt: result?.startedAt ?? null,
-      endedAt: result?.endedAt ?? Date.now(),
-      createdAt: new Date().toISOString(),
-    };
+  const actualSeconds = Math.max(
+    0,
+    Number(result?.actualSeconds ?? actualMinutes * 60)
+  );
 
-    updateAppData((current) => {
-      const nextTimerSessions = [...(current.timerSessions ?? []), session];
+  const plannedMinutes = Number(
+    result?.plannedMinutes ??
+      result?.task?.estimatedMinutes ??
+      0
+  );
 
-      const timerSessionCount = nextTimerSessions.filter(
-        (item) => item.taskId === result?.task?.id && item.date === sessionDate
-      ).length;
-
-      const completed = result?.completed === true;
-
-      const nextTasks = (current.tasks ?? []).map((task) => {
-        if (task.id !== result?.task?.id) return task;
-
-        return {
-          ...task,
-          actualMinutes,
-          actualSeconds,
-          workedMinutes: actualMinutes,
-          focusMinutes: actualMinutes,
-          completed: completed ? true : task.completed,
-          taskStatus: completed ? "completed" : task.taskStatus ?? "pending",
-          completedAt: completed ? new Date().toISOString() : task.completedAt ?? null,
-          usedTimer: true,
-          timerSessionCount,
-        };
-      });
-
-      const updatedTask = nextTasks.find((task) => task.id === result?.task?.id) ?? result?.task;
-
-      const nextDailyRecords = updateDailyRecordTask(
-  current.dailyRecords ?? {},
-  sessionDate,
-  updatedTask,
-  {
-    actualMinutes,
-    actualSeconds,
-    completed,
-    taskStatus: completed ? "completed" : "pending",
-    completedAt: completed ? new Date().toISOString() : null,
-    usedTimer: true,
-    timerSessionCount,
-  }
-);
-
-const nextWorkLogs = [
-  ...(current.workLogs ?? []).filter((log) => log.taskId !== result?.task?.id),
-  {
-    id: Date.now(),
+  const session = {
+    id: crypto.randomUUID(),
     taskId: result?.task?.id,
     taskTitle: result?.task?.title,
     category: result?.task?.category,
-    minutes: actualMinutes,
-    seconds: actualSeconds,
     date: sessionDate,
-  },
-];
-
-return {
-  ...current,
-  tasks: nextTasks,
-  workLogs: nextWorkLogs,
-  timerSessions: nextTimerSessions,
-  dailyRecords: nextDailyRecords,
-};
-    });
-
-    setTimerCompletion({
-      ...result,
-      actualMinutes,
-      actualSeconds,
-      plannedMinutes,
-    });
-
-    setScreen("today");
+    actualMinutes,
+    actualSeconds,
+    plannedMinutes,
+    completed: result?.completed ?? false,
+    startedAt: result?.startedAt ?? null,
+    endedAt: result?.endedAt ?? Date.now(),
+    createdAt: new Date().toISOString(),
   };
+
+  updateAppData((current) => {
+    const nextTimerSessions = [
+      ...(current.timerSessions ?? []),
+      session,
+    ];
+
+    const timerSessionCount = nextTimerSessions.filter(
+      (item) =>
+        item.taskId === result?.task?.id &&
+        item.date === sessionDate
+    ).length;
+
+    const completed = result?.completed === true;
+
+    const nextTasks = (current.tasks ?? []).map((task) => {
+      if (task.id !== result?.task?.id) return task;
+
+      return {
+        ...task,
+        actualMinutes,
+        actualSeconds,
+        workedMinutes: actualMinutes,
+        focusMinutes: actualMinutes,
+        elapsedMinutes: actualMinutes,
+        elapsedSeconds: actualSeconds,
+        completed: completed ? true : task.completed,
+        taskStatus: completed
+          ? "completed"
+          : task.taskStatus ?? "pending",
+        completedAt: completed
+          ? new Date().toISOString()
+          : task.completedAt ?? null,
+        usedTimer: true,
+        timerSessionCount,
+      };
+    });
+
+    const updatedTask =
+      nextTasks.find(
+        (task) => task.id === result?.task?.id
+      ) ?? result?.task;
+
+    const nextDailyRecords = updateDailyRecordTask(
+      current.dailyRecords ?? {},
+      sessionDate,
+      updatedTask,
+      {
+        actualMinutes,
+        actualSeconds,
+        completed,
+        taskStatus: completed
+          ? "completed"
+          : "pending",
+        completedAt: completed
+          ? new Date().toISOString()
+          : null,
+        usedTimer: true,
+        timerSessionCount,
+      }
+    );
+
+    const nextWorkLogs = [
+      ...(current.workLogs ?? []).filter(
+        (log) => log.taskId !== result?.task?.id
+      ),
+      {
+        id: Date.now(),
+        taskId: result?.task?.id,
+        taskTitle: result?.task?.title,
+        category: result?.task?.category,
+        minutes: actualMinutes,
+        seconds: actualSeconds,
+        date: sessionDate,
+      },
+    ];
+
+    return {
+      ...current,
+      tasks: nextTasks,
+      workLogs: nextWorkLogs,
+      timerSessions: nextTimerSessions,
+      dailyRecords: nextDailyRecords,
+    };
+  });
+
+  return {
+    ...result,
+    actualMinutes,
+    actualSeconds,
+    plannedMinutes,
+  };
+};
+
+const handleTimerResult = (result) => {
+  const normalizedResult =
+    saveTimerResultToAppData(result);
+
+  setTimerCompletion(normalizedResult);
+  setScreen("today");
+};
+
+const handleTimerProgress = (result) => {
+  const normalizedResult =
+    saveTimerResultToAppData(result);
+
+  setTimerTask((current) =>
+    current?.id === normalizedResult.task?.id
+      ? {
+          ...current,
+          actualMinutes:
+            normalizedResult.actualMinutes,
+          actualSeconds:
+            normalizedResult.actualSeconds,
+          workedMinutes:
+            normalizedResult.actualMinutes,
+          focusMinutes:
+            normalizedResult.actualMinutes,
+          elapsedMinutes:
+            normalizedResult.actualMinutes,
+          elapsedSeconds:
+            normalizedResult.actualSeconds,
+        }
+      : current
+  );
+};
 
   const updateTaskFromTimer = (updatedTask) => {
     setTimerTask(updatedTask);
@@ -248,7 +311,7 @@ return {
           task={timerTask}
           onClose={closeTimer}
           onComplete={handleTimerResult}
-          onSaveProgress={handleTimerResult}
+          onSaveProgress={handleTimerProgress}
           onUpdateTask={updateTaskFromTimer}
         />
       )}

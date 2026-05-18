@@ -386,7 +386,7 @@ export default function TimerPage({
 
     startedAtRef.current = Date.now() - initialSeconds * 1000;
     hasSavedRef.current = false;
-  }, [task?.id]);
+  }, [task?.id, task?.actualSeconds, task?.actualMinutes, task?.workedMinutes, task?.focusMinutes, task?.elapsedMinutes]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -404,8 +404,9 @@ export default function TimerPage({
   }, [isRunning]);
 
   const pauseTimer = () => {
-    setIsRunning(false);
-  };
+  saveProgress();
+  setIsRunning(false);
+};
 
   const resumeTimer = () => {
     startedAtRef.current = Date.now() - elapsedSeconds * 1000;
@@ -431,18 +432,16 @@ export default function TimerPage({
   });
 
   const saveProgress = () => {
-    if (!localTask?.id || hasSavedRef.current) return;
+  if (!localTask?.id) return;
 
-    hasSavedRef.current = true;
+  const result = buildResult(false);
 
-    const result = buildResult(false);
-
-    if (onSaveProgress) {
-      onSaveProgress(result);
-    } else {
-      onComplete?.(result);
-    }
-  };
+  if (onSaveProgress) {
+    onSaveProgress(result);
+  } else {
+    onComplete?.(result);
+  }
+};
 
   const handleClose = () => {
     saveProgress();
@@ -459,16 +458,24 @@ export default function TimerPage({
   };
 
   const saveEditedTask = (updatedTask) => {
-    const mergedTask = {
-      ...localTask,
-      ...updatedTask,
-      id: localTask?.id,
-    };
-
-    setLocalTask(mergedTask);
-    onUpdateTask?.(mergedTask);
-    setIsEditModalOpen(false);
+  const mergedTask = {
+    ...localTask,
+    ...updatedTask,
+    id: localTask?.id,
   };
+
+  const editedSeconds = getInitialActualSeconds(mergedTask);
+
+  setLocalTask(mergedTask);
+  setElapsedSeconds(editedSeconds);
+
+  if (isRunning) {
+    startedAtRef.current = Date.now() - editedSeconds * 1000;
+  }
+
+  onUpdateTask?.(mergedTask);
+  setIsEditModalOpen(false);
+};
 
   const addCategory = (category) => {
     setCategories((current) =>
