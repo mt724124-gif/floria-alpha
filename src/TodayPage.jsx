@@ -571,7 +571,7 @@ function TodoItem({
       return;
     }
 
-    if (Math.abs(dx) < 10) return;
+    if (Math.abs(dx) < 6) return;
 
     event.preventDefault();
 
