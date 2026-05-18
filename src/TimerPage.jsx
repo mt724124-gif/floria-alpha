@@ -66,26 +66,6 @@ function getInitialActualSeconds(task) {
   return Math.max(0, Math.round(Number(minutes) * 60));
 }
 
-function TimerHeader({ onClose }) {
-  return (
-    <header className="flex h-[40px] shrink-0 items-center justify-between">
-      <button
-        onClick={onClose}
-        className="grid h-10 w-10 place-items-center rounded-2xl text-slate-950 active:bg-slate-100"
-      >
-        <X className="h-7 w-7" strokeWidth={2.4} />
-      </button>
-
-      <h1 className="text-[20px] font-black tracking-[-0.04em] text-slate-950">
-        タイマー
-      </h1>
-
-      <button className="grid h-10 w-10 place-items-center rounded-2xl text-slate-950 active:bg-slate-100">
-        <Menu className="h-7 w-7" strokeWidth={2.4} />
-      </button>
-    </header>
-  );
-}
 
 function TaskCard({ task, plannedMinutes, onEdit }) {
   const style = categoryStyles[task?.category] ?? categoryStyles["その他"];
@@ -106,9 +86,9 @@ function TaskCard({ task, plannedMinutes, onEdit }) {
           </p>
 
           <p className="mt-0.5 text-xs font-bold text-slate-400">
-            {task?.category ?? "その他"}・予定{" "}
-            {formatMinutesLabel(plannedMinutes)}
-          </p>
+  {task?.category ?? "その他"}
+  {plannedMinutes > 0 && <>・予定 {formatMinutesLabel(plannedMinutes)}</>}
+</p>
         </div>
       </div>
 
@@ -174,8 +154,10 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
             {formatClock(elapsedSeconds)}
           </p>
 
-          <p className="mt-2 text-[12px] font-bold text-slate-400">
-  予定時間 {formatMinutesLabel(plannedMinutes)}
+          <p className="min-h-[20px] text-sm font-bold text-slate-400">
+  {plannedMinutes > 0
+    ? `予定時間：${formatMinutesLabel(plannedMinutes)}`
+    : ""}
 </p>
         </div>
       </div>
@@ -369,8 +351,8 @@ export default function TimerPage({
   const startedAtRef = useRef(Date.now());
   const hasSavedRef = useRef(false);
 
-  const plannedMinutes = localTask?.estimatedMinutes ?? 25;
-  const plannedSeconds = plannedMinutes * 60;
+  const plannedMinutes = Number(localTask?.estimatedMinutes) > 0 ? Number(localTask.estimatedMinutes) : 0;
+const plannedSeconds = plannedMinutes * 60;
 
   const elapsedMinutes = useMemo(
     () => Math.max(0, Math.round(elapsedSeconds / 60)),
@@ -501,8 +483,8 @@ export default function TimerPage({
 
   return (
     <div className="h-dvh overflow-hidden bg-[#f6f8f7] text-slate-950 antialiased">
-      <div className="timer-shell mx-auto flex h-dvh w-full max-w-[480px] flex-col gap-[clamp(5px,0.8dvh,9px)] overflow-hidden bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(8px+env(safe-area-inset-bottom))] pt-[calc(6px+env(safe-area-inset-top))]">
-        <TimerHeader onClose={handleClose} />
+      <div className="timer-shell mx-auto flex h-dvh w-full max-w-[480px] flex-col gap-[clamp(5px,0.8dvh,9px)] overflow-hidden bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(8px+env(safe-area-inset-bottom))] pt-[calc(10px+env(safe-area-inset-top))]">
+        
 
         <TaskCard
           task={localTask}

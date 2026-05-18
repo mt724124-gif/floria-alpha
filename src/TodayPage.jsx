@@ -356,8 +356,10 @@ function TodayGoalCard({
 
             {!selectedIsReminder && (
               <p className="mb-0.5 text-[12px] font-bold text-slate-400">
-                {selectedTask.category}・予定{" "}
-                {formatMinutes(selectedTask.estimatedMinutes)}
+                {selectedTask.category}
+{Number(selectedTask.estimatedMinutes) > 0 && (
+  <>・予定 {formatMinutes(selectedTask.estimatedMinutes)}</>
+)}
               </p>
             )}
 
@@ -740,14 +742,16 @@ function TodoItem({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1 text-slate-400">
-                <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
-                <span className="text-[11px] font-bold">
-                  {reminder
-                    ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
-                    : formatMinutes(todo.estimatedMinutes)}
-                </span>
-              </div>
+              {(reminder || Number(todo.estimatedMinutes) > 0) && (
+  <div className="flex items-center gap-1 text-slate-400">
+    <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
+    <span className="text-[11px] font-bold">
+      {reminder
+        ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
+        : formatMinutes(todo.estimatedMinutes)}
+    </span>
+  </div>
+)}
             </div>
           </div>
 
