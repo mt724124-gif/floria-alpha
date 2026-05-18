@@ -113,6 +113,14 @@ function formatMinutes(totalMinutes) {
   return `${h}時間${m}分`;
 }
 
+function formatShortMinutes(totalMinutes) {
+  const h = Math.floor((Number(totalMinutes) || 0) / 60);
+  const m = (Number(totalMinutes) || 0) % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 function formatDateForHeader(date) {
   const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
   return `${date.getMonth() + 1}月${date.getDate()}日（${weekdays[date.getDay()]}）`;
@@ -660,44 +668,43 @@ function TodoItem({
               : undefined
         }
         className={`relative z-10 px-3 py-2 transition-transform ${
-          reminder
-            ? "before:absolute before:left-0 before:top-0 before:h-full before:w-[5px] before:bg-amber-400"
-            : ""
-        } ${
-          dragging
-            ? "pointer-events-none z-[1000] rounded-[16px] bg-white opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.20)] ring-1 ring-slate-200 duration-100"
-            : "bg-white duration-200"
-        } ${itemDisabled ? "cursor-default opacity-80" : "cursor-pointer"}`}
+  dragging
+    ? "pointer-events-none z-[1000] rounded-[16px] bg-white opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.20)] ring-1 ring-slate-200 duration-100"
+    : "bg-white duration-200"
+} ${itemDisabled ? "cursor-default opacity-80" : "cursor-pointer"}`}
       >
         <div className="flex min-h-[48px] items-center gap-2">
-          <button
-            type="button"
-            aria-label="順番を並び替え"
-            disabled={!canReorder}
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => {
-              if (!canReorder) return;
-              onDragHandlePointerDown(event, todo.id);
-            }}
-            className={`flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
-              !canReorder
-                ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
-                : dragging
-                  ? "border-slate-900 bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
-                  : sortMode === "category"
-                    ? categoryNumberClass
-                    : priorityConfig.number
-            }`}
-          >
-            <span className="text-[14px] font-black leading-none">
-              {displayRank}
-            </span>
-            <GripVertical
-              className={`mt-0.5 h-3 w-3 transition-transform ${
-                dragging ? "scale-110" : "scale-100"
-              }`}
-            />
-          </button>
+          {!reminder && (
+  <button
+    type="button"
+    aria-label="順番を並び替え"
+    disabled={!canReorder}
+    onClick={(event) => event.stopPropagation()}
+    onPointerDown={(event) => {
+      if (!canReorder) return;
+      onDragHandlePointerDown(event, todo.id);
+    }}
+    className={`flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
+      !canReorder
+        ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
+        : dragging
+          ? "border-slate-900 bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
+          : sortMode === "category"
+            ? categoryNumberClass
+            : priorityConfig.number
+    }`}
+  >
+    <span className="text-[14px] font-black leading-none">
+      {displayRank}
+    </span>
+
+    <GripVertical
+      className={`mt-0.5 h-3 w-3 transition-transform ${
+        dragging ? "scale-110" : "scale-100"
+      }`}
+    />
+  </button>
+)}
 
           <button
             disabled={completeDisabled}
@@ -1248,7 +1255,7 @@ function RecordStat({ label, value }) {
       <p className="mb-1 text-[9px] font-black text-slate-600 min-[390px]:text-[10px]">
         {label}
       </p>
-      <p className="truncate text-[16px] font-black tracking-[-0.03em] text-slate-950 min-[390px]:text-[18px]">
+      <p className="truncate text-[14px] font-black tracking-[-0.04em] text-slate-950 min-[390px]:text-[16px]">
         {value}
       </p>
     </div>
@@ -1289,9 +1296,9 @@ function TodayRecordCard({
 
       <div className="rounded-[18px] bg-white px-3 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.05)] min-[390px]:px-3.5 min-[390px]:py-3.5">
         <div className="grid grid-cols-4 divide-x divide-slate-200 text-center">
-  <RecordStat label="総予定" value={hasPlannedMinutes ? formatMinutes(totalPlannedMinutes) : "—"} />
-  <RecordStat label="総実測" value={hasActualMinutes ? formatMinutes(totalActualMinutes) : "—"} />
-  <RecordStat label="完了" value={`${completedCount} / ${totalCount}`} />
+  <RecordStat label="総予定" value={hasPlannedMinutes ? formatShortMinutes(totalPlannedMinutes) : "—"} />
+  <RecordStat label="総実測" value={hasActualMinutes ? formatShortMinutes(totalActualMinutes) : "—"} />
+  <RecordStat label="完了" value={`${completedCount}/${totalCount}`} />
   <RecordStat label="達成率" value={`${rate}%`} />
 </div>
 
