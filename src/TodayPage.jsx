@@ -557,7 +557,7 @@ function TodoItem({
     setIsSwiping(false);
   };
 
-  const moveSwipe = (event) => {
+    const moveSwipe = (event) => {
     if (!swipeActiveRef.current) return;
 
     const dx = event.clientX - swipeStartRef.current.x;
@@ -588,6 +588,24 @@ function TodoItem({
       setSwipeX(swipeLatestXRef.current);
       swipeFrameRef.current = null;
     });
+  };
+
+  const cancelSwipe = (event) => {
+    if (swipePointerIdRef.current != null) {
+      event?.currentTarget?.releasePointerCapture?.(swipePointerIdRef.current);
+    }
+
+    swipeActiveRef.current = false;
+    swipeLatestXRef.current = 0;
+    swipePointerIdRef.current = null;
+
+    if (swipeFrameRef.current) {
+      cancelAnimationFrame(swipeFrameRef.current);
+      swipeFrameRef.current = null;
+    }
+
+    setIsSwiping(false);
+    setSwipeX(0);
   };
 
   const endSwipe = (event) => {
@@ -647,10 +665,10 @@ function TodoItem({
       )}
 
       <div
-        onPointerDown={startSwipe}
+                onPointerDown={startSwipe}
         onPointerMove={moveSwipe}
         onPointerUp={endSwipe}
-        onPointerCancel={endSwipe}
+        onPointerCancel={cancelSwipe}
         onClick={(event) => {
           if (event.defaultPrevented || dragging || itemDisabled || isSwiping) return;
           if (!canSelect) return;
