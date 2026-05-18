@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import BottomNav from "./components/BottomNav";
 import AppHeader from "./components/AppHeader";
 import LongTaskModal from "./components/LongTaskModal";
+import LongTaskDetail from "./components/LongTaskDetail";
 import { CalendarDays, Sprout, ChevronRight, ChevronDown, Plus } from "lucide-react";
 
 const initialLongTasks = [];
@@ -91,7 +92,7 @@ function CategoryLegend({ tasks }) {
   );
 }
 
-function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate, longTasks }) {
+function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate, longTasks, onOpenLongTask }) {
   const scrollRef = useRef(null);
   const isResettingRef = useRef(false);
 
@@ -125,14 +126,20 @@ function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate
     <div ref={scrollRef} onScrollEnd={handleScrollEnd} className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth rounded-[18px] border border-slate-200 bg-white scrollbar-none">
       {months.map((monthDate) => (
         <div key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`} className="min-h-0 w-full shrink-0 snap-center">
-          <MonthCalendar currentDate={monthDate} selectedDate={selectedDate} setSelectedDate={setSelectedDate} longTasks={longTasks} />
+          <MonthCalendar
+  currentDate={monthDate}
+  selectedDate={selectedDate}
+  setSelectedDate={setSelectedDate}
+  longTasks={longTasks}
+  onOpenLongTask={onOpenLongTask}
+/>
         </div>
       ))}
     </div>
   );
 }
 
-function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks }) {
+function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, onOpenLongTask }) {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const days = useMemo(() => buildCalendarDays(year, month), [year, month]);
@@ -174,7 +181,13 @@ function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks }
                 if (!placement) return null;
 
                 return (
-                  <button type="button" key={`${task.id}-${weekIndex}`} className="pointer-events-auto relative flex min-h-[20px] items-center" style={{ ...placement, gridRow: `${(i % 3) + 1}` }}>
+                  <button
+  type="button"
+  key={`${task.id}-${weekIndex}`}
+  onClick={() => onOpenLongTask(task)}
+  className="pointer-events-auto relative flex min-h-[20px] items-center"
+  style={{ ...placement, gridRow: `${(i % 3) + 1}` }}
+>
                     <span className={`${task.color} block h-[16px] w-full truncate rounded-r-full px-1.5 text-[8.5px] font-black leading-[16px] text-white shadow-sm`}>
                       {task.title}
                     </span>
@@ -255,16 +268,33 @@ export default function CalendarPage({ onNavigate }) {
   const [summaryExpanded, setSummaryExpanded] = useState(true);
   const [longTasks, setLongTasks] = useState(initialLongTasks);
   const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
+  const [selectedLongTask, setSelectedLongTask] = useState(null);
 
   const moveMonth = (diff) => {
     setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + diff, 1));
   };
 
   const saveLongTask = (task) => {
-    setLongTasks((current) => [...current, task]);
-    setCurrentDate(new Date(task.start));
-    setSelectedDate(new Date(task.start));
-  };
+  setLongTasks((current) => [...current, task]);
+  setCurrentDate(new Date(task.start));
+  setSelectedDate(new Date(task.start));
+};
+
+const openLongTaskDetail = (task) => {
+  setSelectedLongTask(task);
+};
+
+const closeLongTaskDetail = () => {
+  setSelectedLongTask(null);
+};
+
+const deleteLongTask = (task) => {
+  setLongTasks((current) =>
+    current.filter((item) => item.id !== task.id)
+  );
+
+  setSelectedLongTask(null);
+};
 
   return (
     <div className="h-dvh overflow-hidden bg-[#f6f8f7] text-slate-950 antialiased">
@@ -273,7 +303,14 @@ export default function CalendarPage({ onNavigate }) {
 
         <main className="flex min-h-0 flex-1 flex-col pb-[calc(82px+env(safe-area-inset-bottom))]">
           <MonthTabs viewMode={viewMode} setViewMode={setViewMode} />
-          <MonthPager currentDate={currentDate} setCurrentDate={setCurrentDate} selectedDate={selectedDate} setSelectedDate={setSelectedDate} longTasks={longTasks} />
+          <MonthPager
+  currentDate={currentDate}
+  setCurrentDate={setCurrentDate}
+  selectedDate={selectedDate}
+  setSelectedDate={setSelectedDate}
+  longTasks={longTasks}
+  onOpenLongTask={openLongTaskDetail}
+/>
           <CategoryLegend tasks={longTasks} />
           <MonthSummary expanded={summaryExpanded} setExpanded={setSummaryExpanded} longTasks={longTasks} onAddLongTask={() => setIsLongTaskModalOpen(true)} />
         </main>
@@ -281,7 +318,23 @@ export default function CalendarPage({ onNavigate }) {
 
       <BottomNav active="calendar" onNavigate={onNavigate} />
 
-      <LongTaskModal open={isLongTaskModalOpen} onClose={() => setIsLongTaskModalOpen(false)} onSave={saveLongTask} />
+      <LongTaskModal
+  open={isLongTaskModalOpen}
+  onClose={() => setIsLongTaskModalOpen(false)}
+  onSave={saveLongTask}
+/>
+
+<LongTaskDetail
+  task={selectedLongTask}
+  onClose={closeLongTaskDetail}
+  onEdit={(task) => {
+    console.log("edit", task);
+  }}
+  onDelete={deleteLongTask}
+  onAddTodayPlan={(task) => {
+    console.log("add today plan", task);
+  }}
+/>
     </div>
   );
 }
