@@ -629,8 +629,8 @@ function TodoItem({
     setIsSwiping(false);
     setSwipeX(0);
 
-    const moveTomorrowThreshold = 96;
-const deleteThreshold = Math.round(moveTomorrowThreshold * 0.8);
+    const moveTomorrowThreshold = 75;
+const deleteThreshold = Math.round(moveTomorrowThreshold * 0.6);
 
     if (finalX < -deleteThreshold && canDelete) {
       onDelete(todo);
