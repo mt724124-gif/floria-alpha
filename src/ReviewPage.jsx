@@ -38,6 +38,12 @@ function getTodayKey() {
   return new Date().toLocaleDateString("sv-SE");
 }
 
+function getTomorrowKey(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+  return date.toLocaleDateString("sv-SE");
+}
+
 function formatMinutes(minutes = 0) {
   const total = Math.max(0, Number(minutes) || 0);
   const h = Math.floor(total / 60);
@@ -185,7 +191,7 @@ function WorkLogModal({ open, targetTask, targetWorkLog, completeAfterSave, onCl
   );
 }
 
-function TaskRow({ task, disabled = false, onToggle, onEdit, onDelete, onPostponeTomorrow }) {
+function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, onEdit, onDelete, onPostponeTomorrow }) {
   const style = categoryStyles[task.category] ?? categoryStyles["その他"];
   const Icon = style.icon;
   const completed = isCompleted(task);
@@ -281,7 +287,7 @@ function TaskRow({ task, disabled = false, onToggle, onEdit, onDelete, onPostpon
     <div className="relative overflow-visible border-b border-slate-100 last:border-b-0">
       {!completed && !disabled && (
         <div className="absolute inset-y-0 left-0 z-0 flex w-32 items-center justify-start bg-amber-50 px-4 text-amber-600">
-          <span className="text-xs font-black">今日へ</span>
+          <span className="text-xs font-black">{moveLabel}</span>
         </div>
       )}
 
@@ -366,7 +372,7 @@ function TaskRow({ task, disabled = false, onToggle, onEdit, onDelete, onPostpon
   );
 }
 
-function TaskSection({ record, disabled = false, onToggleTask, onEditTask, onDeleteTask, onPostponeTomorrow }) {
+function TaskSection({ record, disabled = false, moveLabel = "明日へ", onToggleTask, onEditTask, onDeleteTask, onPostponeTomorrow }) {
   const tasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
   const incompleteTasks = tasks.filter((task) => !isCompleted(task));
   const completedTasks = tasks.filter((task) => isCompleted(task));
@@ -402,14 +408,15 @@ function TaskSection({ record, disabled = false, onToggleTask, onEditTask, onDel
               ) : (
                 incompleteTasks.map((task) => (
                   <TaskRow
-                    key={task.id}
-                    task={task}
-                    disabled={disabled}
-                    onToggle={onToggleTask}
-                    onEdit={onEditTask}
-                    onDelete={onDeleteTask}
-                    onPostponeTomorrow={onPostponeTomorrow}
-                  />
+  key={task.id}
+  task={task}
+  disabled={disabled}
+  moveLabel={moveLabel}
+  onToggle={onToggleTask}
+  onEdit={onEditTask}
+  onDelete={onDeleteTask}
+  onPostponeTomorrow={onPostponeTomorrow}
+/>
                 ))
               )}
             </div>
@@ -431,14 +438,15 @@ function TaskSection({ record, disabled = false, onToggleTask, onEditTask, onDel
               ) : (
                 completedTasks.map((task) => (
                   <TaskRow
-                    key={task.id}
-                    task={task}
-                    disabled={disabled}
-                    onToggle={onToggleTask}
-                    onEdit={onEditTask}
-                    onDelete={onDeleteTask}
-                    onPostponeTomorrow={onPostponeTomorrow}
-                  />
+  key={task.id}
+  task={task}
+  disabled={disabled}
+  moveLabel={moveLabel}
+  onToggle={onToggleTask}
+  onEdit={onEditTask}
+  onDelete={onDeleteTask}
+  onPostponeTomorrow={onPostponeTomorrow}
+/>
                 ))
               )}
             </div>
@@ -531,9 +539,14 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
   const taskCount = activeTasks.length;
   const isAutoCompletedEmptyDay = taskCount === 0;
   const isConfirmed = record.status === "confirmed" || record.reviewCompleted === true || isAutoCompletedEmptyDay;
-  const canConfirm = !isConfirmed && incompleteTasks.length === 0;
+const canConfirm = !isConfirmed && incompleteTasks.length === 0;
+const todayKey = getTodayKey();
+const isTodayReview = dateKey === todayKey;
+const moveDateKey = isTodayReview ? getTomorrowKey(dateKey) : todayKey;
+const moveLabel = isTodayReview ? "明日へ" : "今日へ";
+const moveMessage = isTodayReview ? "明日に移動しました" : "今日に移動しました";
 
-  const [reflectionText, setReflectionText] = useState(record.reflectionText ?? "");
+const [reflectionText, setReflectionText] = useState(record.reflectionText ?? "");
 
   useEffect(() => {
     setReflectionText(record.reflectionText ?? "");
@@ -675,7 +688,6 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
   const handlePostponeTomorrow = (task) => {
   if (isConfirmed || isCompleted(task)) return;
 
-  const todayKey = getTodayKey();
   const originalDate = getTaskDateKey(task, dateKey);
 
   setAppData((current) => {
@@ -686,17 +698,17 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
             completed: false,
             taskStatus: "pending",
             completedAt: null,
-            targetDate: todayKey,
-            date: item.date === originalDate ? todayKey : item.date,
-            schedule: item.schedule ? { ...item.schedule, date: todayKey } : item.schedule,
-            reminder: item.reminder ? { ...item.reminder, date: todayKey } : item.reminder,
+            targetDate: moveDateKey,
+            date: item.date === originalDate ? moveDateKey : item.date,
+            schedule: item.schedule ? { ...item.schedule, date: moveDateKey } : item.schedule,
+            reminder: item.reminder ? { ...item.reminder, date: moveDateKey } : item.reminder,
           }
         : item
     );
     return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
   });
 
-  showUndoToast({ type: "postpone", message: "今日に移動しました", taskTitle: task.title, task, originalDate, movedDate: todayKey });
+  showUndoToast({ type: "postpone", message: moveMessage, taskTitle: task.title, task, originalDate, movedDate: moveDateKey });
 };
 
   const handleSaveWorkLog = (log) => {
@@ -836,7 +848,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
 
           {!isConfirmed && incompleteTasks.length > 0 && (
             <div className="rounded-[20px] bg-amber-50 px-4 py-3 text-[13px] font-bold leading-5 text-amber-700">
-              未達成タスクを「達成・今日へ・削除」のどれかに整理すると、振り返りを完了できます。
+              未達成タスクを「達成・{moveLabel}・削除」のどれかに整理すると、振り返りを完了できます。
             </div>
           )}
 
