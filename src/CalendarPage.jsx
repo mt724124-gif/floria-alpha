@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import BottomNav from "./components/BottomNav";
 import AppHeader from "./components/AppHeader";
-import { CalendarDays, List, Sprout } from "lucide-react";
+import { CalendarDays, Sprout } from "lucide-react";
 
 const longTasks = [
   { id: 1, title: "プロダクト開発計画", start: "2026-03-02", end: "2026-03-04", color: "bg-slate-500" },
@@ -24,6 +24,7 @@ function buildCalendarDays(year, monthIndex) {
   const start = new Date(firstDay);
   const day = firstDay.getDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
+
   start.setDate(firstDay.getDate() + mondayOffset);
 
   return Array.from({ length: 42 }, (_, i) => {
@@ -36,6 +37,7 @@ function buildCalendarDays(year, monthIndex) {
 function getTaskPlacement(task, weekDays) {
   const start = new Date(task.start);
   const end = new Date(task.end);
+
   const weekStart = weekDays[0];
   const weekEnd = weekDays[6];
 
@@ -49,7 +51,9 @@ function getTaskPlacement(task, weekDays) {
 
   if (startIndex < 0 || endIndex < 0) return null;
 
-  return { gridColumn: `${startIndex + 1} / ${endIndex + 2}` };
+  return {
+    gridColumn: `${startIndex + 1} / ${endIndex + 2}`,
+  };
 }
 
 function Header({ currentDate }) {
@@ -63,16 +67,13 @@ function Header({ currentDate }) {
   );
 }
 
-function MonthTabs() {
+function NoticeCard() {
   return (
-    <div className="mx-3 mt-1.5 flex shrink-0 items-center gap-1.5">
-      <button className="rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-black text-emerald-600">
-        月間
-      </button>
-      <button className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-slate-400 ring-1 ring-slate-200">
-        週
-      </button>
-    </div>
+    <section className="mx-3 mt-2 shrink-0 rounded-[16px] border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+      <p className="text-[11px] font-bold text-emerald-700">
+        長期タスクを表示中
+      </p>
+    </section>
   );
 }
 
@@ -83,6 +84,7 @@ function MonthTabs() {
         <CalendarDays className="h-4 w-4" />
         月間
       </button>
+
       <button className="flex h-9 items-center justify-center gap-1.5 rounded-[12px] text-[13px] font-black text-slate-400">
         <CalendarDays className="h-4 w-4" />
         週
@@ -94,8 +96,17 @@ function MonthTabs() {
 function CalendarGrid({ currentDate }) {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  const days = useMemo(() => buildCalendarDays(year, month), [year, month]);
-  const weeks = Array.from({ length: 6 }, (_, i) => days.slice(i * 7, i * 7 + 7));
+
+  const days = useMemo(
+    () => buildCalendarDays(year, month),
+    [year, month]
+  );
+
+  const weeks = Array.from(
+    { length: 6 },
+    (_, i) => days.slice(i * 7, i * 7 + 7)
+  );
+
   const todayKey = "2026-03-03";
 
   return (
@@ -105,7 +116,11 @@ function CalendarGrid({ currentDate }) {
           <div
             key={day}
             className={`grid place-items-center text-[12px] font-black ${
-              index === 5 ? "text-blue-500" : index === 6 ? "text-red-500" : "text-slate-950"
+              index === 5
+                ? "text-blue-500"
+                : index === 6
+                ? "text-red-500"
+                : "text-slate-950"
             }`}
           >
             {day}
@@ -115,7 +130,10 @@ function CalendarGrid({ currentDate }) {
 
       <div className="grid min-h-0 flex-1 grid-rows-6">
         {weeks.map((weekDays, weekIndex) => (
-          <div key={weekIndex} className="relative grid min-h-0 grid-cols-7 border-b border-slate-100 last:border-b-0">
+          <div
+            key={weekIndex}
+            className="relative grid min-h-0 grid-cols-7 border-b border-slate-100 last:border-b-0"
+          >
             {weekDays.map((day, dayIndex) => {
               const isCurrentMonth = day.getMonth() === month;
               const isToday = dateKey(day) === todayKey;
@@ -123,7 +141,10 @@ function CalendarGrid({ currentDate }) {
               const isSunday = dayIndex === 6;
 
               return (
-                <div key={dateKey(day)} className="min-h-0 border-r border-slate-100 px-0.5 py-1 last:border-r-0">
+                <div
+                  key={dateKey(day)}
+                  className="min-h-0 border-r border-slate-100 px-0.5 py-1 last:border-r-0"
+                >
                   <div
                     className={`mx-auto grid h-6 w-6 place-items-center rounded-full text-[12px] font-black ${
                       isToday
@@ -146,13 +167,17 @@ function CalendarGrid({ currentDate }) {
             <div className="pointer-events-none absolute inset-x-0 top-[30px] grid grid-cols-7 gap-y-0.5 px-1">
               {longTasks.map((task, i) => {
                 const placement = getTaskPlacement(task, weekDays);
+
                 if (!placement) return null;
 
                 return (
                   <div
                     key={`${task.id}-${weekIndex}`}
                     className={`${task.color} h-[17px] truncate rounded-r-full px-1.5 text-[8.5px] font-black leading-[17px] text-white shadow-sm`}
-                    style={{ ...placement, gridRow: `${(i % 3) + 1}` }}
+                    style={{
+                      ...placement,
+                      gridRow: `${(i % 3) + 1}`,
+                    }}
                   >
                     {task.title}
                   </div>
@@ -172,8 +197,11 @@ function CompactSummary() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sprout className="h-5 w-5 text-emerald-500" />
-          <p className="text-[13px] font-black text-slate-950">今月の長期タスク</p>
+          <p className="text-[13px] font-black text-slate-950">
+            今月の長期タスク
+          </p>
         </div>
+
         <div className="flex items-center gap-2 text-[11px] font-black">
           <span className="text-slate-400">進行前 2</span>
           <span className="text-emerald-600">進行中 5</span>
@@ -200,7 +228,10 @@ export default function CalendarPage({ onNavigate }) {
         </main>
       </div>
 
-      <BottomNav active="calendar" onNavigate={onNavigate} />
+      <BottomNav
+        active="calendar"
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }
