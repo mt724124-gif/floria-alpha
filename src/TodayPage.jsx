@@ -1197,7 +1197,7 @@ function TodoListCard({
       ) : (
         <div className="space-y-2.5">
           {sections.map((section) => {
-            const collapsed = !showAllTasks && !openSectionKeys.includes(section.key);
+  const collapsed = !showAllTasks && !openSectionKeys.includes(section.key);
 
             return (
               <TodoSection
@@ -1245,10 +1245,10 @@ function TodoListCard({
 function RecordStat({ label, value }) {
   return (
     <div className="min-w-0 px-1">
-      <p className="mb-1.5 text-[10px] font-black text-slate-700 min-[390px]:text-[10px]">
+      <p className="mb-1 text-[9px] font-black text-slate-600 min-[390px]:text-[10px]">
         {label}
       </p>
-      <p className="truncate text-[18px] font-black tracking-[-0.04em] text-slate-950 min-[390px]:text-[20px]">
+      <p className="truncate text-[16px] font-black tracking-[-0.03em] text-slate-950 min-[390px]:text-[18px]">
         {value}
       </p>
     </div>
@@ -1256,7 +1256,10 @@ function RecordStat({ label, value }) {
 }
 
 function TodayRecordCard({
-  totalMinutes,
+  totalPlannedMinutes,
+  hasPlannedMinutes,
+  totalActualMinutes,
+  hasActualMinutes,
   completedCount,
   totalCount,
   onOpenReview,
@@ -1285,11 +1288,12 @@ function TodayRecordCard({
       </div>
 
       <div className="rounded-[18px] bg-white px-3 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.05)] min-[390px]:px-3.5 min-[390px]:py-3.5">
-        <div className="grid grid-cols-3 divide-x divide-slate-200 text-center">
-          <RecordStat label="総作業時間" value={formatMinutes(totalMinutes)} />
-          <RecordStat label="完了タスク" value={`${completedCount} / ${totalCount}`} />
-          <RecordStat label="達成率" value={`${rate}%`} />
-        </div>
+        <div className="grid grid-cols-4 divide-x divide-slate-200 text-center">
+  <RecordStat label="総予定" value={hasPlannedMinutes ? formatMinutes(totalPlannedMinutes) : "—"} />
+  <RecordStat label="総実測" value={hasActualMinutes ? formatMinutes(totalActualMinutes) : "—"} />
+  <RecordStat label="完了" value={`${completedCount} / ${totalCount}`} />
+  <RecordStat label="達成率" value={`${rate}%`} />
+</div>
 
         <div className="mt-3.5 h-3 overflow-hidden rounded-full bg-slate-100">
           <div
@@ -2237,38 +2241,41 @@ const baseSeconds =
           />
 
           <TodoListCard
-            todos={showAllTasks ? filteredTodos : incompleteTodos}
-            showAllTasks={showAllTasks}
-            categories={categories}
-            sortMode={sortMode}
-            selectedTaskId={selectedTaskId}
-            canSelect={canSelectTask}
-            canComplete={canCompleteTask}
-            canEdit={canEditTask}
-            canDelete={canDeleteTask}
-            canMoveTomorrow={canMoveTomorrow}
-            canReorder={canReorderTask}
-            onSelect={(todo) => {
-              if (!canSelectTask) return;
-              if (!isCompleted(todo) && !isReminder(todo)) setSelectedTaskId(todo.id);
-            }}
-            onToggle={toggleTodo}
-            onEdit={(todo) => {
-              if (!canEditTask) return;
-              setTodoModal({ open: true, mode: "edit", todo });
-            }}
-            onDelete={deleteTodo}
-            onMoveTomorrow={moveTodoTomorrow}
-            onWorkLogEdit={openWorkLogModal}
-            onReorder={reorderTodos}
-          />
+  todos={incompleteTodos}
+  showAllTasks={showAllTasks}
+  categories={categories}
+  sortMode={sortMode}
+  selectedTaskId={selectedTaskId}
+  canSelect={canSelectTask}
+  canComplete={canCompleteTask}
+  canEdit={canEditTask}
+  canDelete={canDeleteTask}
+  canMoveTomorrow={canMoveTomorrow}
+  canReorder={canReorderTask}
+  onSelect={(todo) => {
+    if (!canSelectTask) return;
+    if (!isCompleted(todo) && !isReminder(todo)) setSelectedTaskId(todo.id);
+  }}
+  onToggle={toggleTodo}
+  onEdit={(todo) => {
+    if (!canEditTask) return;
+    setTodoModal({ open: true, mode: "edit", todo });
+  }}
+  onDelete={deleteTodo}
+  onMoveTomorrow={moveTodoTomorrow}
+  onWorkLogEdit={openWorkLogModal}
+  onReorder={reorderTodos}
+/>
 
           <TodayRecordCard
-            totalMinutes={dailyRecord.totalActualMinutes ?? 0}
-            completedCount={dailyRecord.completedTaskCount ?? 0}
-            totalCount={dailyRecord.createdTaskCount ?? 0}
-            onOpenReview={() => onOpenReview?.(selectedDateKey)}
-          />
+  totalPlannedMinutes={filteredTodos.reduce((sum, todo) => sum + (isReminder(todo) ? 0 : Number(todo.estimatedMinutes || 0)), 0)}
+  hasPlannedMinutes={filteredTodos.some((todo) => !isReminder(todo) && Number(todo.estimatedMinutes) > 0)}
+  totalActualMinutes={filteredTodos.reduce((sum, todo) => sum + (isReminder(todo) ? 0 : Number(todo.actualMinutes || todo.workedMinutes || todo.focusMinutes || todo.elapsedMinutes || 0)), 0)}
+  hasActualMinutes={filteredTodos.some((todo) => !isReminder(todo) && Number(todo.actualMinutes || todo.workedMinutes || todo.focusMinutes || todo.elapsedMinutes || 0) > 0)}
+  completedCount={dailyRecord.completedTaskCount ?? 0}
+  totalCount={dailyRecord.createdTaskCount ?? 0}
+  onOpenReview={() => onOpenReview?.(selectedDateKey)}
+/>
         </main>
       </div>
 

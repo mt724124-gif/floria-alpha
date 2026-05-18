@@ -36,7 +36,9 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
   const isEditMode = mode === "edit";
 
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("学習");
+  const [category, setCategory] = useState(() => {
+  return localStorage.getItem("last-category") || "学習";
+});
   const [priority, setPriority] = useState("medium");
   const [itemType, setItemType] = useState("todo");
   const [newCategory, setNewCategory] = useState("");
@@ -78,7 +80,7 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
     } else {
       setItemType("todo");
       setTitle("");
-      setCategory("学習");
+      setCategory(localStorage.getItem("last-category") || "学習");
       setPriority("medium");
       setNewCategory("");
       setDurationHour("");
@@ -130,10 +132,12 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
     let finalCategory = isEditMode ? initialTodo?.category ?? category : category;
 
     if (!isEditMode && category === "__new__") {
-      finalCategory = newCategory.trim().slice(0, 30);
-      if (!finalCategory) return;
-      onAddCategory?.(finalCategory);
-    }
+  finalCategory = newCategory.trim().slice(0, 30);
+  if (!finalCategory) return;
+  onAddCategory?.(finalCategory);
+}
+
+localStorage.setItem("last-category", finalCategory);
 
     const finalPriority =
       finalType === "reminder"
