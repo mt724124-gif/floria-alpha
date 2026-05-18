@@ -665,10 +665,10 @@ const moveTomorrowThreshold = 104;
       )}
 
       <div
-       onPointerDown={startSwipe}
-        onPointerMove={moveSwipe}
-        onPointerUp={endSwipe}
-        onPointerCancel={cancelSwipe}
+  onPointerDown={startSwipe}
+  onPointerMove={moveSwipe}
+  onPointerUp={endSwipe}
+  onPointerCancel={endSwipe}
         onClick={(event) => {
           if (event.defaultPrevented || dragging || itemDisabled || isSwiping) return;
           if (!canSelect) return;
