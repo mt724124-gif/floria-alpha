@@ -563,13 +563,10 @@ function TodoItem({
     const dx = event.clientX - swipeStartRef.current.x;
     const dy = event.clientY - swipeStartRef.current.y;
 
-    if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 0.7) {
-      swipeActiveRef.current = false;
-      swipeLatestXRef.current = 0;
-      setSwipeX(0);
-      setIsSwiping(false);
-      return;
-    }
+    if (Math.abs(dy) > 28 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+  cancelSwipe(event);
+  return;
+}
 
     if (Math.abs(dx) < 12) return;
 
