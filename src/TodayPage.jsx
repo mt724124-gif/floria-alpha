@@ -629,7 +629,7 @@ const limited = Math.max(-118, Math.min(118, dx));
     setIsSwiping(false);
     setSwipeX(0);
 
-    const deleteThreshold = 50;
+    const deleteThreshold = 78;
 const moveTomorrowThreshold = 104;
 
     if (finalX < -deleteThreshold && canDelete) {
