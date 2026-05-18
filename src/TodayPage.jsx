@@ -563,7 +563,7 @@ function TodoItem({
     const dx = event.clientX - swipeStartRef.current.x;
     const dy = event.clientY - swipeStartRef.current.y;
 
-    if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 0.7) {
+    if (Math.abs(dy) > 32 && Math.abs(dy) > Math.abs(dx) * 1.4) {
   swipeActiveRef.current = false;
   swipeLatestXRef.current = 0;
   setSwipeX(0);
@@ -629,7 +629,7 @@ const limited = Math.max(-118, Math.min(118, dx));
     setIsSwiping(false);
     setSwipeX(0);
 
-    const deleteThreshold = 40;
+    const deleteThreshold = 30;
 const moveTomorrowThreshold = 104;
 
     if (finalX < -deleteThreshold && canDelete) {
