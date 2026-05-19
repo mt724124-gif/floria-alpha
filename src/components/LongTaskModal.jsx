@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 
 const CATEGORY_COLORS = [
@@ -14,27 +14,54 @@ const INITIAL_CATEGORIES = [
   { name: "仕事", color: "bg-blue-500" },
 ];
 
-export default function LongTaskModal({ open, onClose, onSave }) {
+export default function LongTaskModal({
+  open,
+  onClose,
+  onSave,
+  editingTask,
+}) {
   const today = new Date().toISOString().split("T")[0];
+  const getNextDate = (dateString) => {
+  const date = new Date(dateString);
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().split("T")[0];
+};
+
+const tomorrow = getNextDate(today);
 
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+const [endDate, setEndDate] = useState(tomorrow);
   const [categories, setCategories] = useState(INITIAL_CATEGORIES);
   const [category, setCategory] = useState(INITIAL_CATEGORIES[0]);
-  const [newCategoryName, setNewCategoryName] = useState("");
+const [newCategoryName, setNewCategoryName] = useState("");
+const endDateInputRef = useRef(null);
 
   useEffect(() => {
-    if (!open) return;
+  if (!open) return;
 
-    const now = new Date().toISOString().split("T")[0];
+  const now = new Date().toISOString().split("T")[0];
 
+  if (editingTask) {
+    setTitle(editingTask.title || "");
+    setStartDate(editingTask.start || now);
+    setEndDate(editingTask.end || getNextDate(now));
+
+    const matchedCategory =
+      categories.find(
+        (item) => item.name === editingTask.category
+      ) ?? categories[0];
+
+    setCategory(matchedCategory);
+  } else {
     setTitle("");
     setStartDate(now);
-    setEndDate(now);
+    setEndDate(getNextDate(now));
     setCategory(categories[0] ?? INITIAL_CATEGORIES[0]);
-    setNewCategoryName("");
-  }, [open]);
+  }
+
+  setNewCategoryName("");
+}, [open, editingTask]);
 
   if (!open) return null;
 
@@ -69,28 +96,83 @@ export default function LongTaskModal({ open, onClose, onSave }) {
   };
 
   const handleSave = () => {
-    if (!title.trim()) return;
+  if (!title.trim()) return;
 
-    onSave({
-      id: Date.now(),
-      title: title.trim(),
-      start: startDate,
-      end: endDate,
-      category: category.name,
-      color: category.color,
-      status: "進行前",
-    });
-
-    onClose();
+  const nextTask = {
+    id: editingTask?.id ?? Date.now(),
+    title: title.trim(),
+    start: startDate,
+    end: endDate,
+    category: category.name,
+    color: category.color,
+    status: editingTask?.status ?? "進行前",
+    dailyPlans: editingTask?.dailyPlans ?? [],
   };
 
+  if (editingTask?.dailyPlans?.length) {
+    const nextStart = new Date(startDate);
+    const nextEnd = new Date(endDate);
+
+    nextStart.setHours(0, 0, 0, 0);
+    nextEnd.setHours(0, 0, 0, 0);
+
+    const removedPlans = editingTask.dailyPlans.filter((plan) => {
+      const planDate = new Date(plan.date);
+      planDate.setHours(0, 0, 0, 0);
+
+      const hasContent =
+        String(plan.title ?? "").trim() !== "" ||
+        String(plan.memo ?? "").trim() !== "" ||
+        plan.estimatedMinutes !== null &&
+          plan.estimatedMinutes !== undefined &&
+          plan.estimatedMinutes !== "" ||
+        plan.actualMinutes !== null &&
+          plan.actualMinutes !== undefined &&
+          plan.actualMinutes !== "" ||
+        plan.completed === true;
+
+      return hasContent && (planDate < nextStart || planDate > nextEnd);
+    });
+
+    if (removedPlans.length > 0) {
+  const sortedRemovedPlans = [...removedPlans].sort((a, b) =>
+  a.date.localeCompare(b.date)
+);
+
+const firstDate = sortedRemovedPlans[0].date;
+const lastDate =
+  sortedRemovedPlans[sortedRemovedPlans.length - 1].date;
+
+const [, firstMonth, firstDay] = firstDate.split("-");
+const [, lastMonth, lastDay] = lastDate.split("-");
+
+const firstLabel = `${Number(firstMonth)}/${Number(firstDay)}`;
+const lastLabel = `${Number(lastMonth)}/${Number(lastDay)}`;
+
+const rangeLabel =
+  firstDate === lastDate
+    ? firstLabel
+    : `${firstLabel}〜${lastLabel}`;
+
+const ok = window.confirm(
+  `期間変更により、入力済みの日別予定が${removedPlans.length}件（${rangeLabel}）期間外になります。\nこの日別予定は削除されます。\n変更を保存しますか？`
+);
+
+  if (!ok) return;
+}
+  }
+
+  onSave(nextTask);
+  onClose();
+};
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px]">
-      <div className="mx-auto w-full max-w-[480px] rounded-t-[28px] bg-white px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-5 shadow-2xl">
+  <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-36 backdrop-blur-[2px]">
+    <div className="mx-auto w-full max-w-[480px] rounded-[28px] bg-white px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-5 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-[20px] font-black text-slate-950">
-            長期タスクを追加
-          </h2>
+  {editingTask ? "長期タスクを編集" : "長期タスクを追加"}
+</h2>
 
           <button
             type="button"
@@ -116,38 +198,49 @@ export default function LongTaskModal({ open, onClose, onSave }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="mb-2 text-[13px] font-black text-slate-700">
-                開始日
-              </p>
+          <div className="flex gap-3">
+  <div>
+    <p className="mb-2 text-[13px] font-black text-slate-700">
+      開始日
+    </p>
 
-              <input
-                type="date"
-                value={startDate}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setStartDate(value);
-                  if (endDate < value) setEndDate(value);
-                }}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-[14px] font-bold outline-none"
-              />
-            </div>
+    <input
+  type="date"
+      value={startDate}
+      onChange={(event) => {
+  const value = event.target.value;
+  const nextMinEndDate = getNextDate(value);
 
-            <div>
-              <p className="mb-2 text-[13px] font-black text-slate-700">
-                終了日
-              </p>
+  setStartDate(value);
 
-              <input
-                type="date"
-                value={endDate}
-                min={startDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-[14px] font-bold outline-none"
-              />
-            </div>
-          </div>
+  if (endDate < nextMinEndDate) {
+    setEndDate(nextMinEndDate);
+  }
+
+  setTimeout(() => {
+    endDateInputRef.current?.showPicker?.();
+    endDateInputRef.current?.focus?.();
+  }, 100);
+}}
+      className="h-11 w-[170px] rounded-xl border border-slate-200 bg-slate-50 px-2 text-[15px] font-bold outline-none"
+    />
+  </div>
+
+  <div>
+    <p className="mb-2 text-[13px] font-black text-slate-700">
+      終了日
+    </p>
+
+    <input
+  ref={endDateInputRef}
+  type="date"
+      value={endDate}
+      min={getNextDate(startDate)}
+      onChange={(event) => setEndDate(event.target.value)}
+      className="h-11 w-[170px] rounded-xl border border-slate-200 bg-slate-50 px-2 text-[15px] font-bold outline-none"
+    />
+  </div>
+</div>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
@@ -166,7 +259,7 @@ export default function LongTaskModal({ open, onClose, onSave }) {
                 onChange={(event) => setNewCategoryName(event.target.value)}
                 placeholder="カテゴリを追加"
                 disabled={categories.length >= 6}
-                className="h-10 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-[13px] font-bold outline-none disabled:text-slate-300"
+                className="h-10 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-[16px] font-bold outline-none disabled:text-slate-300"
               />
 
               <button
@@ -223,7 +316,7 @@ export default function LongTaskModal({ open, onClose, onSave }) {
           onClick={handleSave}
           className="mt-6 h-12 w-full rounded-2xl bg-emerald-500 text-[15px] font-black text-white shadow-lg shadow-emerald-500/20 transition active:scale-[0.98]"
         >
-          長期タスクを追加
+          {editingTask ? "変更を保存" : "長期タスクを追加"}
         </button>
       </div>
     </div>

@@ -27,6 +27,35 @@ function parseDate(dateText) {
   return new Date(y, m - 1, d);
 }
 
+function buildDailyPlansForTask(task, oldDailyPlans = []) {
+  const oldMap = new Map(
+    oldDailyPlans.map((plan) => [plan.date, plan])
+  );
+
+  const rows = [];
+
+  for (
+    let d = parseDate(task.start);
+    d <= parseDate(task.end);
+    d.setDate(d.getDate() + 1)
+  ) {
+    const key = dateKey(d);
+    const old = oldMap.get(key);
+
+    rows.push({
+      id: old?.id ?? `${task.id}-${key}`,
+      date: key,
+      title: old?.title ?? "",
+      completed: old?.completed ?? false,
+      estimatedMinutes: old?.estimatedMinutes ?? "",
+      actualMinutes: old?.actualMinutes ?? null,
+      memo: old?.memo ?? "",
+    });
+  }
+
+  return rows;
+}
+
 function buildCalendarDays(year, monthIndex) {
   const firstDay = new Date(year, monthIndex, 1);
   const start = new Date(firstDay);
@@ -330,7 +359,8 @@ const [longTasks, setLongTasks] = useState(() => {
   }
 });
   const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
-  const [selectedLongTask, setSelectedLongTask] = useState(null);
+const [selectedLongTask, setSelectedLongTask] = useState(null);
+const [editingLongTask, setEditingLongTask] = useState(null);
   useEffect(() => {
   try {
     localStorage.setItem(
@@ -347,10 +377,42 @@ const [longTasks, setLongTasks] = useState(() => {
   };
 
   const saveLongTask = (task) => {
-  setLongTasks((current) => [...current, task]);
-  setCurrentDate(new Date(task.start));
-  setSelectedDate(new Date(task.start));
-  setSelectedLongTask(task);
+  let savedTask = task;
+
+  setLongTasks((current) => {
+    const oldTask = current.find(
+      (item) => item.id === task.id
+    );
+
+    const dailyPlans = buildDailyPlansForTask(
+      task,
+      oldTask?.dailyPlans ?? task.dailyPlans ?? []
+    );
+
+    savedTask = {
+      ...task,
+      dailyPlans,
+    };
+
+    const exists = current.some(
+      (item) => item.id === task.id
+    );
+
+    if (exists) {
+      return current.map((item) =>
+        item.id === task.id ? savedTask : item
+      );
+    }
+
+    return [...current, savedTask];
+  });
+
+  setCurrentDate(new Date(savedTask.start));
+  setSelectedDate(new Date(savedTask.start));
+  setSelectedLongTask(savedTask);
+
+  setEditingLongTask(null);
+  setIsLongTaskModalOpen(false);
 };
 
 const openLongTaskDetail = (task) => {
@@ -367,6 +429,29 @@ const deleteLongTask = (task) => {
   );
 
   setSelectedLongTask(null);
+};
+
+const updateDailyPlan = (task, updatedRow, nextRows) => {
+  const updatedTask = {
+    ...task,
+    dailyPlans: nextRows,
+  };
+
+  setLongTasks((current) =>
+    current.map((item) =>
+      item.id === task.id ? updatedTask : item
+    )
+  );
+
+  setSelectedLongTask(updatedTask);
+};
+
+const openEditLongTask = (task) => {
+  const latestTask =
+    longTasks.find((item) => item.id === task.id) ?? task;
+
+  setEditingLongTask(latestTask);
+  setIsLongTaskModalOpen(true);
 };
 
   return (
@@ -390,29 +475,32 @@ const deleteLongTask = (task) => {
   setExpanded={setSummaryExpanded}
   longTasks={longTasks}
   currentDate={currentDate}
-  onAddLongTask={() => setIsLongTaskModalOpen(true)}
+  onAddLongTask={() => {
+  setEditingLongTask(null);
+  setIsLongTaskModalOpen(true);
+}}
 />
         </main>
       </div>
 
       <BottomNav active="calendar" onNavigate={onNavigate} />
 
-      <LongTaskModal
-  open={isLongTaskModalOpen}
-  onClose={() => setIsLongTaskModalOpen(false)}
-  onSave={saveLongTask}
-/>
-
 <LongTaskDetail
   task={selectedLongTask}
   onClose={closeLongTaskDetail}
-  onEdit={(task) => {
-    console.log("edit", task);
-  }}
+  onEdit={openEditLongTask}
   onDelete={deleteLongTask}
+  onUpdateDailyPlan={updateDailyPlan}
   onAddTodayPlan={(task) => {
     console.log("add today plan", task);
   }}
+/>
+
+<LongTaskModal
+  open={isLongTaskModalOpen}
+  editingTask={editingLongTask}
+  onClose={() => setIsLongTaskModalOpen(false)}
+  onSave={saveLongTask}
 />
     </div>
   );
