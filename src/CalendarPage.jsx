@@ -224,26 +224,48 @@ function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, 
               );
             })}
 
-            <div className="pointer-events-none absolute inset-x-0 top-[30px] grid grid-cols-7 gap-y-0.5 px-1">
-              {longTasks.map((task, i) => {
-                const placement = getTaskPlacement(task, weekDays);
-                if (!placement) return null;
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[30px] grid auto-rows-[16px] grid-cols-7 gap-y-0.5 px-1">
+  {(() => {
+    const visibleTasks = longTasks
+      .map((task) => ({
+        task,
+        placement: getTaskPlacement(task, weekDays),
+      }))
+      .filter((item) => item.placement);
 
-                return (
-                  <button
-  type="button"
-  key={`${task.id}-${weekIndex}`}
-  onClick={() => onOpenLongTask(task)}
-  className="pointer-events-auto relative flex min-h-[20px] items-center"
-  style={{ ...placement, gridRow: `${(i % 3) + 1}` }}
->
-                    <span className={`${task.color} block h-[16px] w-full truncate rounded-r-full px-1.5 text-[8.5px] font-black leading-[16px] text-white shadow-sm`}>
-                      {task.title}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+    const shownTasks = visibleTasks.slice(0, 4);
+const hiddenCount = visibleTasks.length - shownTasks.length;
+
+    return (
+      <>
+        {shownTasks.map(({ task, placement }, rowIndex) => (
+          <button
+            type="button"
+            key={`${task.id}-${weekIndex}`}
+            onClick={() => onOpenLongTask(task)}
+            className="pointer-events-auto relative flex h-[16px] items-center"
+            style={{ ...placement, gridRow: `${rowIndex + 1}` }}
+          >
+            <span className={`${task.color} block h-[15px] w-full truncate rounded-r-full px-1.5 text-[8px] font-black leading-[15px] text-white shadow-sm`}>
+              {task.title}
+            </span>
+          </button>
+        ))}
+
+        {hiddenCount > 0 && (
+  <button
+    type="button"
+    onClick={() => onOpenLongTask(shownTasks[0].task)}
+    className="pointer-events-auto flex h-[15px] items-center justify-center rounded-full bg-slate-100 text-[8px] font-black text-slate-500"
+    style={{ gridColumn: "1 / 8", gridRow: "5" }}
+  >
+    ＋{hiddenCount}件
+  </button>
+)}
+      </>
+    );
+  })()}
+</div>
           </div>
         ))}
       </div>
@@ -408,11 +430,12 @@ const [editingLongTask, setEditingLongTask] = useState(null);
   });
 
   setCurrentDate(new Date(savedTask.start));
-  setSelectedDate(new Date(savedTask.start));
-  setSelectedLongTask(savedTask);
+setSelectedDate(new Date(savedTask.start));
 
-  setEditingLongTask(null);
-  setIsLongTaskModalOpen(false);
+setEditingLongTask(null);
+setIsLongTaskModalOpen(false);
+
+setSelectedLongTask(savedTask);
 };
 
 const openLongTaskDetail = (task) => {
@@ -440,6 +463,16 @@ const updateDailyPlan = (task, updatedRow, nextRows) => {
   setLongTasks((current) =>
     current.map((item) =>
       item.id === task.id ? updatedTask : item
+    )
+  );
+
+  setSelectedLongTask(updatedTask);
+};
+
+const updateLongTask = (updatedTask) => {
+  setLongTasks((current) =>
+    current.map((item) =>
+      item.id === updatedTask.id ? updatedTask : item
     )
   );
 
@@ -491,6 +524,7 @@ const openEditLongTask = (task) => {
   onEdit={openEditLongTask}
   onDelete={deleteLongTask}
   onUpdateDailyPlan={updateDailyPlan}
+  onUpdateTask={updateLongTask}
   onAddTodayPlan={(task) => {
     console.log("add today plan", task);
   }}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CheckCircle2, ChevronLeft, Clock, Edit3, ListChecks, MoreHorizontal, Plus, Target} from "lucide-react";
 
 function parseDate(dateText) {
@@ -33,14 +33,22 @@ function formatMinutes(minutes) {
   return `${h}時間 ${m}分`;
 }
 
-function getRemainingDays(end) {
+function getRemainingDays(start, end) {
   const today = new Date();
+  const startDate = parseDate(start);
   const endDate = parseDate(end);
 
   today.setHours(0, 0, 0, 0);
+  startDate.setHours(0, 0, 0, 0);
   endDate.setHours(0, 0, 0, 0);
 
-  return Math.max(0, Math.ceil((endDate - today) / 86400000));
+  if (today < startDate || today > endDate) {
+    return "期間外";
+  }
+
+  const diff = Math.floor((endDate - today) / 86400000);
+
+  return `${diff + 1}日`;
 }
 
 function buildDailyRows(task) {
@@ -76,6 +84,7 @@ export default function LongTaskDetail({
   onDelete,
   onAddTodayPlan,
   onUpdateDailyPlan,
+  onUpdateTask,
 }) {
   if (!task) return null;
 
@@ -88,9 +97,33 @@ const todayKey = dateKey(new Date());
 const todayRow =
   dailyRows.find((row) => row.date === todayKey) ?? dailyRows[0];
 
+const listScrollRef = useRef(null);
+
+const focusDateKey = (() => {
+  const today = new Date();
+  const startDate = parseDate(task.start);
+  const endDate = parseDate(task.end);
+
+  today.setHours(0, 0, 0, 0);
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+
+  if (today >= startDate && today <= endDate) {
+    return todayKey;
+  }
+
+  return task.start;
+})();
+
 const [expandedId, setExpandedId] = useState(todayRow?.id ?? null);
 
 const [editingId, setEditingId] = useState(null);
+const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+const [activeTab, setActiveTab] = useState("daily");
+
+const [overviewMemo, setOverviewMemo] = useState(
+  task.overviewMemo || ""
+);
 
 const [draftTitle, setDraftTitle] = useState(
   todayRow?.title || ""
@@ -108,28 +141,35 @@ useEffect(() => {
   const nextRows = buildDailyRows(task);
 
   setDailyRows(nextRows);
+  setOverviewMemo(task.overviewMemo || "");
 
-  const nextTodayRow =
-    nextRows.find((row) => row.date === dateKey(new Date())) ?? nextRows[0];
-
-  setExpandedId(nextTodayRow?.id ?? null);
+  setExpandedId(null);
   setEditingId(null);
-}, [task]);
+
+  window.requestAnimationFrame(() => {
+    const target = listScrollRef.current?.querySelector(
+      `[data-date="${focusDateKey}"]`
+    );
+
+    target?.scrollIntoView({
+      block: "start",
+    });
+  });
+}, [task, focusDateKey]);
 
   const completedRows = dailyRows.filter((row) => row.completed).length;
 
-  const remainingTasks = dailyRows.filter(
-    (row) => !row.completed
-  ).length;
+  const remainingTasks = dailyRows.filter((row) => {
+  const hasTitle = String(row.title ?? "").trim() !== "";
+  return hasTitle && !row.completed;
+}).length;
 
   const totalActualMinutes = dailyRows.reduce(
     (sum, row) => sum + Number(row.actualMinutes || 0),
     0
   );
 
-  const todayPlannedMinutes = Number(
-    todayRow?.estimatedMinutes || draftMinutes || 0
-  );
+  const todayPlannedMinutes = todayRow?.estimatedMinutes ?? "";
 
   const progress =
     dailyRows.length === 0
@@ -256,10 +296,10 @@ useEffect(() => {
             <div className="mt-3 grid grid-cols-4 gap-2">
 
               <MiniStat
-                icon={<CalendarDays className="h-4 w-4" />}
-                label="残り期間"
-                value={`${getRemainingDays(task.end)}日`}
-              />
+  icon={<CalendarDays className="h-4 w-4" />}
+  label="残り期間"
+  value={getRemainingDays(task.start, task.end)}
+/>
 
               <MiniStat
                 icon={<ListChecks className="h-4 w-4" />}
@@ -274,10 +314,14 @@ useEffect(() => {
               />
 
               <MiniStat
-                icon={<Target className="h-4 w-4" />}
-                label="今日の予定"
-                value={formatMinutes(todayPlannedMinutes)}
-              />
+  icon={<Target className="h-4 w-4" />}
+  label="今日の予定"
+  value={
+    todayPlannedMinutes
+      ? formatMinutes(todayPlannedMinutes)
+      : "—"
+  }
+/>
 
             </div>
 
@@ -285,17 +329,37 @@ useEffect(() => {
 
           <div className="mt-3 flex rounded-t-[16px] bg-white text-[13px] font-black">
 
-            <button className="h-10 flex-1 border-b-2 border-emerald-500 bg-emerald-50/60 text-emerald-600">
-              日別の予定
-            </button>
+            <button
+  type="button"
+  onClick={() => setActiveTab("daily")}
+  className={`h-10 flex-1 text-[13px] font-black ${
+    activeTab === "daily"
+      ? "border-b-2 border-emerald-500 bg-emerald-50/60 text-emerald-600"
+      : "border-b border-slate-100 text-slate-400"
+  }`}
+>
+  日別の予定
+</button>
 
-            <button className="h-10 flex-1 border-b border-slate-100 text-slate-400">
-              概要・メモ
-            </button>
+<button
+  type="button"
+  onClick={() => setActiveTab("memo")}
+  className={`h-10 flex-1 text-[13px] font-black ${
+    activeTab === "memo"
+      ? "border-b-2 border-emerald-500 bg-emerald-50/60 text-emerald-600"
+      : "border-b border-slate-100 text-slate-400"
+  }`}
+>
+  概要・メモ
+</button>
 
           </div>
 
-          <section className="overflow-hidden rounded-b-[20px] border border-t-0 border-slate-100 bg-white">
+          {activeTab === "daily" && (
+<section
+  ref={listScrollRef}
+  className="max-h-[392px] overflow-y-auto rounded-b-[20px] border border-t-0 border-slate-100 bg-white"
+>
 
             {dailyRows.map((row) => {
 
@@ -491,28 +555,65 @@ useEffect(() => {
               );
             })}
 
-          </section>
+          </section>)}
 
-          <button
-            type="button"
-            onClick={() => onAddTodayPlan?.(task)}
-            className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-white text-[14px] font-black text-emerald-600 active:bg-emerald-50"
-          >
-            <Plus className="h-5 w-5" />
-            今日の予定を追加
-          </button>
+          {activeTab === "memo" && (
 
-          <p className="mt-3 text-center text-[11px] font-bold text-slate-400">
-            ※ 長期タスク全体の期間はカレンダーから変更できます
-          </p>
+  <section className="rounded-b-[20px] border border-t-0 border-slate-100 bg-white p-3">
 
-          <button
-            type="button"
-            onClick={() => onDelete?.(task)}
-            className="mt-1 h-10 w-full rounded-2xl text-[12px] font-black text-red-400 active:bg-red-50"
-          >
-            この長期タスクを削除
-          </button>
+    <textarea
+  value={overviewMemo}
+  onChange={(e) => {
+    const value = e.target.value;
+    setOverviewMemo(value);
+
+    onUpdateTask?.({
+      ...task,
+      overviewMemo: value,
+    });
+  }}
+  placeholder="長期タスク全体のメモ"
+  rows={10}
+  className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-[16px] font-medium outline-none placeholder:text-slate-300 focus:border-emerald-400"
+/>
+
+  </section>
+
+)}
+
+          {deleteConfirmOpen ? (
+  <div className="mt-2 rounded-2xl border border-red-100 bg-red-50 p-3">
+    <p className="text-center text-[12px] font-bold text-red-500">
+      この長期タスクを削除しますか？
+    </p>
+
+    <div className="mt-2 grid grid-cols-2 gap-2">
+      <button
+        type="button"
+        onClick={() => setDeleteConfirmOpen(false)}
+        className="h-10 rounded-xl border border-slate-200 bg-white text-[13px] font-black text-slate-600 active:bg-slate-50"
+      >
+        キャンセル
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onDelete?.(task)}
+        className="h-10 rounded-xl bg-red-500 text-[13px] font-black text-white active:bg-red-600"
+      >
+        削除する
+      </button>
+    </div>
+  </div>
+) : (
+  <button
+    type="button"
+    onClick={() => setDeleteConfirmOpen(true)}
+    className="mt-1 h-10 w-full rounded-2xl text-[12px] font-black text-red-400 active:bg-red-50"
+  >
+    この長期タスクを削除
+  </button>
+)}
 
         </main>
       </div>
