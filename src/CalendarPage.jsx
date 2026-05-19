@@ -195,8 +195,36 @@ function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, 
   const weeks = Array.from({ length: 6 }, (_, i) => days.slice(i * 7, i * 7 + 7));
   const todayKey = dateKey(new Date());
 
+  const [selectedDayTasks, setSelectedDayTasks] = useState([]);
+  const [selectedDayLabel, setSelectedDayLabel] = useState("");
+
+  const openDayTasks = (day) => {
+  setSelectedDate(new Date(day));
+
+  const target = new Date(day);
+  target.setHours(0, 0, 0, 0);
+
+  const tasksOnDay = longTasks.filter((task) => {
+    const start = parseDate(task.start);
+    const end = parseDate(task.end);
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    return start <= target && target <= end;
+  });
+
+  if (tasksOnDay.length >= 3) {
+    setSelectedDayTasks(tasksOnDay);
+    setSelectedDayLabel(`${day.getMonth() + 1}月${day.getDate()}日`);
+  } else {
+    setSelectedDayTasks([]);
+    setSelectedDayLabel("");
+  }
+};
+
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
       <div className="grid h-8 shrink-0 grid-cols-7 border-b border-slate-200">
         {["月", "火", "水", "木", "金", "土", "日"].map((day, index) => (
           <div key={day} className={`grid place-items-center text-[12px] font-black ${index === 5 ? "text-blue-500" : index === 6 ? "text-red-500" : "text-slate-950"}`}>
@@ -207,68 +235,160 @@ function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, 
 
       <div className="grid min-h-0 flex-1 grid-rows-6">
         {weeks.map((weekDays, weekIndex) => (
-          <div key={weekIndex} className="relative grid min-h-0 grid-cols-7 border-b border-slate-100 last:border-b-0">
+          <div
+  key={weekIndex}
+  data-week-row="true"
+  className="relative grid min-h-0 grid-cols-7 border-b border-slate-100 last:border-b-0"
+>
             {weekDays.map((day, dayIndex) => {
               const isCurrentMonth = day.getMonth() === month;
-              const isToday = dateKey(day) === todayKey;
-              const isSelected = selectedDate && dateKey(day) === dateKey(selectedDate);
-              const isSaturday = dayIndex === 5;
-              const isSunday = dayIndex === 6;
+const isToday = dateKey(day) === todayKey;
+const isSelected = selectedDate && dateKey(day) === dateKey(selectedDate);
+const isSaturday = dayIndex === 5;
+const isSunday = dayIndex === 6;
+
+const target = new Date(day);
+target.setHours(0, 0, 0, 0);
+
+const taskCountOnDay = longTasks.filter((task) => {
+  const start = parseDate(task.start);
+  const end = parseDate(task.end);
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  return start <= target && target <= end;
+}).length;
+
+const hiddenTaskCount = Math.max(0, taskCountOnDay - 3);
 
               return (
-                <button type="button" key={dateKey(day)} onClick={() => setSelectedDate(new Date(day))} className={`flex min-h-0 items-start border-r border-slate-100 px-0.5 pb-1 pt-0.5 text-left last:border-r-0 ${isSelected ? "bg-emerald-50/70" : ""}`}>
-                  <div className={`ml-auto mr-auto mt-[-2px] grid h-6 w-6 place-items-start justify-items-center rounded-full text-[12px] font-black leading-6 ${isToday ? "bg-emerald-500 text-white" : !isCurrentMonth ? "text-slate-300" : isSaturday ? "text-blue-500" : isSunday ? "text-red-500" : "text-slate-950"}`}>
-                    {day.getDate()}
-                  </div>
+                <button
+                  type="button"
+                  key={dateKey(day)}
+                  onClick={() => openDayTasks(day)}
+                  className={`relative z-0 flex min-h-0 items-start border-r border-slate-100 px-0.5 pb-1 pt-0.5 text-left last:border-r-0 ${isSelected ? "bg-emerald-50/70" : ""}`}
+                >
+                  <div className="relative h-full w-full">
+  <div className={`ml-1 mt-[1px] grid h-6 w-6 place-items-center rounded-full text-[12px] font-black leading-6 ${isToday ? "bg-emerald-500 text-white" : !isCurrentMonth ? "text-slate-300" : isSaturday ? "text-blue-500" : isSunday ? "text-red-500" : "text-slate-950"}`}>
+    {day.getDate()}
+  </div>
+
+  {hiddenTaskCount > 0 && (
+    <div className="absolute right-[-2px] top-0.5 rounded-full bg-yellow-200 px-1 text-[8px] font-black leading-[13px] text-yellow-800">
+      +{hiddenTaskCount}
+    </div>
+  )}
+</div>
                 </button>
               );
             })}
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[30px] grid auto-rows-[16px] grid-cols-7 gap-y-0.5 px-1">
-  {(() => {
-    const visibleTasks = longTasks
-      .map((task) => ({
-        task,
-        placement: getTaskPlacement(task, weekDays),
-      }))
-      .filter((item) => item.placement);
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[28px] z-20 grid auto-rows-[13px] grid-cols-7 gap-y-[1px] px-1">
+              {(() => {
+                const visibleTasks = longTasks
+                  .map((task) => ({
+                    task,
+                    placement: getTaskPlacement(task, weekDays),
+                  }))
+                  .filter((item) => item.placement);
 
-    const shownTasks = visibleTasks.slice(0, 4);
-const hiddenCount = visibleTasks.length - shownTasks.length;
+                const shownTasks = visibleTasks.slice(0, 3);
 
-    return (
-      <>
-        {shownTasks.map(({ task, placement }, rowIndex) => (
-          <button
-            type="button"
-            key={`${task.id}-${weekIndex}`}
-            onClick={() => onOpenLongTask(task)}
-            className="pointer-events-auto relative flex h-[16px] items-center"
-            style={{ ...placement, gridRow: `${rowIndex + 1}` }}
-          >
-            <span className={`${task.color} block h-[15px] w-full truncate rounded-r-full px-1.5 text-[8px] font-black leading-[15px] text-white shadow-sm`}>
-              {task.title}
-            </span>
-          </button>
-        ))}
+                return (
+                  <>
+                    {shownTasks.map(({ task, placement }, rowIndex) => (
+                      <button
+  type="button"
+  key={`${task.id}-${weekIndex}`}
+  onClick={(event) => {
+  event.stopPropagation();
 
-        {hiddenCount > 0 && (
-  <button
-    type="button"
-    onClick={() => onOpenLongTask(shownTasks[0].task)}
-    className="pointer-events-auto flex h-[15px] items-center justify-center rounded-full bg-slate-100 text-[8px] font-black text-slate-500"
-    style={{ gridColumn: "1 / 8", gridRow: "5" }}
-  >
-    ＋{hiddenCount}件
-  </button>
-)}
-      </>
+  const weekRow = event.currentTarget.closest('[data-week-row="true"]');
+  const rect = weekRow.getBoundingClientRect();
+  const colWidth = rect.width / 7;
+
+  const clickedIndex = Math.min(
+    6,
+    Math.max(0, Math.floor((event.clientX - rect.left) / colWidth))
+  );
+
+  const targetDay = weekDays[clickedIndex];
+
+  const target = new Date(targetDay);
+  target.setHours(0, 0, 0, 0);
+
+  const tasksOnDay = longTasks.filter((item) => {
+    const start = parseDate(item.start);
+    const end = parseDate(item.end);
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    return start <= target && target <= end;
+  });
+
+  if (tasksOnDay.length >= 3) {
+    setSelectedDayTasks(tasksOnDay);
+    setSelectedDayLabel(
+      `${targetDay.getMonth() + 1}月${targetDay.getDate()}日`
     );
-  })()}
-</div>
+  } else {
+    onOpenLongTask(task);
+  }
+}}
+  className="pointer-events-auto relative flex h-[13px] items-center"
+  style={{ ...placement, gridRow: `${rowIndex + 1}` }}
+>
+  <span className={`${task.color} block h-[12px] w-full truncate rounded-r-full px-1.5 text-[7.5px] font-black leading-[12px] text-white shadow-sm`}>
+    {task.title}
+  </span>
+</button>
+                    ))}
+                  </>
+                );
+              })()}
+            </div>
           </div>
         ))}
       </div>
+
+      {selectedDayTasks.length > 0 && (
+        <div className="absolute inset-x-3 bottom-3 z-30 rounded-3xl border border-slate-100 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.18)]">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[14px] font-black text-slate-950">
+              {selectedDayLabel} の長期タスク
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setSelectedDayTasks([])}
+              className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-[12px] font-black text-slate-500"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {selectedDayTasks.map((task) => (
+              <button
+                type="button"
+                key={task.id}
+                onClick={() => {
+                  setSelectedDayTasks([]);
+                  onOpenLongTask(task);
+                }}
+                className="flex h-10 w-full items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 text-left active:bg-slate-100"
+              >
+                <span className={`h-2.5 w-2.5 rounded-full ${task.color}`} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-black text-slate-900">
+                  {task.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
