@@ -127,38 +127,36 @@ function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate
   }
 }, [longTasks]);
 
-  const handleScroll = () => {
-  const el = scrollRef.current;
-  if (!el || isResettingRef.current) return;
+  const handleScrollEnd = () => {
+    const el = scrollRef.current;
+    if (!el || isResettingRef.current) return;
+    const index = Math.round(el.scrollLeft / el.clientWidth);
+    if (index === 0) setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
+    if (index === 2) setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
+  };
 
-  const width = el.clientWidth;
-  if (!width) return;
-
-  const ratio = el.scrollLeft / width;
-
-  if (ratio < 0.55) {
-    setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
-  }
-
-  if (ratio > 1.45) {
-    setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
-  }
-};
   return (
-    <div ref={scrollRef} onScroll={handleScroll} className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200 bg-white scrollbar-none">
-      {months.map((monthDate) => (
-        <div key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`} className="min-h-0 w-full shrink-0 snap-center">
-          <MonthCalendar
-  currentDate={monthDate}
-  selectedDate={selectedDate}
-  setSelectedDate={setSelectedDate}
-  longTasks={longTasks}
-  onOpenLongTask={onOpenLongTask}
-/>
-        </div>
-      ))}
-    </div>
-  );
+  <div
+    ref={scrollRef}
+    onScrollEnd={handleScrollEnd}
+    className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200 bg-white scrollbar-none touch-pan-x"
+  >
+    {months.map((monthDate) => (
+      <div
+        key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}
+        className="min-h-0 w-full shrink-0 snap-start"
+      >
+        <MonthCalendar
+          currentDate={monthDate}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          longTasks={longTasks}
+          onOpenLongTask={onOpenLongTask}
+        />
+      </div>
+    ))}
+  </div>
+);
 }
 
 function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, onOpenLongTask }) {
