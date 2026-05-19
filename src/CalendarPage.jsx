@@ -22,6 +22,11 @@ function dateKey(date) {
   return `${y}-${m}-${d}`;
 }
 
+function parseDate(dateText) {
+  const [y, m, d] = dateText.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function buildCalendarDays(year, monthIndex) {
   const firstDay = new Date(year, monthIndex, 1);
   const start = new Date(firstDay);
@@ -114,6 +119,14 @@ function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate
     });
   }, [currentDate]);
 
+  useEffect(() => {
+  try {
+    localStorage.setItem(LONG_TASKS_STORAGE_KEY, JSON.stringify(longTasks));
+  } catch (error) {
+    console.error("長期タスクの保存に失敗しました", error);
+  }
+}, [longTasks]);
+
   const handleScrollEnd = () => {
     const el = scrollRef.current;
     if (!el || isResettingRef.current) return;
@@ -202,12 +215,45 @@ function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, 
   );
 }
 
-function MonthSummary({ expanded, setExpanded, longTasks, onAddLongTask }) {
+function MonthSummary({ expanded, setExpanded, longTasks, onAddLongTask, currentDate }) {
   const totalCount = longTasks.length;
-  const waitingCount = countByStatus(longTasks, "進行前");
-  const activeCount = countByStatus(longTasks, "進行中");
-  const urgentCount = countByStatus(longTasks, "期限近");
-  const completedCount = countByStatus(longTasks, "完了");
+  const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const currentYear = currentDate.getFullYear();
+const currentMonth = currentDate.getMonth();
+
+const monthStart = new Date(currentYear, currentMonth, 1);
+const monthEnd = new Date(currentYear, currentMonth + 1, 0);
+
+const visibleTasks = longTasks.filter((task) => {
+  const start = parseDate(task.start);
+  const end = parseDate(task.end);
+
+  return end >= monthStart && start <= monthEnd;
+});
+
+const waitingCount = visibleTasks.filter((task) => {
+  const start = parseDate(task.start);
+  return start > today;
+}).length;
+
+const activeCount = visibleTasks.filter((task) => {
+  const start = parseDate(task.start);
+  const end = parseDate(task.end);
+  return start <= today && today <= end;
+}).length;
+
+const urgentCount = visibleTasks.filter((task) => {
+  const end = parseDate(task.end);
+  const diffDays = Math.ceil((end - today) / 86400000);
+  return diffDays >= 0 && diffDays <= 3;
+}).length;
+
+const completedCount = visibleTasks.filter((task) => {
+  const end = parseDate(task.end);
+  return end < today;
+}).length;
 
   return (
     <section className="mx-3 mt-2 shrink-0 rounded-[18px] border border-slate-100 bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
@@ -266,9 +312,28 @@ export default function CalendarPage({ onNavigate }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("month");
   const [summaryExpanded, setSummaryExpanded] = useState(true);
-  const [longTasks, setLongTasks] = useState(initialLongTasks);
+  const LONG_TASKS_STORAGE_KEY = "todo-app-long-tasks-v1";
+
+const [longTasks, setLongTasks] = useState(() => {
+  try {
+    const saved = localStorage.getItem(LONG_TASKS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : initialLongTasks;
+  } catch {
+    return initialLongTasks;
+  }
+});
   const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
   const [selectedLongTask, setSelectedLongTask] = useState(null);
+  useEffect(() => {
+  try {
+    localStorage.setItem(
+      LONG_TASKS_STORAGE_KEY,
+      JSON.stringify(longTasks)
+    );
+  } catch (error) {
+    console.error("長期タスクの保存に失敗しました", error);
+  }
+}, [longTasks]);
 
   const moveMonth = (diff) => {
     setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + diff, 1));
@@ -278,6 +343,7 @@ export default function CalendarPage({ onNavigate }) {
   setLongTasks((current) => [...current, task]);
   setCurrentDate(new Date(task.start));
   setSelectedDate(new Date(task.start));
+  setSelectedLongTask(task);
 };
 
 const openLongTaskDetail = (task) => {
@@ -312,7 +378,13 @@ const deleteLongTask = (task) => {
   onOpenLongTask={openLongTaskDetail}
 />
           <CategoryLegend tasks={longTasks} />
-          <MonthSummary expanded={summaryExpanded} setExpanded={setSummaryExpanded} longTasks={longTasks} onAddLongTask={() => setIsLongTaskModalOpen(true)} />
+          <MonthSummary
+  expanded={summaryExpanded}
+  setExpanded={setSummaryExpanded}
+  longTasks={longTasks}
+  currentDate={currentDate}
+  onAddLongTask={() => setIsLongTaskModalOpen(true)}
+/>
         </main>
       </div>
 
