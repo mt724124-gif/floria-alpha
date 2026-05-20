@@ -153,20 +153,7 @@ function getInitialActualMinutes(todo, workLog) {
 
 
 function Header({ selectedDate, onChangeDate }) {
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const calendarRef = useRef(null);
-
-  useEffect(() => {
-    if (!calendarOpen) return;
-
-    const handleClickOutside = (event) => {
-      if (calendarRef.current?.contains(event.target)) return;
-      setCalendarOpen(false);
-    };
-
-    window.addEventListener("pointerdown", handleClickOutside);
-    return () => window.removeEventListener("pointerdown", handleClickOutside);
-  }, [calendarOpen]);
+  const dateInputRef = useRef(null);
 
   const moveDate = (diffDays) => {
     const nextDate = new Date(selectedDate);
@@ -179,47 +166,38 @@ function Header({ selectedDate, onChangeDate }) {
     if (!value) return;
     const [year, month, day] = value.split("-").map(Number);
     onChangeDate(new Date(year, month - 1, day));
-    setCalendarOpen(false);
   };
 
-  return (
-    <div className="relative">
-      <AppHeader
-        title={formatDateForHeader(selectedDate)}
-        leftType="menu"
-        rightType="bell"
-        onPrev={() => moveDate(-1)}
-        onNext={() => moveDate(1)}
-        onTitleClick={() => setCalendarOpen((current) => !current)}
-      />
+  const openDatePicker = () => {
+  const input = dateInputRef.current;
+  if (!input) return;
 
-      {calendarOpen && (
-        <div
-          ref={calendarRef}
-          onPointerDown={(event) => event.stopPropagation()}
-          className="fixed left-1/2 top-[calc(92px+env(safe-area-inset-top))] z-50 box-border w-[calc(100vw-64px)] max-w-[300px] min-w-0 -translate-x-1/2 rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]"
-        >
-          <p className="mb-3 text-center text-sm font-black text-slate-700">
-            日付を選択
-          </p>
-          <input
-            type="date"
-            value={formatDateForInput(selectedDate)}
-            onChange={handleDateChange}
-            className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-slate-200 px-2 text-center text-[15px] font-extrabold leading-[48px] text-slate-900 outline-none focus:border-emerald-400"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              onChangeDate(new Date());
-              setCalendarOpen(false);
-            }}
-            className="mt-3 h-11 w-full rounded-2xl bg-emerald-50 text-sm font-black text-emerald-600 active:scale-[0.99]"
-          >
-            今日に戻る
-          </button>
-        </div>
-      )}
+  if (typeof input.showPicker === "function") {
+    input.showPicker();
+    return;
+  }
+
+  input.click();
+};
+
+  return (
+  <div className="relative">
+    <AppHeader
+      title={formatDateForHeader(selectedDate)}
+      leftType="menu"
+      rightType="bell"
+      onPrev={() => moveDate(-1)}
+      onNext={() => moveDate(1)}
+      onTitleClick={openDatePicker}
+    />
+
+    <input
+  ref={dateInputRef}
+  type="date"
+  value={formatDateForInput(selectedDate)}
+  onChange={handleDateChange}
+  className="absolute left-1/2 top-0 z-[60] h-12 w-[170px] -translate-x-1/2 cursor-pointer opacity-0"
+/>
     </div>
   );
 }
@@ -370,7 +348,7 @@ function SortModeSwitch({ sortMode, onChange, showAllTasks, onToggleShowAll }) {
         <button
           type="button"
           onClick={() => onChange("priority")}
-          className={`h-8 rounded-full px-3 text-[12px] font-black active:scale-[0.98] ${
+          className={`h-7 rounded-full px-3 text-[11px] font-black active:scale-[0.98] ${
             sortMode === "priority"
               ? "bg-emerald-500 text-white shadow-[0_6px_12px_rgba(16,185,129,0.20)]"
               : "text-slate-500"
@@ -382,7 +360,7 @@ function SortModeSwitch({ sortMode, onChange, showAllTasks, onToggleShowAll }) {
         <button
           type="button"
           onClick={() => onChange("category")}
-          className={`h-8 rounded-full px-3 text-[12px] font-black active:scale-[0.98] ${
+          className={`h-7 rounded-full px-3 text-[11px] font-black active:scale-[0.98] ${
             sortMode === "category"
               ? "bg-emerald-500 text-white shadow-[0_6px_12px_rgba(16,185,129,0.20)]"
               : "text-slate-500"
@@ -746,7 +724,7 @@ function SectionHeader({ label, count, type, groupKey }) {
 
   return (
     <div className="mb-1.5 flex items-center gap-2 px-1">
-      <div className={`grid h-6 w-6 place-items-center rounded-xl ${categoryStyle.bg}`}>
+      <div className={`grid h-5 w-5 place-items-center rounded-lg ${categoryStyle.bg}`}>
         <Icon className={`h-4 w-4 ${categoryStyle.color}`} strokeWidth={2.3} />
       </div>
       <p className="text-[14px] font-black text-slate-800">{label}</p>
@@ -792,12 +770,12 @@ function TodoSection({
       data-drop-section={section.key}
       className={`rounded-[20px] border ${
         sortMode === "priority" ? priorityConfig.border : "border-slate-100"
-      } ${sortMode === "priority" ? priorityConfig.bg : "bg-white"} p-2`}
+      } ${sortMode === "priority" ? priorityConfig.bg : "bg-white"} p-1`}
     >
       <button
         type="button"
         onClick={onToggleCollapse}
-        className="mb-1.5 flex w-full items-center justify-between rounded-2xl px-1 py-1 active:bg-slate-50"
+        className="flex w-full items-center justify-between rounded-2xl px-1 py-0.5 active:bg-slate-50"
       >
         <SectionHeader
           label={section.label}
@@ -1125,7 +1103,7 @@ function TodoListCard({
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-1.5">
           {sections.map((section) => {
   const collapsed = !showAllTasks && !openSectionKeys.includes(section.key);
 
@@ -1312,7 +1290,7 @@ function WorkLogModal({ open, targetTodo, targetWorkLog, completeAfterSave, onCl
             <select
               value={durationHour}
               onChange={(e) => setDurationHour(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400"
             >
               {Array.from({ length: 13 }, (_, i) => (
                 <option key={i} value={i}>
@@ -1324,7 +1302,7 @@ function WorkLogModal({ open, targetTodo, targetWorkLog, completeAfterSave, onCl
             <select
               value={durationMinute}
               onChange={(e) => setDurationMinute(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400"
             >
               {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
                 <option key={minute} value={minute}>

@@ -159,12 +159,12 @@ function WorkLogModal({ open, targetTask, targetWorkLog, completeAfterSave, onCl
         <div className="mb-6">
           <span className="mb-2 block text-sm font-black text-slate-600">実測の作業時間</span>
           <div className="grid grid-cols-2 gap-3">
-            <select value={durationHour} onChange={(e) => setDurationHour(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400">
+            <select value={durationHour} onChange={(e) => setDurationHour(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400">
               {Array.from({ length: 13 }, (_, i) => (
                 <option key={i} value={i}>{i}時間</option>
               ))}
             </select>
-            <select value={durationMinute} onChange={(e) => setDurationMinute(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400">
+            <select value={durationMinute} onChange={(e) => setDurationMinute(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400">
               {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
                 <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
               ))}

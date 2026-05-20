@@ -6,10 +6,18 @@ function getInitialPriority(todo) {
   return "medium";
 }
 
+function getTodayKey() {
+  return new Date().toLocaleDateString("sv-SE");
+}
+
+function getInitialDateKey(todo) {
+  return todo?.targetDate ?? todo?.date ?? todo?.createdDate ?? getTodayKey();
+}
+
 const priorityOptions = [
-  { value: "high", label: "高", subLabel: "重要", activeClass: "border-red-300 bg-red-50 text-red-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
-  { value: "medium", label: "中", subLabel: "標準", activeClass: "border-amber-300 bg-amber-50 text-amber-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
-  { value: "low", label: "低", subLabel: "軽め", activeClass: "border-slate-300 bg-slate-100 text-slate-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
+  { value: "high", label: "高", activeClass: "border-red-300 bg-red-50 text-red-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
+  { value: "medium", label: "中", activeClass: "border-amber-300 bg-amber-50 text-amber-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
+  { value: "low", label: "低", activeClass: "border-slate-300 bg-slate-100 text-slate-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
 ];
 
 export default function TodoModal({ open, mode = "add", initialTodo, categories, onClose, onSave, onAddCategory, onDeleteCategory, compactTimerEdit = false }) {
@@ -19,13 +27,16 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
   const [category, setCategory] = useState(() => localStorage.getItem("last-category") || "学習");
   const [priority, setPriority] = useState("medium");
   const [newCategory, setNewCategory] = useState("");
-  const [durationHour, setDurationHour] = useState("");
-  const [durationMinute, setDurationMinute] = useState("");
+const [targetDate, setTargetDate] = useState(getTodayKey());
+const [hasPlannedTime, setHasPlannedTime] = useState(false);
+const [durationHour, setDurationHour] = useState("");
+const [durationMinute, setDurationMinute] = useState("");
   const [actualHour, setActualHour] = useState(0);
   const [actualMinute, setActualMinute] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [showCategoryList, setShowCategoryList] = useState(false);
+
 
   useEffect(() => {
     if (!open) return;
@@ -38,8 +49,10 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
       setCategory(initialTodo.category ?? "学習");
       setPriority(getInitialPriority(initialTodo));
       setNewCategory("");
-      setDurationHour(estimated == null ? "" : Math.floor(estimated / 60));
-      setDurationMinute(estimated == null ? "" : estimated % 60);
+setTargetDate(getInitialDateKey(initialTodo));
+setHasPlannedTime(estimated != null);
+setDurationHour(estimated == null ? "" : Math.floor(estimated / 60));
+setDurationMinute(estimated == null ? "" : estimated % 60);
       setActualHour(Math.floor(actual / 60));
       setActualMinute(actual % 60);
       setCompleted(Boolean(initialTodo.completed));
@@ -48,8 +61,10 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
       setCategory(localStorage.getItem("last-category") || "学習");
       setPriority("medium");
       setNewCategory("");
-      setDurationHour("");
-      setDurationMinute("");
+setTargetDate(getTodayKey());
+setHasPlannedTime(false);
+setDurationHour("");
+setDurationMinute("");
       setActualHour(0);
       setActualMinute(0);
       setCompleted(false);
@@ -61,7 +76,7 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
 
   if (!open) return null;
 
-  const hasEstimated = durationHour !== "" || durationMinute !== "";
+  const hasEstimated = hasPlannedTime && (durationHour !== "" || durationMinute !== "");
 
   const handleDeleteCategory = (targetCategory) => {
     if (targetCategory === "その他") return;
@@ -74,7 +89,7 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
     event.preventDefault();
     if (!title.trim()) return;
 
-    const estimatedMinutes = hasEstimated ? Number(durationHour || 0) * 60 + Number(durationMinute || 0) : null;
+    const estimatedMinutes = hasPlannedTime ? Number(durationHour || 0) * 60 + Number(durationMinute || 0) : null;
     const actualMinutes = Number(actualHour || 0) * 60 + Number(actualMinute || 0);
 
     let finalCategory = isEditMode ? initialTodo?.category ?? category : category;
@@ -97,7 +112,10 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
       category: finalCategory,
       priority: finalPriority,
       rank: initialTodo?.rank,
-      estimatedMinutes,
+targetDate,
+date: targetDate,
+createdDate: initialTodo?.createdDate ?? targetDate,
+estimatedMinutes,
       actualMinutes,
       actualSeconds: actualMinutes * 60,
       workedMinutes: actualMinutes,
@@ -135,16 +153,35 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
         </div>
 
         <label className="mb-4 block">
-          <span className="mb-2 block text-sm font-black text-slate-600">タスク名</span>
+  <span className="mb-2 block text-sm font-black text-slate-600">タスク名</span>
 
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value.slice(0, 30))}
-            maxLength={30}
-            placeholder="例：英単語を30個覚える"
-            className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-          />
-        </label>
+  <input
+    value={title}
+    onChange={(e) => setTitle(e.target.value.slice(0, 30))}
+    maxLength={30}
+    placeholder="例：英単語を30個覚える"
+    className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400"
+  />
+</label>
+
+        <div className="mb-4">
+  <span className="mb-2 block text-sm font-black text-slate-600">日付</span>
+
+  <div className="relative h-12 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <div className="pointer-events-none flex h-full items-center px-3 text-[16px] font-bold text-slate-900">
+      {targetDate.replaceAll("-", "/")}
+    </div>
+
+    <input
+      type="date"
+      value={targetDate}
+      onChange={(e) => {
+        setTargetDate(e.target.value);
+      }}
+      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+    />
+  </div>
+</div>
 
         {!isEditMode && (
           <div className="mb-4">
@@ -153,10 +190,10 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
             <div className="grid grid-cols-3 gap-2">
               {priorityOptions.map((option) => (
                 <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setPriority(option.value)}
-                  className={`h-14 rounded-2xl border text-center active:scale-[0.99] ${priority === option.value ? option.activeClass : option.inactiveClass}`}
+  key={option.value}
+  type="button"
+  onClick={() => setPriority(option.value)}
+                  className={`h-8 rounded-2xl border text-center active:scale-[0.99] ${priority === option.value ? option.activeClass : option.inactiveClass}`}
                 >
                   <p className="text-[16px] font-black leading-none">{option.label}</p>
                   <p className="mt-1 text-[10px] font-black opacity-70">{option.subLabel}</p>
@@ -167,159 +204,188 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
         )}
 
         {!isEditMode && (
-          <div data-category-dropdown className="relative z-30 mb-4 block">
-            <span className="mb-2 block text-sm font-black text-slate-600">カテゴリ</span>
+  <div data-category-dropdown className="mb-4 block">
+    <span className="mb-2 block text-sm font-black text-slate-600">カテゴリ</span>
 
-            <div className="relative overflow-visible rounded-2xl border border-slate-200 bg-white">
-              <div
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  setShowCategoryList((prev) => !prev);
+    <div className="flex min-h-[92px] max-h-[132px] flex-wrap gap-2 overflow-y-auto rounded-2xl bg-slate-50 p-3">
+      {categories
+        .sort((a, b) => {
+          if (a === "その他") return 1;
+          if (b === "その他") return -1;
+          return 0;
+        })
+        .map((item) => (
+          <div key={item} className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setCategory(item);
+                setIsAddingCategory(false);
+              }}
+              className={`h-9 rounded-full border px-3 pr-8 text-sm font-black active:scale-[0.98] ${
+                category === item
+                  ? "border-emerald-300 bg-emerald-500 text-white"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              {item}
+            </button>
+
+            {item !== "その他" && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleDeleteCategory(item);
                 }}
-                className="flex h-14 w-full select-none items-center justify-between px-4"
+                className={`absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full ${
+                  category === item
+                    ? "text-white/80 active:bg-emerald-600"
+                    : "text-slate-300 active:bg-slate-100 active:text-red-400"
+                }`}
               >
-                <span className="text-base font-bold text-slate-800">{category}</span>
-                <span className={`text-sm text-slate-400 transition-transform ${showCategoryList ? "rotate-180" : ""}`}>▼</span>
-              </div>
-
-              {showCategoryList && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-                  <div className="max-h-[220px] overflow-y-auto">
-                    {categories
-                      .filter((item) => item !== category)
-                      .sort((a, b) => {
-                        if (a === "その他") return 1;
-                        if (b === "その他") return -1;
-                        return 0;
-                      })
-                      .map((item) => (
-                        <div key={item} className="flex h-12 items-center justify-between bg-white px-4 active:bg-slate-100">
-                          <div
-                            onPointerDown={(e) => {
-                              e.preventDefault();
-                              setCategory(item);
-                              setShowCategoryList(false);
-                              setIsAddingCategory(false);
-                            }}
-                            className="flex-1 select-none text-left text-base font-bold text-slate-900"
-                          >
-                            {item}
-                          </div>
-
-                          {item !== "その他" && (
-                            <button type="button" onClick={() => handleDeleteCategory(item)} className="grid h-8 w-8 place-items-center rounded-full text-slate-400 active:bg-slate-200">
-                              <X className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-
-                  <div className="border-t border-slate-100 bg-white">
-                    {isAddingCategory ? (
-                      <input
-                        autoFocus
-                        value={newCategory}
-                        onChange={(e) => setNewCategory(e.target.value.slice(0, 30))}
-                        onBlur={() => {
-                          const name = newCategory.trim().slice(0, 30);
-                          const exists = categories.some((item) => item === name);
-                          if (name && !exists) {
-                            onAddCategory?.(name);
-                            setCategory(name);
-                            setShowCategoryList(false);
-                          }
-                          setNewCategory("");
-                          setIsAddingCategory(false);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            const name = newCategory.trim().slice(0, 30);
-                            const exists = categories.some((item) => item === name);
-                            if (name && !exists) {
-                              onAddCategory?.(name);
-                              setCategory(name);
-                              setShowCategoryList(false);
-                            }
-                            setNewCategory("");
-                            setIsAddingCategory(false);
-                          }
-                        }}
-                        placeholder="新しいカテゴリ名"
-                        className="h-12 w-full px-4 text-base font-bold outline-none"
-                      />
-                    ) : (
-                      <button type="button" onClick={() => setIsAddingCategory(true)} className="h-12 w-full px-4 text-left text-base font-bold text-slate-600 active:bg-slate-50">
-                        ＋ 新しいカテゴリを追加
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <p className="mt-2 text-[11px] font-bold leading-relaxed text-slate-400">
-              ※ 削除したカテゴリが使われているTodoは「その他」に変更されます。
-            </p>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-        )}
+        ))}
 
-        <div className="mb-4">
-          <span className="mb-2 block text-sm font-black text-slate-600">予定時間（任意）</span>
+      {isAddingCategory ? (
+        <input
+          autoFocus
+          value={newCategory}
+          onChange={(e) => setNewCategory(e.target.value.slice(0, 30))}
+          onBlur={() => {
+            const name = newCategory.trim().slice(0, 30);
+            const exists = categories.some((item) => item === name);
+            if (name && !exists) {
+              onAddCategory?.(name);
+              setCategory(name);
+            }
+            setNewCategory("");
+            setIsAddingCategory(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const name = newCategory.trim().slice(0, 30);
+              const exists = categories.some((item) => item === name);
+              if (name && !exists) {
+                onAddCategory?.(name);
+                setCategory(name);
+              }
+              setNewCategory("");
+              setIsAddingCategory(false);
+            }
+          }}
+          placeholder="新しいカテゴリ"
+          className="h-10 min-w-[140px] flex-1 rounded-full border border-emerald-200 bg-white px-4 text-[16px] font-bold outline-none focus:border-emerald-400"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsAddingCategory(true)}
+          className="h-9 rounded-full border border-dashed border-slate-300 bg-white px-3 text-sm font-black text-slate-500 active:scale-[0.98]"
+        >
+          ＋ 追加
+        </button>
+      )}
+    </div>
+  </div>
+)}
 
-          <div className="grid grid-cols-2 gap-3">
-            <select
-              value={durationHour}
-              onChange={(e) => {
-                const value = e.target.value;
-                setDurationHour(value);
+<div className="mb-4">
+  <label className="mb-2 flex items-center justify-between">
+    <span className="block text-sm font-black text-slate-600">予定時間</span>
 
-                if (value !== "" && durationMinute === "") {
-                  setDurationMinute(0);
-                }
+    <button
+      type="button"
+      onClick={() => {
+        setHasPlannedTime((current) => {
+          const next = !current;
+          if (!next) {
+            setDurationHour("");
+            setDurationMinute("");
+          } else {
+            setDurationHour(0);
+            setDurationMinute(30);
+          }
+          return next;
+        });
+      }}
+      className={`flex h-8 items-center gap-2 rounded-full px-3 text-xs font-black active:scale-[0.98] ${
+        hasPlannedTime ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"
+      }`}
+    >
+      <span
+        className={`grid h-4 w-4 place-items-center rounded-full border ${
+          hasPlannedTime
+            ? "border-white bg-white text-emerald-500"
+            : "border-slate-300 bg-white text-transparent"
+        }`}
+      >
+        ✓
+      </span>
+      入力する
+    </button>
+  </label>
 
-                if (value === "" && durationMinute === 0) {
-                  setDurationMinute("");
-                }
-              }}
-              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-            >
-              <option value="">未設定</option>
-              {Array.from({ length: 13 }, (_, i) => (
-                <option key={i} value={i}>{i}時間</option>
-              ))}
-            </select>
+  {hasPlannedTime && (
+    <div className="grid grid-cols-2 gap-3">
+      <select
+        value={durationHour}
+        onChange={(e) => {
+          const value = e.target.value;
+          setDurationHour(value);
 
-            <select
-              value={durationMinute}
-              onChange={(e) => {
-                const value = e.target.value;
-                setDurationMinute(value);
+          if (value !== "" && durationMinute === "") {
+            setDurationMinute(0);
+          }
 
-                if (value !== "" && durationHour === "") {
-                  setDurationHour(0);
-                }
+          if (value === "" && durationMinute === 0) {
+            setDurationMinute("");
+          }
+        }}
+        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400"
+      >
+        {Array.from({ length: 13 }, (_, i) => (
+          <option key={i} value={i}>
+            {i}時間
+          </option>
+        ))}
+      </select>
 
-                if (value === "" && durationHour === 0) {
-                  setDurationHour("");
-                }
-              }}
-              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-            >
-              <option value="">未設定</option>
-              {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
-                <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
-              ))}
-            </select>
-          </div>
+      <select
+        value={durationMinute}
+        onChange={(e) => {
+          const value = e.target.value;
+          setDurationMinute(value);
 
-          {!hasEstimated && (
-            <p className="mt-2 text-[11px] font-bold leading-relaxed text-slate-400">
-              入力すると予定と実測の差を振り返りやすくなります。
-            </p>
-          )}
-        </div>
+          if (value !== "" && durationHour === "") {
+            setDurationHour(0);
+          }
+
+          if (value === "" && durationHour === 0) {
+            setDurationHour("");
+          }
+        }}
+        className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400"
+      >
+        {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
+          <option key={minute} value={minute}>
+            {String(minute).padStart(2, "0")}分
+          </option>
+        ))}
+      </select>
+    </div>
+  )}
+
+  {!hasPlannedTime && (
+    <p className="mt-2 text-[11px] font-bold leading-relaxed text-slate-400">
+      入力すると予定と実測の差を振り返りやすくなります。
+    </p>
+  )}
+</div>
 
         {isEditMode && (
           <div className="mb-4">
@@ -329,7 +395,7 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
               <select
                 value={actualHour}
                 onChange={(e) => setActualHour(e.target.value)}
-                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400"
               >
                 {Array.from({ length: 13 }, (_, i) => (
                   <option key={i} value={i}>{i}時間</option>
@@ -339,7 +405,7 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
               <select
                 value={actualMinute}
                 onChange={(e) => setActualMinute(e.target.value)}
-                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400"
               >
                 {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
                   <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
@@ -349,16 +415,18 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
           </div>
         )}
 
-        <div className="sticky bottom-0 -mx-5 mt-2 grid grid-cols-2 gap-3 bg-white px-5 pb-1 pt-3">
-          <button type="button" onClick={onClose} className="h-12 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 active:scale-[0.99]">
-            キャンセル
-          </button>
+        {!isAddingCategory && (
+  <div className="sticky bottom-0 -mx-5 mt-2 grid grid-cols-2 gap-3 bg-white px-5 pb-1 pt-3">
+    <button type="button" onClick={onClose} className="h-12 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 active:scale-[0.99]">
+      キャンセル
+    </button>
 
-          <button type="submit" className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-sm font-black text-white shadow-[0_10px_20px_rgba(16,185,129,0.22)] active:scale-[0.99]">
-            {isEditMode ? <Save className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-            {isEditMode ? "保存する" : "追加する"}
-          </button>
-        </div>
+    <button type="submit" className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-sm font-black text-white shadow-[0_10px_20px_rgba(16,185,129,0.22)] active:scale-[0.99]">
+      {isEditMode ? <Save className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+      {isEditMode ? "保存する" : "追加する"}
+    </button>
+  </div>
+)}
       </form>
     </div>
   );
