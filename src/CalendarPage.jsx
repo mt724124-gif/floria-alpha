@@ -175,67 +175,159 @@ function MonthPager({
   onOpenLongTask,
 }) {
   const scrollRef = useRef(null);
-  const isResettingRef = useRef(false);
+  const pendingCenterScrollRef = useRef(true);
+
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(currentDate.getFullYear());
+  const [baseMonth, setBaseMonth] = useState(
+    () => new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+  );
 
   const months = useMemo(() => {
-    return [
-      new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1),
-      new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
-      new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
-    ];
-  }, [currentDate]);
+    return Array.from({ length: 25 }, (_, index) => {
+      return new Date(
+        baseMonth.getFullYear(),
+        baseMonth.getMonth() + index - 12,
+        1
+      );
+    });
+  }, [baseMonth]);
 
   useEffect(() => {
-  const el = scrollRef.current;
-  if (!el) return;
+    const el = scrollRef.current;
+    if (!el || !pendingCenterScrollRef.current) return;
 
-  requestAnimationFrame(() => {
-    el.scrollLeft = el.clientWidth;
-  });
-}, [currentDate]);
+    requestAnimationFrame(() => {
+      el.scrollLeft = el.clientWidth * 12;
+      pendingCenterScrollRef.current = false;
+    });
+  }, [months]);
+
+  const moveToMonth = (target) => {
+    const centeredTarget = new Date(
+      target.getFullYear(),
+      target.getMonth(),
+      1
+    );
+
+    pendingCenterScrollRef.current = true;
+    setBaseMonth(centeredTarget);
+    setCurrentDate(centeredTarget);
+    setMonthPickerOpen(false);
+  };
 
   const handleScrollEnd = () => {
     const el = scrollRef.current;
     if (!el) return;
 
     const index = Math.round(el.scrollLeft / el.clientWidth);
+    const nextMonth = months[index];
 
-    if (index === 0) {
-      setCurrentDate(
-        (current) =>
-          new Date(current.getFullYear(), current.getMonth() - 1, 1)
-      );
-    }
+    if (!nextMonth) return;
 
-    if (index === 2) {
-      setCurrentDate(
-        (current) =>
-          new Date(current.getFullYear(), current.getMonth() + 1, 1)
-      );
+    if (
+      nextMonth.getFullYear() !== currentDate.getFullYear() ||
+      nextMonth.getMonth() !== currentDate.getMonth()
+    ) {
+      setCurrentDate(nextMonth);
     }
   };
 
   return (
+    <>
+      <div
+        ref={scrollRef}
+        onScrollEnd={handleScrollEnd}
+        className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200 bg-white scrollbar-none touch-pan-x"
+      >
+        {months.map((monthDate) => (
+          <div
+            key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}
+            className="min-h-0 w-full shrink-0 snap-start snap-always"
+          >
+            <MonthCalendar
+  currentDate={monthDate}
+  selectedDate={selectedDate}
+  setSelectedDate={setSelectedDate}
+  longTasks={longTasks}
+  onOpenLongTask={onOpenLongTask}
+  onCenterMonth={(targetMonth) => {
+    setPickerYear(targetMonth.getFullYear());
+    setMonthPickerOpen(true);
+  }}
+  onMoveToMonth={moveToMonth}
+/>
+          </div>
+        ))}
+      </div>
+
+      {monthPickerOpen && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6"
+    onClick={() => setMonthPickerOpen(false)}
+  >
     <div
-  ref={scrollRef}
-  onScrollEnd={handleScrollEnd}
-  className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200 bg-white scrollbar-none touch-pan-x"
->
-      {months.map((monthDate) => (
-        <div
-          key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}
-          className="min-h-0 w-full shrink-0 snap-start"
-        >
-          <MonthCalendar
-            currentDate={monthDate}
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            longTasks={longTasks}
-            onOpenLongTask={onOpenLongTask}
-          />
+      className="w-full max-w-[340px] rounded-[24px] bg-white p-4 shadow-2xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+            <div className="mb-4 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setPickerYear((year) => year - 1)}
+                className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-[18px] font-black text-slate-600"
+              >
+                ‹
+              </button>
+
+              <p className="text-[18px] font-black text-slate-950">
+                {pickerYear}年
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setPickerYear((year) => year + 1)}
+                className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-[18px] font-black text-slate-600"
+              >
+                ›
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 12 }, (_, index) => {
+                const targetMonth = new Date(pickerYear, index, 1);
+                const isCurrent =
+                  targetMonth.getFullYear() === currentDate.getFullYear() &&
+                  targetMonth.getMonth() === currentDate.getMonth();
+                  
+
+                return (
+                  <button
+                    type="button"
+                    key={index}
+                    onClick={() => moveToMonth(targetMonth)}
+                    className={`h-11 rounded-2xl text-[14px] font-black ${
+                      isCurrent
+                        ? "bg-emerald-500 text-white"
+                        : "bg-slate-50 text-slate-700 active:bg-emerald-50"
+                    }`}
+                  >
+                    {index + 1}月
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMonthPickerOpen(false)}
+              className="mt-4 h-11 w-full rounded-2xl bg-slate-100 text-[14px] font-black text-slate-600"
+            >
+              キャンセル
+            </button>
+          </div>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }
 
@@ -245,6 +337,8 @@ function MonthCalendar({
   setSelectedDate,
   longTasks,
   onOpenLongTask,
+  onCenterMonth,
+  onMoveToMonth,
 }) {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -253,12 +347,17 @@ function MonthCalendar({
     days.slice(i * 7, i * 7 + 7)
   );
   const todayKey = dateKey(new Date());
+  const today = new Date();
+const isThisMonth =
+  currentDate.getFullYear() === today.getFullYear() &&
+  currentDate.getMonth() === today.getMonth();
 
   const [selectedDayTasks, setSelectedDayTasks] = useState([]);
   const [selectedDayLabel, setSelectedDayLabel] = useState("");
 
   const openDayTasks = (day) => {
     setSelectedDate(new Date(day));
+
 
     const target = new Date(day);
     target.setHours(0, 0, 0, 0);
@@ -283,8 +382,37 @@ function MonthCalendar({
   };
 
   return (
-    <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
-      <div className="grid h-8 shrink-0 grid-cols-7 border-b border-slate-200">
+  <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
+    <div className="relative flex h-11 shrink-0 items-center justify-center bg-white pt-1">
+  <button
+    type="button"
+    onClick={() => onCenterMonth?.(currentDate)}
+    className="inline-flex items-center gap-1 px-2 py-1 text-[17px] font-black text-slate-900 transition active:scale-[0.98] active:text-emerald-600"
+  >
+    <span>
+      {currentDate.getFullYear()}年{currentDate.getMonth() + 1}月
+    </span>
+
+    <ChevronDown className="h-4 w-4 text-slate-400" />
+  </button>
+
+  {!isThisMonth && (
+  <button
+    type="button"
+    onClick={() => {
+      const today = new Date();
+      onMoveToMonth?.(
+        new Date(today.getFullYear(), today.getMonth(), 1)
+      );
+    }}
+    className="absolute right-3 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-600 active:scale-[0.97]"
+  >
+    今月に戻る
+  </button>
+)}
+</div>
+
+    <div className="grid h-8 shrink-0 grid-cols-7 border-b border-slate-200">
         {["月", "火", "水", "木", "金", "土", "日"].map((day, index) => (
           <div
             key={day}
@@ -650,12 +778,6 @@ export default function CalendarPage({ onNavigate }) {
     }
   }, [longTasks]);
 
-  const moveMonth = (diff) => {
-    setCurrentDate(
-      (current) => new Date(current.getFullYear(), current.getMonth() + diff, 1)
-    );
-  };
-
   const saveLongTask = (task) => {
     let savedTask = task;
 
@@ -745,11 +867,6 @@ export default function CalendarPage({ onNavigate }) {
   return (
     <div className="h-dvh overflow-hidden bg-[#f6f8f7] text-slate-950 antialiased">
       <div className="mx-auto flex h-dvh w-full max-w-[480px] flex-col overflow-hidden bg-[#fbfcfb] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
-        <Header
-          currentDate={currentDate}
-          onPrevMonth={() => moveMonth(-1)}
-          onNextMonth={() => moveMonth(1)}
-        />
 
         <main className="flex min-h-0 flex-1 flex-col pb-[calc(82px+env(safe-area-inset-bottom))]">
           <MonthTabs viewMode={viewMode} setViewMode={setViewMode} />
