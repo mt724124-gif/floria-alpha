@@ -792,6 +792,27 @@ useEffect(() => {
   }
 }, [longTaskCategories]);
 
+useEffect(() => {
+  setLongTaskCategories((current) => {
+    const map = new Map(
+      current.map((item) => [item.name, item])
+    );
+
+    longTasks.forEach((task) => {
+      if (!task.category) return;
+
+      if (!map.has(task.category)) {
+        map.set(task.category, {
+          name: task.category,
+          color: task.color ?? "bg-slate-400",
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  });
+}, [longTasks]);
+
   const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
   const [selectedLongTaskId, setSelectedLongTaskId] = useState(null);
   const [editingLongTask, setEditingLongTask] = useState(null);

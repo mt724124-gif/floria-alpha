@@ -62,7 +62,7 @@ const endDateInputRef = useRef(null);
   }
 
   setNewCategoryName("");
-}, [open, editingTask]);
+}, [open, editingTask, categories]);
 
   if (!open) return null;
 
