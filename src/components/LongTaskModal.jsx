@@ -19,6 +19,8 @@ export default function LongTaskModal({
   onClose,
   onSave,
   editingTask,
+  categories,
+  setCategories,
 }) {
   const today = new Date().toISOString().split("T")[0];
   const getNextDate = (dateString) => {
@@ -32,8 +34,7 @@ const tomorrow = getNextDate(today);
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState(today);
 const [endDate, setEndDate] = useState(tomorrow);
-  const [categories, setCategories] = useState(INITIAL_CATEGORIES);
-  const [category, setCategory] = useState(INITIAL_CATEGORIES[0]);
+const [category, setCategory] = useState(categories?.[0] ?? INITIAL_CATEGORIES[0]);
 const [newCategoryName, setNewCategoryName] = useState("");
 const endDateInputRef = useRef(null);
 
@@ -71,10 +72,18 @@ const endDateInputRef = useRef(null);
     if (categories.length >= 6) return;
     if (categories.some((item) => item.name === name)) return;
 
-    const nextCategory = {
-      name,
-      color: CATEGORY_COLORS[categories.length % CATEGORY_COLORS.length],
-    };
+    const usedColors = categories.map((item) => item.color);
+
+const availableColors = CATEGORY_COLORS.filter(
+  (color) => !usedColors.includes(color)
+);
+
+const nextCategory = {
+  name,
+  color:
+    availableColors[0] ??
+    CATEGORY_COLORS[categories.length % CATEGORY_COLORS.length],
+};
 
     setCategories((current) => [...current, nextCategory]);
     setCategory(nextCategory);

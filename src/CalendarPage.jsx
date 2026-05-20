@@ -146,14 +146,24 @@ function MonthTabs({ viewMode, setViewMode }) {
 }
 
 function CategoryLegend({ tasks }) {
-  const usedCategories = categories.filter((category) =>
-    tasks.some((task) => task.category === category.name)
+  const usedCategories = Array.from(
+    new Map(
+      tasks
+        .filter((task) => task.category)
+        .map((task) => [
+          task.category,
+          {
+            name: task.category,
+            color: task.color ?? "bg-slate-400",
+          },
+        ])
+    ).values()
   );
 
   if (usedCategories.length === 0) return null;
 
   return (
-    <div className="mx-3 mt-1.5 flex shrink-0 items-center justify-between px-1">
+    <div className="mx-3 mt-1.5 flex shrink-0 items-center gap-4 px-1">
       {usedCategories.map((category) => (
         <div key={category.name} className="flex items-center gap-1.5">
           <span className={`h-2.5 w-2.5 rounded-full ${category.color}`} />
@@ -758,6 +768,30 @@ export default function CalendarPage({ onNavigate }) {
     }
   });
 
+const CATEGORIES_STORAGE_KEY = "todo-app-long-task-categories-v1";
+
+const [longTaskCategories, setLongTaskCategories] = useState(() => {
+  try {
+    const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    return saved
+      ? JSON.parse(saved)
+      : [{ name: "仕事", color: "bg-blue-500" }];
+  } catch {
+    return [{ name: "仕事", color: "bg-blue-500" }];
+  }
+});
+
+useEffect(() => {
+  try {
+    localStorage.setItem(
+      CATEGORIES_STORAGE_KEY,
+      JSON.stringify(longTaskCategories)
+    );
+  } catch (error) {
+    console.error("長期タスクカテゴリの保存に失敗しました", error);
+  }
+}, [longTaskCategories]);
+
   const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
   const [selectedLongTaskId, setSelectedLongTaskId] = useState(null);
   const [editingLongTask, setEditingLongTask] = useState(null);
@@ -912,11 +946,13 @@ export default function CalendarPage({ onNavigate }) {
       )}
 
       <LongTaskModal
-        open={isLongTaskModalOpen}
-        editingTask={editingLongTask}
-        onClose={() => setIsLongTaskModalOpen(false)}
-        onSave={saveLongTask}
-      />
+  open={isLongTaskModalOpen}
+  editingTask={editingLongTask}
+  categories={longTaskCategories}
+  setCategories={setLongTaskCategories}
+  onClose={() => setIsLongTaskModalOpen(false)}
+  onSave={saveLongTask}
+/>
     </div>
   );
 }
