@@ -3,7 +3,13 @@ import BottomNav from "./components/BottomNav";
 import AppHeader from "./components/AppHeader";
 import LongTaskModal from "./components/LongTaskModal";
 import LongTaskDetail from "./components/LongTaskDetail";
-import { CalendarDays, Sprout, ChevronRight, ChevronDown, Plus } from "lucide-react";
+import {
+  CalendarDays,
+  Sprout,
+  ChevronRight,
+  ChevronDown,
+  Plus,
+} from "lucide-react";
 
 const initialLongTasks = [];
 
@@ -28,10 +34,7 @@ function parseDate(dateText) {
 }
 
 function buildDailyPlansForTask(task, oldDailyPlans = []) {
-  const oldMap = new Map(
-    oldDailyPlans.map((plan) => [plan.date, plan])
-  );
-
+  const oldMap = new Map(oldDailyPlans.map((plan) => [plan.date, plan]));
   const rows = [];
 
   for (
@@ -61,7 +64,9 @@ function buildCalendarDays(year, monthIndex) {
   const start = new Date(firstDay);
   const day = firstDay.getDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
+
   start.setDate(firstDay.getDate() + mondayOffset);
+
   return Array.from({ length: 42 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
@@ -74,12 +79,21 @@ function getTaskPlacement(task, weekDays) {
   const end = new Date(task.end);
   const weekStart = weekDays[0];
   const weekEnd = weekDays[6];
+
   if (end < weekStart || start > weekEnd) return null;
+
   const visibleStart = start < weekStart ? weekStart : start;
   const visibleEnd = end > weekEnd ? weekEnd : end;
-  const startIndex = weekDays.findIndex((d) => dateKey(d) === dateKey(visibleStart));
-  const endIndex = weekDays.findIndex((d) => dateKey(d) === dateKey(visibleEnd));
+
+  const startIndex = weekDays.findIndex(
+    (d) => dateKey(d) === dateKey(visibleStart)
+  );
+  const endIndex = weekDays.findIndex(
+    (d) => dateKey(d) === dateKey(visibleEnd)
+  );
+
   if (startIndex < 0 || endIndex < 0) return null;
+
   return { gridColumn: `${startIndex + 1} / ${endIndex + 2}` };
 }
 
@@ -90,7 +104,11 @@ function countByStatus(tasks, status) {
 function Header({ currentDate, onPrevMonth, onNextMonth }) {
   return (
     <div className="shrink-0 px-[max(10px,env(safe-area-inset-left))] pt-[calc(6px+env(safe-area-inset-top))]">
-      <AppHeader title={`${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月`} onPrev={onPrevMonth} onNext={onNextMonth} />
+      <AppHeader
+        title={`${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月`}
+        onPrev={onPrevMonth}
+        onNext={onNextMonth}
+      />
     </div>
   );
 }
@@ -98,11 +116,28 @@ function Header({ currentDate, onPrevMonth, onNextMonth }) {
 function MonthTabs({ viewMode, setViewMode }) {
   return (
     <div className="mx-3 mt-1.5 grid shrink-0 grid-cols-2 rounded-[15px] border border-slate-200 bg-white p-1">
-      <button type="button" onClick={() => setViewMode("month")} className={`flex h-9 items-center justify-center gap-1.5 rounded-[12px] text-[13px] font-black ${viewMode === "month" ? "bg-emerald-50 text-emerald-600" : "text-slate-400"}`}>
+      <button
+        type="button"
+        onClick={() => setViewMode("month")}
+        className={`flex h-9 items-center justify-center gap-1.5 rounded-[12px] text-[13px] font-black ${
+          viewMode === "month"
+            ? "bg-emerald-50 text-emerald-600"
+            : "text-slate-400"
+        }`}
+      >
         <CalendarDays className="h-4 w-4" />
         月間
       </button>
-      <button type="button" onClick={() => setViewMode("week")} className={`flex h-9 items-center justify-center gap-1.5 rounded-[12px] text-[13px] font-black ${viewMode === "week" ? "bg-emerald-50 text-emerald-600" : "text-slate-400"}`}>
+
+      <button
+        type="button"
+        onClick={() => setViewMode("week")}
+        className={`flex h-9 items-center justify-center gap-1.5 rounded-[12px] text-[13px] font-black ${
+          viewMode === "week"
+            ? "bg-emerald-50 text-emerald-600"
+            : "text-slate-400"
+        }`}
+      >
         <CalendarDays className="h-4 w-4" />
         週間
       </button>
@@ -111,7 +146,10 @@ function MonthTabs({ viewMode, setViewMode }) {
 }
 
 function CategoryLegend({ tasks }) {
-  const usedCategories = categories.filter((category) => tasks.some((task) => task.category === category.name));
+  const usedCategories = categories.filter((category) =>
+    tasks.some((task) => task.category === category.name)
+  );
+
   if (usedCategories.length === 0) return null;
 
   return (
@@ -119,16 +157,25 @@ function CategoryLegend({ tasks }) {
       {usedCategories.map((category) => (
         <div key={category.name} className="flex items-center gap-1.5">
           <span className={`h-2.5 w-2.5 rounded-full ${category.color}`} />
-          <span className="text-[10px] font-black text-slate-600">{category.name}</span>
+          <span className="text-[10px] font-black text-slate-600">
+            {category.name}
+          </span>
         </div>
       ))}
     </div>
   );
 }
 
-function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate, longTasks, onOpenLongTask }) {
+function MonthPager({
+  currentDate,
+  setCurrentDate,
+  selectedDate,
+  setSelectedDate,
+  longTasks,
+  onOpenLongTask,
+}) {
   const scrollRef = useRef(null);
-const isResettingRef = useRef(false);
+  const isResettingRef = useRef(false);
 
   const months = useMemo(() => {
     return [
@@ -141,85 +188,114 @@ const isResettingRef = useRef(false);
   useEffect(() => {
   const el = scrollRef.current;
   if (!el) return;
-  isResettingRef.current = true;
-  el.scrollLeft = el.clientWidth;
+
   requestAnimationFrame(() => {
-    isResettingRef.current = false;
+    el.scrollLeft = el.clientWidth;
   });
 }, [currentDate]);
 
- const handleScrollEnd = () => {
-  const el = scrollRef.current;
-  if (!el || isResettingRef.current) return;
-  const index = Math.round(el.scrollLeft / el.clientWidth);
-  if (index === 0) setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
-  if (index === 2) setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
-};
+  const handleScrollEnd = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const index = Math.round(el.scrollLeft / el.clientWidth);
+
+    if (index === 0) {
+      setCurrentDate(
+        (current) =>
+          new Date(current.getFullYear(), current.getMonth() - 1, 1)
+      );
+    }
+
+    if (index === 2) {
+      setCurrentDate(
+        (current) =>
+          new Date(current.getFullYear(), current.getMonth() + 1, 1)
+      );
+    }
+  };
 
   return (
-  <div
+    <div
   ref={scrollRef}
   onScrollEnd={handleScrollEnd}
   className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200 bg-white scrollbar-none touch-pan-x"
 >
-    {months.map((monthDate) => (
-      <div
-        key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}
-        className="min-h-0 w-full shrink-0 snap-start"
-      >
-        <MonthCalendar
-          currentDate={monthDate}
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          longTasks={longTasks}
-          onOpenLongTask={onOpenLongTask}
-        />
-      </div>
-    ))}
-  </div>
-);
+      {months.map((monthDate) => (
+        <div
+          key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}
+          className="min-h-0 w-full shrink-0 snap-start"
+        >
+          <MonthCalendar
+            currentDate={monthDate}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            longTasks={longTasks}
+            onOpenLongTask={onOpenLongTask}
+          />
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, onOpenLongTask }) {
+function MonthCalendar({
+  currentDate,
+  selectedDate,
+  setSelectedDate,
+  longTasks,
+  onOpenLongTask,
+}) {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const days = useMemo(() => buildCalendarDays(year, month), [year, month]);
-  const weeks = Array.from({ length: 6 }, (_, i) => days.slice(i * 7, i * 7 + 7));
+  const weeks = Array.from({ length: 6 }, (_, i) =>
+    days.slice(i * 7, i * 7 + 7)
+  );
   const todayKey = dateKey(new Date());
 
   const [selectedDayTasks, setSelectedDayTasks] = useState([]);
   const [selectedDayLabel, setSelectedDayLabel] = useState("");
 
   const openDayTasks = (day) => {
-  setSelectedDate(new Date(day));
+    setSelectedDate(new Date(day));
 
-  const target = new Date(day);
-  target.setHours(0, 0, 0, 0);
+    const target = new Date(day);
+    target.setHours(0, 0, 0, 0);
 
-  const tasksOnDay = longTasks.filter((task) => {
-    const start = parseDate(task.start);
-    const end = parseDate(task.end);
+    const tasksOnDay = longTasks.filter((task) => {
+      const start = parseDate(task.start);
+      const end = parseDate(task.end);
 
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
 
-    return start <= target && target <= end;
-  });
+      return start <= target && target <= end;
+    });
 
-  if (tasksOnDay.length >= 3) {
-    setSelectedDayTasks(tasksOnDay);
-    setSelectedDayLabel(`${day.getMonth() + 1}月${day.getDate()}日`);
-  } else {
-    setSelectedDayTasks([]);
-    setSelectedDayLabel("");
-  }
-};
+    if (tasksOnDay.length >= 3) {
+      setSelectedDayTasks(tasksOnDay);
+      setSelectedDayLabel(`${day.getMonth() + 1}月${day.getDate()}日`);
+    } else {
+      setSelectedDayTasks([]);
+      setSelectedDayLabel("");
+    }
+  };
 
   return (
     <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
       <div className="grid h-8 shrink-0 grid-cols-7 border-b border-slate-200">
         {["月", "火", "水", "木", "金", "土", "日"].map((day, index) => (
-          <div key={day} className={`grid place-items-center text-[12px] font-black ${index === 5 ? "text-blue-500" : index === 6 ? "text-red-500" : "text-slate-950"}`}>
+          <div
+            key={day}
+            className={`grid place-items-center text-[12px] font-black ${
+              index === 5
+                ? "text-blue-500"
+                : index === 6
+                  ? "text-red-500"
+                  : "text-slate-950"
+            }`}
+          >
             {day}
           </div>
         ))}
@@ -228,50 +304,65 @@ function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, 
       <div className="grid min-h-0 flex-1 grid-rows-6">
         {weeks.map((weekDays, weekIndex) => (
           <div
-  key={weekIndex}
-  data-week-row="true"
-  className="relative grid min-h-0 grid-cols-7 border-b border-slate-100 last:border-b-0"
->
+            key={weekIndex}
+            data-week-row="true"
+            className="relative grid min-h-0 grid-cols-7 border-b border-slate-100 last:border-b-0"
+          >
             {weekDays.map((day, dayIndex) => {
               const isCurrentMonth = day.getMonth() === month;
-const isToday = dateKey(day) === todayKey;
-const isSelected = selectedDate && dateKey(day) === dateKey(selectedDate);
-const isSaturday = dayIndex === 5;
-const isSunday = dayIndex === 6;
+              const isToday = dateKey(day) === todayKey;
+              const isSelected =
+                selectedDate && dateKey(day) === dateKey(selectedDate);
+              const isSaturday = dayIndex === 5;
+              const isSunday = dayIndex === 6;
 
-const target = new Date(day);
-target.setHours(0, 0, 0, 0);
+              const target = new Date(day);
+              target.setHours(0, 0, 0, 0);
 
-const taskCountOnDay = longTasks.filter((task) => {
-  const start = parseDate(task.start);
-  const end = parseDate(task.end);
+              const taskCountOnDay = longTasks.filter((task) => {
+                const start = parseDate(task.start);
+                const end = parseDate(task.end);
 
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
+                start.setHours(0, 0, 0, 0);
+                end.setHours(0, 0, 0, 0);
 
-  return start <= target && target <= end;
-}).length;
+                return start <= target && target <= end;
+              }).length;
 
-const hiddenTaskCount = Math.max(0, taskCountOnDay - 3);
+              const hiddenTaskCount = Math.max(0, taskCountOnDay - 3);
 
               return (
                 <button
                   type="button"
                   key={dateKey(day)}
                   onClick={() => openDayTasks(day)}
-                  className={`relative z-0 flex min-h-0 items-start border-r border-slate-100 px-0.5 pb-1 pt-0.5 text-left last:border-r-0 ${isSelected ? "bg-emerald-50/70" : ""}`}
+                  className={`relative z-0 flex min-h-0 items-start border-r border-slate-100 px-0.5 pb-1 pt-0.5 text-left last:border-r-0 ${
+                    isSelected ? "bg-emerald-50/70" : ""
+                  }`}
                 >
                   <div className="relative h-full w-full">
-  <div className={`ml-1 mt-[1px] grid h-6 w-6 place-items-center rounded-full text-[12px] font-black leading-6 ${isToday ? "bg-emerald-500 text-white" : !isCurrentMonth ? "text-slate-300" : isSaturday ? "text-blue-500" : isSunday ? "text-red-500" : "text-slate-950"}`}>
-    {day.getDate()}
-  </div>
+                    <div
+                      className={`ml-1 mt-[1px] grid h-6 w-6 place-items-center rounded-full text-[12px] font-black leading-6 ${
+                        isToday
+                          ? "bg-emerald-500 text-white"
+                          : !isCurrentMonth
+                            ? "text-slate-300"
+                            : isSaturday
+                              ? "text-blue-500"
+                              : isSunday
+                                ? "text-red-500"
+                                : "text-slate-950"
+                      }`}
+                    >
+                      {day.getDate()}
+                    </div>
 
-  {hiddenTaskCount > 0 && (
-    <div className="absolute right-[-2px] top-0.5 rounded-full bg-yellow-200 px-1 text-[8px] font-black leading-[13px] text-yellow-800">
-      +{hiddenTaskCount}
-    </div>
-  )}
-</div>
+                    {hiddenTaskCount > 0 && (
+                      <div className="absolute right-[-2px] top-0.5 rounded-full bg-yellow-200 px-1 text-[8px] font-black leading-[13px] text-yellow-800">
+                        +{hiddenTaskCount}
+                      </div>
+                    )}
+                  </div>
                 </button>
               );
             })}
@@ -291,51 +382,58 @@ const hiddenTaskCount = Math.max(0, taskCountOnDay - 3);
                   <>
                     {shownTasks.map(({ task, placement }, rowIndex) => (
                       <button
-  type="button"
-  key={`${task.id}-${weekIndex}`}
-  onClick={(event) => {
-  event.stopPropagation();
+                        type="button"
+                        key={`${task.id}-${weekIndex}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
 
-  const weekRow = event.currentTarget.closest('[data-week-row="true"]');
-  const rect = weekRow.getBoundingClientRect();
-  const colWidth = rect.width / 7;
+                          const weekRow = event.currentTarget.closest(
+                            '[data-week-row="true"]'
+                          );
+                          const rect = weekRow.getBoundingClientRect();
+                          const colWidth = rect.width / 7;
 
-  const clickedIndex = Math.min(
-    6,
-    Math.max(0, Math.floor((event.clientX - rect.left) / colWidth))
-  );
+                          const clickedIndex = Math.min(
+                            6,
+                            Math.max(
+                              0,
+                              Math.floor((event.clientX - rect.left) / colWidth)
+                            )
+                          );
 
-  const targetDay = weekDays[clickedIndex];
+                          const targetDay = weekDays[clickedIndex];
 
-  const target = new Date(targetDay);
-  target.setHours(0, 0, 0, 0);
+                          const target = new Date(targetDay);
+                          target.setHours(0, 0, 0, 0);
 
-  const tasksOnDay = longTasks.filter((item) => {
-    const start = parseDate(item.start);
-    const end = parseDate(item.end);
+                          const tasksOnDay = longTasks.filter((item) => {
+                            const start = parseDate(item.start);
+                            const end = parseDate(item.end);
 
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
+                            start.setHours(0, 0, 0, 0);
+                            end.setHours(0, 0, 0, 0);
 
-    return start <= target && target <= end;
-  });
+                            return start <= target && target <= end;
+                          });
 
-  if (tasksOnDay.length >= 3) {
-    setSelectedDayTasks(tasksOnDay);
-    setSelectedDayLabel(
-      `${targetDay.getMonth() + 1}月${targetDay.getDate()}日`
-    );
-  } else {
-    onOpenLongTask(task);
-  }
-}}
-  className="pointer-events-auto relative flex h-[13px] items-center"
-  style={{ ...placement, gridRow: `${rowIndex + 1}` }}
->
-  <span className={`${task.color} block h-[12px] w-full truncate rounded-r-full px-1.5 text-[7.5px] font-black leading-[12px] text-white shadow-sm`}>
-    {task.title}
-  </span>
-</button>
+                          if (tasksOnDay.length >= 3) {
+                            setSelectedDayTasks(tasksOnDay);
+                            setSelectedDayLabel(
+                              `${targetDay.getMonth() + 1}月${targetDay.getDate()}日`
+                            );
+                          } else {
+                            onOpenLongTask(task);
+                          }
+                        }}
+                        className="pointer-events-auto relative flex h-[13px] items-center"
+                        style={{ ...placement, gridRow: `${rowIndex + 1}` }}
+                      >
+                        <span
+                          className={`${task.color} block h-[12px] w-full truncate rounded-r-full px-1.5 text-[7.5px] font-black leading-[12px] text-white shadow-sm`}
+                        >
+                          {task.title}
+                        </span>
+                      </button>
                     ))}
                   </>
                 );
@@ -385,69 +483,104 @@ const hiddenTaskCount = Math.max(0, taskCountOnDay - 3);
   );
 }
 
-function MonthSummary({ expanded, setExpanded, longTasks, onAddLongTask, currentDate }) {
+function MonthSummary({
+  expanded,
+  setExpanded,
+  longTasks,
+  onAddLongTask,
+  currentDate,
+}) {
   const today = new Date();
-today.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
 
-const currentYear = currentDate.getFullYear();
-const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
 
-const monthStart = new Date(currentYear, currentMonth, 1);
-const monthEnd = new Date(currentYear, currentMonth + 1, 0);
+  const monthStart = new Date(currentYear, currentMonth, 1);
+  const monthEnd = new Date(currentYear, currentMonth + 1, 0);
 
-const visibleTasks = longTasks.filter((task) => {
-  const start = parseDate(task.start);
-  const end = parseDate(task.end);
+  const visibleTasks = longTasks.filter((task) => {
+    const start = parseDate(task.start);
+    const end = parseDate(task.end);
 
-  return end >= monthStart && start <= monthEnd;
-});
+    return end >= monthStart && start <= monthEnd;
+  });
 
-const totalCount = visibleTasks.length;
+  const totalCount = visibleTasks.length;
 
-const waitingCount = visibleTasks.filter((task) => {
-  const start = parseDate(task.start);
-  return start > today;
-}).length;
+  const waitingCount = visibleTasks.filter((task) => {
+    const start = parseDate(task.start);
+    return start > today;
+  }).length;
 
-const activeCount = visibleTasks.filter((task) => {
-  const start = parseDate(task.start);
-  const end = parseDate(task.end);
-  return start <= today && today <= end;
-}).length;
+  const activeCount = visibleTasks.filter((task) => {
+    const start = parseDate(task.start);
+    const end = parseDate(task.end);
+    return start <= today && today <= end;
+  }).length;
 
-const urgentCount = visibleTasks.filter((task) => {
-  const end = parseDate(task.end);
-  const diffDays = Math.ceil((end - today) / 86400000);
-  return diffDays >= 0 && diffDays <= 2;
-}).length;
+  const urgentCount = visibleTasks.filter((task) => {
+    const end = parseDate(task.end);
+    const diffDays = Math.ceil((end - today) / 86400000);
+    return diffDays >= 0 && diffDays <= 2;
+  }).length;
 
-const completedCount = visibleTasks.filter((task) => {
-  const end = parseDate(task.end);
-  return end < today;
-}).length;
+  const completedCount = visibleTasks.filter((task) => {
+    const end = parseDate(task.end);
+    return end < today;
+  }).length;
 
   return (
     <section className="mx-3 mt-2 shrink-0 rounded-[18px] border border-slate-100 bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
-      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-center justify-between">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between"
+      >
         <div className="flex items-center gap-2">
           <Sprout className="h-5 w-5 text-emerald-500" />
-          <p className="text-[14px] font-black text-slate-950">今月のサマリー</p>
+          <p className="text-[14px] font-black text-slate-950">
+            今月のサマリー
+          </p>
         </div>
+
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-600">
             {totalCount === 0 ? "タスクなし" : `長期 ${totalCount}件`}
           </span>
-          {expanded ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-slate-400" />
+          )}
         </div>
       </button>
 
       {expanded && (
         <div className="mt-3 grid grid-cols-[1fr_1fr_1fr_1fr_auto] items-center divide-x divide-slate-100">
-          <SummaryItem label="進行前" value={waitingCount ? `${waitingCount}件` : ""} />
-          <SummaryItem label="進行中" value={activeCount ? `${activeCount}件` : ""} />
-          <SummaryItem label="残り3日" value={urgentCount ? `${urgentCount}件` : ""} />
-          <SummaryItem label="完了" value={completedCount ? `${completedCount}件` : ""} />
-          <button type="button" onClick={onAddLongTask} className="ml-3 flex min-w-[58px] flex-col items-center justify-center gap-1 text-emerald-600 active:scale-[0.98]">
+          <SummaryItem
+            label="進行前"
+            value={waitingCount ? `${waitingCount}件` : ""}
+          />
+          <SummaryItem
+            label="進行中"
+            value={activeCount ? `${activeCount}件` : ""}
+          />
+          <SummaryItem
+            label="残り3日"
+            value={urgentCount ? `${urgentCount}件` : ""}
+          />
+          <SummaryItem
+            label="完了"
+            value={completedCount ? `${completedCount}件` : ""}
+          />
+
+          <button
+            type="button"
+            onClick={onAddLongTask}
+            className="ml-3 flex min-w-[58px] flex-col items-center justify-center gap-1 text-emerald-600 active:scale-[0.98]"
+          >
             <Plus className="h-5 w-5" />
             <span className="text-[10px] font-black leading-tight">
               長期タスク
@@ -467,12 +600,15 @@ function SummaryItem({ label, value }) {
   return (
     <div className="text-center">
       <p className="text-[10px] font-black text-slate-500">{label}</p>
+
       {isEmpty ? (
         <div className="mt-3 flex justify-center">
           <div className="h-[2px] w-5 rounded-full bg-slate-200" />
         </div>
       ) : (
-        <p className="mt-1 text-[18px] font-black tracking-[-0.04em] text-slate-950">{value}</p>
+        <p className="mt-1 text-[18px] font-black tracking-[-0.04em] text-slate-950">
+          {value}
+        </p>
       )}
     </div>
   );
@@ -485,182 +621,185 @@ export default function CalendarPage({ onNavigate }) {
   const [summaryExpanded, setSummaryExpanded] = useState(true);
   const LONG_TASKS_STORAGE_KEY = "todo-app-long-tasks-v1";
 
-const [longTasks, setLongTasks] = useState(() => {
-  try {
-    const saved = localStorage.getItem(LONG_TASKS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : initialLongTasks;
-  } catch {
-    return initialLongTasks;
-  }
-});
-  const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
-const [selectedLongTaskId, setSelectedLongTaskId] = useState(null);
-const [editingLongTask, setEditingLongTask] = useState(null);
+  const [longTasks, setLongTasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LONG_TASKS_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : initialLongTasks;
+    } catch {
+      return initialLongTasks;
+    }
+  });
 
-const selectedLongTask = useMemo(() => {
-  if (!selectedLongTaskId) return null;
-  return longTasks.find((task) => task.id === selectedLongTaskId) ?? null;
-}, [longTasks, selectedLongTaskId]);
+  const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
+  const [selectedLongTaskId, setSelectedLongTaskId] = useState(null);
+  const [editingLongTask, setEditingLongTask] = useState(null);
+
+  const selectedLongTask = useMemo(() => {
+    if (!selectedLongTaskId) return null;
+    return longTasks.find((task) => task.id === selectedLongTaskId) ?? null;
+  }, [longTasks, selectedLongTaskId]);
+
   useEffect(() => {
-  try {
-    localStorage.setItem(
-      LONG_TASKS_STORAGE_KEY,
-      JSON.stringify(longTasks)
-    );
-  } catch (error) {
-    console.error("長期タスクの保存に失敗しました", error);
-  }
-}, [longTasks]);
+    try {
+      localStorage.setItem(
+        LONG_TASKS_STORAGE_KEY,
+        JSON.stringify(longTasks)
+      );
+    } catch (error) {
+      console.error("長期タスクの保存に失敗しました", error);
+    }
+  }, [longTasks]);
 
   const moveMonth = (diff) => {
-    setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + diff, 1));
+    setCurrentDate(
+      (current) => new Date(current.getFullYear(), current.getMonth() + diff, 1)
+    );
   };
 
   const saveLongTask = (task) => {
-  let savedTask = task;
+    let savedTask = task;
 
-  setLongTasks((current) => {
-    const oldTask = current.find(
-      (item) => item.id === task.id
-    );
+    setLongTasks((current) => {
+      const oldTask = current.find((item) => item.id === task.id);
 
-    const dailyPlans = buildDailyPlansForTask(
-      task,
-      oldTask?.dailyPlans ?? task.dailyPlans ?? []
-    );
-
-    savedTask = {
-      ...task,
-      dailyPlans,
-    };
-
-    const exists = current.some(
-      (item) => item.id === task.id
-    );
-
-    if (exists) {
-      return current.map((item) =>
-        item.id === task.id ? savedTask : item
+      const dailyPlans = buildDailyPlansForTask(
+        task,
+        oldTask?.dailyPlans ?? task.dailyPlans ?? []
       );
-    }
 
-    return [...current, savedTask];
-  });
+      savedTask = {
+        ...task,
+        dailyPlans,
+      };
 
-  setCurrentDate(new Date(savedTask.start));
-setSelectedDate(new Date(savedTask.start));
+      const exists = current.some((item) => item.id === task.id);
 
-setEditingLongTask(null);
-setIsLongTaskModalOpen(false);
+      if (exists) {
+        return current.map((item) =>
+          item.id === task.id ? savedTask : item
+        );
+      }
 
-setSelectedLongTaskId(savedTask.id);
-};
+      return [...current, savedTask];
+    });
 
-const openLongTaskDetail = (task) => {
-  setSelectedLongTaskId(task.id);
-};
+    setCurrentDate(new Date(savedTask.start));
+    setSelectedDate(new Date(savedTask.start));
 
-const closeLongTaskDetail = () => {
-  setSelectedLongTaskId(null);
-};
+    setEditingLongTask(null);
+    setIsLongTaskModalOpen(false);
 
-const deleteLongTask = (task) => {
-  setLongTasks((current) =>
-    current.filter((item) => item.id !== task.id)
-  );
+    setSelectedLongTaskId(savedTask.id);
+  };
 
-  setSelectedLongTaskId(null);
-};
+  const openLongTaskDetail = (task) => {
+    setSelectedLongTaskId(task.id);
+  };
 
-const updateDailyPlan = (task, updatedRow, nextRows) => {
-  setLongTasks((current) =>
-    current.map((item) =>
-      item.id === task.id
-        ? {
-            ...item,
-            dailyPlans: nextRows,
-          }
-        : item
-    )
-  );
+  const closeLongTaskDetail = () => {
+    setSelectedLongTaskId(null);
+  };
 
-  setSelectedLongTaskId(task.id);
-};
+  const deleteLongTask = (task) => {
+    setLongTasks((current) => current.filter((item) => item.id !== task.id));
+    setSelectedLongTaskId(null);
+  };
 
-const updateLongTask = (updatedTask) => {
-  setLongTasks((current) =>
-    current.map((item) =>
-      item.id === updatedTask.id
-        ? {
-            ...item,
-            ...updatedTask,
-          }
-        : item
-    )
-  );
+  const updateDailyPlan = (task, updatedRow, nextRows) => {
+    setLongTasks((current) =>
+      current.map((item) =>
+        item.id === task.id
+          ? {
+              ...item,
+              dailyPlans: nextRows,
+            }
+          : item
+      )
+    );
 
-  setSelectedLongTaskId(updatedTask.id);
-};
+    setSelectedLongTaskId(task.id);
+  };
 
-const openEditLongTask = (task) => {
-  const latestTask =
-    longTasks.find((item) => item.id === task.id) ?? task;
+  const updateLongTask = (updatedTask) => {
+    setLongTasks((current) =>
+      current.map((item) =>
+        item.id === updatedTask.id
+          ? {
+              ...item,
+              ...updatedTask,
+            }
+          : item
+      )
+    );
 
-  setEditingLongTask(latestTask);
-  setIsLongTaskModalOpen(true);
-};
+    setSelectedLongTaskId(updatedTask.id);
+  };
+
+  const openEditLongTask = (task) => {
+    const latestTask = longTasks.find((item) => item.id === task.id) ?? task;
+
+    setEditingLongTask(latestTask);
+    setIsLongTaskModalOpen(true);
+  };
 
   return (
     <div className="h-dvh overflow-hidden bg-[#f6f8f7] text-slate-950 antialiased">
       <div className="mx-auto flex h-dvh w-full max-w-[480px] flex-col overflow-hidden bg-[#fbfcfb] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
-        <Header currentDate={currentDate} onPrevMonth={() => moveMonth(-1)} onNextMonth={() => moveMonth(1)} />
+        <Header
+          currentDate={currentDate}
+          onPrevMonth={() => moveMonth(-1)}
+          onNextMonth={() => moveMonth(1)}
+        />
 
         <main className="flex min-h-0 flex-1 flex-col pb-[calc(82px+env(safe-area-inset-bottom))]">
           <MonthTabs viewMode={viewMode} setViewMode={setViewMode} />
+
           <MonthPager
-  currentDate={currentDate}
-  setCurrentDate={setCurrentDate}
-  selectedDate={selectedDate}
-  setSelectedDate={setSelectedDate}
-  longTasks={longTasks}
-  onOpenLongTask={openLongTaskDetail}
-/>
+            currentDate={currentDate}
+            setCurrentDate={setCurrentDate}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            longTasks={longTasks}
+            onOpenLongTask={openLongTaskDetail}
+          />
+
           <CategoryLegend tasks={longTasks} />
+
           <MonthSummary
-  expanded={summaryExpanded}
-  setExpanded={setSummaryExpanded}
-  longTasks={longTasks}
-  currentDate={currentDate}
-  onAddLongTask={() => {
-  setEditingLongTask(null);
-  setIsLongTaskModalOpen(true);
-}}
-/>
+            expanded={summaryExpanded}
+            setExpanded={setSummaryExpanded}
+            longTasks={longTasks}
+            currentDate={currentDate}
+            onAddLongTask={() => {
+              setEditingLongTask(null);
+              setIsLongTaskModalOpen(true);
+            }}
+          />
         </main>
       </div>
 
       <BottomNav active="calendar" onNavigate={onNavigate} />
 
-{selectedLongTask && (
-  <LongTaskDetail
-    task={selectedLongTask}
-    onClose={closeLongTaskDetail}
-    onEdit={openEditLongTask}
-    onDelete={deleteLongTask}
-    onUpdateDailyPlan={updateDailyPlan}
-    onUpdateTask={updateLongTask}
-    onAddTodayPlan={(task) => {
-      console.log("add today plan", task);
-    }}
-  />
-)}
+      {selectedLongTask && (
+        <LongTaskDetail
+          task={selectedLongTask}
+          onClose={closeLongTaskDetail}
+          onEdit={openEditLongTask}
+          onDelete={deleteLongTask}
+          onUpdateDailyPlan={updateDailyPlan}
+          onUpdateTask={updateLongTask}
+          onAddTodayPlan={(task) => {
+            console.log("add today plan", task);
+          }}
+        />
+      )}
 
-<LongTaskModal
-  open={isLongTaskModalOpen}
-  editingTask={editingLongTask}
-  onClose={() => setIsLongTaskModalOpen(false)}
-  onSave={saveLongTask}
-/>
+      <LongTaskModal
+        open={isLongTaskModalOpen}
+        editingTask={editingLongTask}
+        onClose={() => setIsLongTaskModalOpen(false)}
+        onSave={saveLongTask}
+      />
     </div>
   );
 }
