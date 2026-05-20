@@ -129,7 +129,6 @@ function CategoryLegend({ tasks }) {
 function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate, longTasks, onOpenLongTask }) {
   const scrollRef = useRef(null);
 const isResettingRef = useRef(false);
-const didSwitchRef = useRef(false);
 
   const months = useMemo(() => {
     return [
@@ -142,42 +141,25 @@ const didSwitchRef = useRef(false);
   useEffect(() => {
   const el = scrollRef.current;
   if (!el) return;
-
   isResettingRef.current = true;
   el.scrollLeft = el.clientWidth;
-
-  requestAnimationFrame(() => {
   requestAnimationFrame(() => {
     isResettingRef.current = false;
   });
-});
 }, [currentDate]);
 
-  const handleScroll = () => {
+ const handleScrollEnd = () => {
   const el = scrollRef.current;
-  if (!el || isResettingRef.current || didSwitchRef.current) return;
-
-  const width = el.clientWidth;
-  const diff = el.scrollLeft - width;
-
-  if (diff < -width * 0.35) {
-    didSwitchRef.current = true;
-    setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
-  }
-
-  if (diff > width * 0.35) {
-    didSwitchRef.current = true;
-    setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
-  }
+  if (!el || isResettingRef.current) return;
+  const index = Math.round(el.scrollLeft / el.clientWidth);
+  if (index === 0) setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
+  if (index === 2) setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
 };
 
   return (
   <div
   ref={scrollRef}
-  onPointerDown={() => {
-    didSwitchRef.current = false;
-  }}
-  onScroll={handleScroll}
+  onScrollEnd={handleScrollEnd}
   className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200 bg-white scrollbar-none touch-pan-x"
 >
     {months.map((monthDate) => (
