@@ -128,7 +128,8 @@ function CategoryLegend({ tasks }) {
 
 function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate, longTasks, onOpenLongTask }) {
   const scrollRef = useRef(null);
-  const isResettingRef = useRef(false);
+const isResettingRef = useRef(false);
+const didSwitchRef = useRef(false);
 
   const months = useMemo(() => {
     return [
@@ -139,37 +140,46 @@ function MonthPager({ currentDate, setCurrentDate, selectedDate, setSelectedDate
   }, [currentDate]);
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    isResettingRef.current = true;
-    el.scrollLeft = el.clientWidth;
-    requestAnimationFrame(() => {
-      isResettingRef.current = false;
-    });
-  }, [currentDate]);
+  const el = scrollRef.current;
+  if (!el) return;
 
-  useEffect(() => {
-  try {
-    localStorage.setItem(LONG_TASKS_STORAGE_KEY, JSON.stringify(longTasks));
-  } catch (error) {
-    console.error("長期タスクの保存に失敗しました", error);
+  isResettingRef.current = true;
+  el.scrollLeft = el.clientWidth;
+
+  requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    isResettingRef.current = false;
+  });
+});
+}, [currentDate]);
+
+  const handleScroll = () => {
+  const el = scrollRef.current;
+  if (!el || isResettingRef.current || didSwitchRef.current) return;
+
+  const width = el.clientWidth;
+  const diff = el.scrollLeft - width;
+
+  if (diff < -width * 0.35) {
+    didSwitchRef.current = true;
+    setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
   }
-}, [longTasks]);
 
-  const handleScrollEnd = () => {
-    const el = scrollRef.current;
-    if (!el || isResettingRef.current) return;
-    const index = Math.round(el.scrollLeft / el.clientWidth);
-    if (index === 0) setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
-    if (index === 2) setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
-  };
+  if (diff > width * 0.35) {
+    didSwitchRef.current = true;
+    setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
+  }
+};
 
   return (
   <div
-    ref={scrollRef}
-    onScrollEnd={handleScrollEnd}
-    className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200 bg-white scrollbar-none touch-pan-x"
-  >
+  ref={scrollRef}
+  onPointerDown={() => {
+    didSwitchRef.current = false;
+  }}
+  onScroll={handleScroll}
+  className="mx-3 mt-2 flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200 bg-white scrollbar-none touch-pan-x"
+>
     {months.map((monthDate) => (
       <div
         key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}
@@ -394,7 +404,6 @@ const hiddenTaskCount = Math.max(0, taskCountOnDay - 3);
 }
 
 function MonthSummary({ expanded, setExpanded, longTasks, onAddLongTask, currentDate }) {
-  const totalCount = longTasks.length;
   const today = new Date();
 today.setHours(0, 0, 0, 0);
 
@@ -411,6 +420,8 @@ const visibleTasks = longTasks.filter((task) => {
   return end >= monthStart && start <= monthEnd;
 });
 
+const totalCount = visibleTasks.length;
+
 const waitingCount = visibleTasks.filter((task) => {
   const start = parseDate(task.start);
   return start > today;
@@ -425,7 +436,7 @@ const activeCount = visibleTasks.filter((task) => {
 const urgentCount = visibleTasks.filter((task) => {
   const end = parseDate(task.end);
   const diffDays = Math.ceil((end - today) / 86400000);
-  return diffDays >= 0 && diffDays <= 3;
+  return diffDays >= 0 && diffDays <= 2;
 }).length;
 
 const completedCount = visibleTasks.filter((task) => {
@@ -452,7 +463,7 @@ const completedCount = visibleTasks.filter((task) => {
         <div className="mt-3 grid grid-cols-[1fr_1fr_1fr_1fr_auto] items-center divide-x divide-slate-100">
           <SummaryItem label="進行前" value={waitingCount ? `${waitingCount}件` : ""} />
           <SummaryItem label="進行中" value={activeCount ? `${activeCount}件` : ""} />
-          <SummaryItem label="期限近" value={urgentCount ? `${urgentCount}件` : ""} />
+          <SummaryItem label="残り3日" value={urgentCount ? `${urgentCount}件` : ""} />
           <SummaryItem label="完了" value={completedCount ? `${completedCount}件` : ""} />
           <button type="button" onClick={onAddLongTask} className="ml-3 flex min-w-[58px] flex-col items-center justify-center gap-1 text-emerald-600 active:scale-[0.98]">
             <Plus className="h-5 w-5" />
@@ -501,8 +512,13 @@ const [longTasks, setLongTasks] = useState(() => {
   }
 });
   const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
-const [selectedLongTask, setSelectedLongTask] = useState(null);
+const [selectedLongTaskId, setSelectedLongTaskId] = useState(null);
 const [editingLongTask, setEditingLongTask] = useState(null);
+
+const selectedLongTask = useMemo(() => {
+  if (!selectedLongTaskId) return null;
+  return longTasks.find((task) => task.id === selectedLongTaskId) ?? null;
+}, [longTasks, selectedLongTaskId]);
   useEffect(() => {
   try {
     localStorage.setItem(
@@ -555,15 +571,15 @@ setSelectedDate(new Date(savedTask.start));
 setEditingLongTask(null);
 setIsLongTaskModalOpen(false);
 
-setSelectedLongTask(savedTask);
+setSelectedLongTaskId(savedTask.id);
 };
 
 const openLongTaskDetail = (task) => {
-  setSelectedLongTask(task);
+  setSelectedLongTaskId(task.id);
 };
 
 const closeLongTaskDetail = () => {
-  setSelectedLongTask(null);
+  setSelectedLongTaskId(null);
 };
 
 const deleteLongTask = (task) => {
@@ -571,32 +587,37 @@ const deleteLongTask = (task) => {
     current.filter((item) => item.id !== task.id)
   );
 
-  setSelectedLongTask(null);
+  setSelectedLongTaskId(null);
 };
 
 const updateDailyPlan = (task, updatedRow, nextRows) => {
-  const updatedTask = {
-    ...task,
-    dailyPlans: nextRows,
-  };
-
   setLongTasks((current) =>
     current.map((item) =>
-      item.id === task.id ? updatedTask : item
+      item.id === task.id
+        ? {
+            ...item,
+            dailyPlans: nextRows,
+          }
+        : item
     )
   );
 
-  setSelectedLongTask(updatedTask);
+  setSelectedLongTaskId(task.id);
 };
 
 const updateLongTask = (updatedTask) => {
   setLongTasks((current) =>
     current.map((item) =>
-      item.id === updatedTask.id ? updatedTask : item
+      item.id === updatedTask.id
+        ? {
+            ...item,
+            ...updatedTask,
+          }
+        : item
     )
   );
 
-  setSelectedLongTask(updatedTask);
+  setSelectedLongTaskId(updatedTask.id);
 };
 
 const openEditLongTask = (task) => {
@@ -638,17 +659,19 @@ const openEditLongTask = (task) => {
 
       <BottomNav active="calendar" onNavigate={onNavigate} />
 
-<LongTaskDetail
-  task={selectedLongTask}
-  onClose={closeLongTaskDetail}
-  onEdit={openEditLongTask}
-  onDelete={deleteLongTask}
-  onUpdateDailyPlan={updateDailyPlan}
-  onUpdateTask={updateLongTask}
-  onAddTodayPlan={(task) => {
-    console.log("add today plan", task);
-  }}
-/>
+{selectedLongTask && (
+  <LongTaskDetail
+    task={selectedLongTask}
+    onClose={closeLongTaskDetail}
+    onEdit={openEditLongTask}
+    onDelete={deleteLongTask}
+    onUpdateDailyPlan={updateDailyPlan}
+    onUpdateTask={updateLongTask}
+    onAddTodayPlan={(task) => {
+      console.log("add today plan", task);
+    }}
+  />
+)}
 
 <LongTaskModal
   open={isLongTaskModalOpen}

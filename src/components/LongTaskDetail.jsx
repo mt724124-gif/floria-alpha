@@ -52,6 +52,7 @@ function getRemainingDays(start, end) {
 }
 
 function buildDailyRows(task) {
+  if (!task) return [];
   if (task.dailyPlans?.length) return task.dailyPlans;
 
   const rows = [];
@@ -88,9 +89,7 @@ export default function LongTaskDetail({
 }) {
   if (!task) return null;
 
-  const initialRows = useMemo(() => buildDailyRows(task), [task]);
-
-const [dailyRows, setDailyRows] = useState(initialRows);
+  const dailyRows = useMemo(() => buildDailyRows(task), [task]);
 
 const todayKey = dateKey(new Date());
 
@@ -138,9 +137,8 @@ const [draftMemo, setDraftMemo] = useState(
 );
 
 useEffect(() => {
-  const nextRows = buildDailyRows(task);
+  if (!task) return;
 
-  setDailyRows(nextRows);
   setOverviewMemo(task.overviewMemo || "");
 
   setExpandedId(null);
@@ -188,14 +186,12 @@ useEffect(() => {
     };
 
     const nextRows = dailyRows.map((item) =>
-      item.id === row.id ? updatedRow : item
-    );
+  item.id === row.id ? updatedRow : item
+);
 
-    setDailyRows(nextRows);
+setEditingId(null);
 
-    setEditingId(null);
-
-    onUpdateDailyPlan?.(task, updatedRow, nextRows);
+onUpdateDailyPlan?.(task, updatedRow, nextRows);
   };
 
   const startEdit = (row) => {
@@ -207,6 +203,8 @@ useEffect(() => {
 
     setDraftMemo(row.memo || "");
   };
+
+  if (!task) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-[#fbfcfb] text-slate-950">

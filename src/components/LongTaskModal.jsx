@@ -99,15 +99,16 @@ const endDateInputRef = useRef(null);
   if (!title.trim()) return;
 
   const nextTask = {
-    id: editingTask?.id ?? Date.now(),
-    title: title.trim(),
-    start: startDate,
-    end: endDate,
-    category: category.name,
-    color: category.color,
-    status: editingTask?.status ?? "進行前",
-    dailyPlans: editingTask?.dailyPlans ?? [],
-  };
+  ...(editingTask ?? {}),
+  id: editingTask?.id ?? Date.now(),
+  title: title.trim(),
+  start: startDate,
+  end: endDate,
+  category: category.name,
+  color: category.color,
+  status: editingTask?.status ?? "進行前",
+  dailyPlans: editingTask?.dailyPlans ?? [],
+};
 
   if (editingTask?.dailyPlans?.length) {
     const nextStart = new Date(startDate);
