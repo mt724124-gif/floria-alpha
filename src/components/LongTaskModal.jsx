@@ -48,12 +48,16 @@ const endDateInputRef = useRef(null);
     setStartDate(editingTask.start || now);
     setEndDate(editingTask.end || getNextDate(now));
 
-    const matchedCategory =
-      categories.find(
-        (item) => item.name === editingTask.category
-      ) ?? categories[0];
+    const matchedCategory = categories.find(
+  (item) => item.name === editingTask.category
+);
 
-    setCategory(matchedCategory);
+setCategory(
+  matchedCategory ?? {
+    name: editingTask.category,
+    color: editingTask.color ?? "bg-slate-400",
+  }
+);
   } else {
     setTitle("");
     setStartDate(now);
@@ -62,7 +66,8 @@ const endDateInputRef = useRef(null);
   }
 
   setNewCategoryName("");
-}, [open, editingTask, categories]);
+}, [open, editingTask]);
+
 
   if (!open) return null;
 
@@ -204,7 +209,7 @@ const ok = window.confirm(
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="例：学会スライド作成"
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-[15px] font-bold outline-none transition focus:border-emerald-400 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-[16px] font-bold outline-none transition focus:border-emerald-400 focus:bg-white"
             />
           </div>
 

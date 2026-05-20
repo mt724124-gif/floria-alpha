@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import BottomNav from "./components/BottomNav";
-import AppHeader from "./components/AppHeader";
 import LongTaskModal from "./components/LongTaskModal";
 import LongTaskDetail from "./components/LongTaskDetail";
 import {
@@ -9,17 +8,10 @@ import {
   ChevronRight,
   ChevronDown,
   Plus,
+  GripVertical,
 } from "lucide-react";
 
 const initialLongTasks = [];
-
-const categories = [
-  { name: "研究", color: "bg-emerald-500" },
-  { name: "仕事", color: "bg-blue-500" },
-  { name: "学習", color: "bg-pink-500" },
-  { name: "生活", color: "bg-orange-500" },
-  { name: "その他", color: "bg-violet-500" },
-];
 
 function dateKey(date) {
   const y = date.getFullYear();
@@ -75,10 +67,15 @@ function buildCalendarDays(year, monthIndex) {
 }
 
 function getTaskPlacement(task, weekDays) {
-  const start = new Date(task.start);
-  const end = new Date(task.end);
-  const weekStart = weekDays[0];
-  const weekEnd = weekDays[6];
+  const start = parseDate(task.start);
+  const end = parseDate(task.end);
+  const weekStart = new Date(weekDays[0]);
+  const weekEnd = new Date(weekDays[6]);
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  weekStart.setHours(0, 0, 0, 0);
+  weekEnd.setHours(0, 0, 0, 0);
 
   if (end < weekStart || start > weekEnd) return null;
 
@@ -88,6 +85,7 @@ function getTaskPlacement(task, weekDays) {
   const startIndex = weekDays.findIndex(
     (d) => dateKey(d) === dateKey(visibleStart)
   );
+
   const endIndex = weekDays.findIndex(
     (d) => dateKey(d) === dateKey(visibleEnd)
   );
@@ -97,20 +95,19 @@ function getTaskPlacement(task, weekDays) {
   return { gridColumn: `${startIndex + 1} / ${endIndex + 2}` };
 }
 
-function countByStatus(tasks, status) {
-  return tasks.filter((task) => task.status === status).length;
-}
+function getTasksOnDay(tasks, day) {
+  const target = new Date(day);
+  target.setHours(0, 0, 0, 0);
 
-function Header({ currentDate, onPrevMonth, onNextMonth }) {
-  return (
-    <div className="shrink-0 px-[max(10px,env(safe-area-inset-left))] pt-[calc(6px+env(safe-area-inset-top))]">
-      <AppHeader
-        title={`${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月`}
-        onPrev={onPrevMonth}
-        onNext={onNextMonth}
-      />
-    </div>
-  );
+  return tasks.filter((task) => {
+    const start = parseDate(task.start);
+    const end = parseDate(task.end);
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    return start <= target && target <= end;
+  });
 }
 
 function MonthTabs({ viewMode, setViewMode }) {
@@ -183,6 +180,7 @@ function MonthPager({
   setSelectedDate,
   longTasks,
   onOpenLongTask,
+  onReorderLongTasks,
 }) {
   const scrollRef = useRef(null);
   const pendingCenterScrollRef = useRef(true);
@@ -261,6 +259,7 @@ function MonthPager({
   setSelectedDate={setSelectedDate}
   longTasks={longTasks}
   onOpenLongTask={onOpenLongTask}
+  onReorderLongTasks={onReorderLongTasks}
   onCenterMonth={(targetMonth) => {
     setPickerYear(targetMonth.getFullYear());
     setMonthPickerOpen(true);
@@ -272,14 +271,14 @@ function MonthPager({
       </div>
 
       {monthPickerOpen && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6"
-    onClick={() => setMonthPickerOpen(false)}
-  >
-    <div
-      className="w-full max-w-[340px] rounded-[24px] bg-white p-4 shadow-2xl"
-      onClick={(e) => e.stopPropagation()}
-    >
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6"
+          onClick={() => setMonthPickerOpen(false)}
+        >
+          <div
+            className="w-full max-w-[340px] rounded-[24px] bg-white p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mb-4 flex items-center justify-between">
               <button
                 type="button"
@@ -308,7 +307,6 @@ function MonthPager({
                 const isCurrent =
                   targetMonth.getFullYear() === currentDate.getFullYear() &&
                   targetMonth.getMonth() === currentDate.getMonth();
-                  
 
                 return (
                   <button
@@ -347,42 +345,187 @@ function MonthCalendar({
   setSelectedDate,
   longTasks,
   onOpenLongTask,
+  onReorderLongTasks,
   onCenterMonth,
   onMoveToMonth,
 }) {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+
   const days = useMemo(() => buildCalendarDays(year, month), [year, month]);
+
   const weeks = Array.from({ length: 6 }, (_, i) =>
     days.slice(i * 7, i * 7 + 7)
   );
-  const todayKey = dateKey(new Date());
+
   const today = new Date();
-const isThisMonth =
-  currentDate.getFullYear() === today.getFullYear() &&
-  currentDate.getMonth() === today.getMonth();
+  const todayKey = dateKey(today);
+
+  const isThisMonth =
+    currentDate.getFullYear() === today.getFullYear() &&
+    currentDate.getMonth() === today.getMonth();
 
   const [selectedDayTasks, setSelectedDayTasks] = useState([]);
-  const [selectedDayLabel, setSelectedDayLabel] = useState("");
+const [selectedDayLabel, setSelectedDayLabel] = useState("");
+const [draggingTaskId, setDraggingTaskId] = useState(null);
+const [dragOffsetY, setDragOffsetY] = useState(0);
+const [dropTargetTaskId, setDropTargetTaskId] = useState(null);
+
+const draggingTaskIdRef = useRef(null);
+const dragStartYRef = useRef(0);
+const pendingDropTargetIdRef = useRef(null);
+const dragClickBlockRef = useRef(false);
+const dragLastStepRef = useRef(0);
+const previousBodyTouchActionRef = useRef("");
+const previousBodyUserSelectRef = useRef("");
+
+const moveDayTask = (activeId, overId) => {
+  const activeKey = String(activeId);
+  const overKey = String(overId);
+
+  if (!activeKey || !overKey || activeKey === overKey) return;
+
+  setSelectedDayTasks((current) => {
+    const fromIndex = current.findIndex((task) => String(task.id) === activeKey);
+    const toIndex = current.findIndex((task) => String(task.id) === overKey);
+
+    if (fromIndex < 0 || toIndex < 0) return current;
+
+    const next = [...current];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+
+    return next;
+  });
+
+  onReorderLongTasks?.(activeId, overId);
+};
+
+const beginDayTaskDragging = (event, taskId) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  draggingTaskIdRef.current = taskId;
+  dragStartYRef.current = event.clientY;
+  pendingDropTargetIdRef.current = null;
+  dragClickBlockRef.current = false;
+  dragLastStepRef.current = 0;
+
+  previousBodyTouchActionRef.current = document.body.style.touchAction;
+  previousBodyUserSelectRef.current = document.body.style.userSelect;
+  document.body.style.touchAction = "none";
+  document.body.style.userSelect = "none";
+
+  setDraggingTaskId(taskId);
+  setDragOffsetY(0);
+  setDropTargetTaskId(null);
+};
+
+const stopDayTaskDragging = () => {
+  draggingTaskIdRef.current = null;
+  pendingDropTargetIdRef.current = null;
+
+  setDraggingTaskId(null);
+  setDragOffsetY(0);
+  setDropTargetTaskId(null);
+
+  document.body.style.touchAction = previousBodyTouchActionRef.current;
+  document.body.style.userSelect = previousBodyUserSelectRef.current;
+};
+
+useEffect(() => {
+  const handlePointerMove = (event) => {
+    if (!draggingTaskIdRef.current) return;
+
+    event.preventDefault();
+
+    const nextOffsetY = event.clientY - dragStartYRef.current;
+    setDragOffsetY(nextOffsetY);
+
+    if (Math.abs(nextOffsetY) > 4) {
+      dragClickBlockRef.current = true;
+    }
+
+    const rowHeight = 48;
+    const step = Math.trunc(nextOffsetY / rowHeight);
+
+    if (step === dragLastStepRef.current) return;
+
+    const direction = step > 0 ? 1 : -1;
+dragStartYRef.current = event.clientY;
+setDragOffsetY(0);
+
+    const activeKey = String(draggingTaskIdRef.current);
+
+    setSelectedDayTasks((current) => {
+      const fromIndex = current.findIndex((task) => String(task.id) === activeKey);
+      if (fromIndex < 0) return current;
+
+      const toIndex = Math.max(
+        0,
+        Math.min(current.length - 1, fromIndex + direction)
+      );
+
+      if (fromIndex === toIndex) return current;
+
+
+const next = [...current];
+const [moved] = next.splice(fromIndex, 1);
+next.splice(toIndex, 0, moved);
+
+onReorderLongTasks?.(next.map((task) => task.id));
+
+return next;
+    });
+  };
+
+  const handlePointerUp = () => {
+    if (!draggingTaskIdRef.current) return;
+    stopDayTaskDragging();
+  };
+
+  window.addEventListener("pointermove", handlePointerMove, { passive: false });
+  window.addEventListener("pointerup", handlePointerUp);
+  window.addEventListener("pointercancel", handlePointerUp);
+
+  return () => {
+    window.removeEventListener("pointermove", handlePointerMove);
+    window.removeEventListener("pointerup", handlePointerUp);
+    window.removeEventListener("pointercancel", handlePointerUp);
+  };
+}, [onReorderLongTasks]);
+
+  const getHiddenTaskCountForDay = (day) => {
+  const weekDays = weeks.find((week) =>
+    week.some((weekDay) => dateKey(weekDay) === dateKey(day))
+  );
+
+  if (!weekDays) return 0;
+
+  const visibleTasks = longTasks
+    .map((task) => ({
+      task,
+      placement: getTaskPlacement(task, weekDays),
+    }))
+    .filter((item) => item.placement);
+
+  const shownTasks = visibleTasks.slice(0, 3);
+
+  const taskCountOnDay = getTasksOnDay(longTasks, day).length;
+
+  const shownTaskCountOnDay = shownTasks.filter(({ task }) => {
+    return getTasksOnDay([task], day).length > 0;
+  }).length;
+
+  return Math.max(0, taskCountOnDay - shownTaskCountOnDay);
+}; 
 
   const openDayTasks = (day) => {
     setSelectedDate(new Date(day));
 
+    const tasksOnDay = getTasksOnDay(longTasks, day);
 
-    const target = new Date(day);
-    target.setHours(0, 0, 0, 0);
-
-    const tasksOnDay = longTasks.filter((task) => {
-      const start = parseDate(task.start);
-      const end = parseDate(task.end);
-
-      start.setHours(0, 0, 0, 0);
-      end.setHours(0, 0, 0, 0);
-
-      return start <= target && target <= end;
-    });
-
-    if (tasksOnDay.length >= 3) {
+    if (tasksOnDay.length >= 3 || getHiddenTaskCountForDay(day) > 0) {
       setSelectedDayTasks(tasksOnDay);
       setSelectedDayLabel(`${day.getMonth() + 1}月${day.getDate()}日`);
     } else {
@@ -392,37 +535,37 @@ const isThisMonth =
   };
 
   return (
-  <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
-    <div className="relative flex h-11 shrink-0 items-center justify-center bg-white pt-1">
-  <button
-    type="button"
-    onClick={() => onCenterMonth?.(currentDate)}
-    className="inline-flex items-center gap-1 px-2 py-1 text-[17px] font-black text-slate-900 transition active:scale-[0.98] active:text-emerald-600"
-  >
-    <span>
-      {currentDate.getFullYear()}年{currentDate.getMonth() + 1}月
-    </span>
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
+      <div className="relative flex h-11 shrink-0 items-center justify-center bg-white pt-1">
+        <button
+          type="button"
+          onClick={() => onCenterMonth?.(currentDate)}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[17px] font-black text-slate-900 transition active:scale-[0.98] active:text-emerald-600"
+        >
+          <span>
+            {currentDate.getFullYear()}年{currentDate.getMonth() + 1}月
+          </span>
 
-    <ChevronDown className="h-4 w-4 text-slate-400" />
-  </button>
+          <ChevronDown className="h-4 w-4 text-slate-400" />
+        </button>
 
-  {!isThisMonth && (
-  <button
-    type="button"
-    onClick={() => {
-      const today = new Date();
-      onMoveToMonth?.(
-        new Date(today.getFullYear(), today.getMonth(), 1)
-      );
-    }}
-    className="absolute right-3 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-600 active:scale-[0.97]"
-  >
-    今月に戻る
-  </button>
-)}
-</div>
+        {!isThisMonth && (
+          <button
+            type="button"
+            onClick={() => {
+              const now = new Date();
+              onMoveToMonth?.(
+                new Date(now.getFullYear(), now.getMonth(), 1)
+              );
+            }}
+            className="absolute right-3 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-600 active:scale-[0.97]"
+          >
+            今月に戻る
+          </button>
+        )}
+      </div>
 
-    <div className="grid h-8 shrink-0 grid-cols-7 border-b border-slate-200">
+      <div className="grid h-8 shrink-0 grid-cols-7 border-b border-slate-200">
         {["月", "火", "水", "木", "金", "土", "日"].map((day, index) => (
           <div
             key={day}
@@ -440,145 +583,134 @@ const isThisMonth =
       </div>
 
       <div className="grid min-h-0 flex-1 grid-rows-6">
-        {weeks.map((weekDays, weekIndex) => (
-          <div
-            key={weekIndex}
-            data-week-row="true"
-            className="relative grid min-h-0 grid-cols-7 border-b border-slate-100 last:border-b-0"
-          >
-            {weekDays.map((day, dayIndex) => {
-              const isCurrentMonth = day.getMonth() === month;
-              const isToday = dateKey(day) === todayKey;
-              const isSelected =
-                selectedDate && dateKey(day) === dateKey(selectedDate);
-              const isSaturday = dayIndex === 5;
-              const isSunday = dayIndex === 6;
+        {weeks.map((weekDays, weekIndex) => {
+          const visibleTasks = longTasks
+            .map((task) => ({
+              task,
+              placement: getTaskPlacement(task, weekDays),
+            }))
+            .filter((item) => item.placement);
 
-              const target = new Date(day);
-              target.setHours(0, 0, 0, 0);
+          const shownTasks = visibleTasks.slice(0, 3);
 
-              const taskCountOnDay = longTasks.filter((task) => {
-                const start = parseDate(task.start);
-                const end = parseDate(task.end);
+          return (
+            <div
+              key={weekIndex}
+              data-week-row="true"
+              className="relative grid min-h-0 grid-cols-7 border-b border-slate-100 last:border-b-0"
+            >
+              {weekDays.map((day, dayIndex) => {
+                const isCurrentMonth = day.getMonth() === month;
+                const isToday = dateKey(day) === todayKey;
+                const isSelected =
+                  selectedDate && dateKey(day) === dateKey(selectedDate);
+                const isSaturday = dayIndex === 5;
+                const isSunday = dayIndex === 6;
 
-                start.setHours(0, 0, 0, 0);
-                end.setHours(0, 0, 0, 0);
+                const taskCountOnDay = getTasksOnDay(longTasks, day).length;
 
-                return start <= target && target <= end;
-              }).length;
+                const shownTaskCountOnDay = shownTasks.filter(({ task }) => {
+                  return getTasksOnDay([task], day).length > 0;
+                }).length;
 
-              const hiddenTaskCount = Math.max(0, taskCountOnDay - 3);
-
-              return (
-                <button
-                  type="button"
-                  key={dateKey(day)}
-                  onClick={() => openDayTasks(day)}
-                  className={`relative z-0 flex min-h-0 items-start border-r border-slate-100 px-0.5 pb-1 pt-0.5 text-left last:border-r-0 ${
-                    isSelected ? "bg-emerald-50/70" : ""
-                  }`}
-                >
-                  <div className="relative h-full w-full">
-                    <div
-                      className={`ml-1 mt-[1px] grid h-6 w-6 place-items-center rounded-full text-[12px] font-black leading-6 ${
-                        isToday
-                          ? "bg-emerald-500 text-white"
-                          : !isCurrentMonth
-                            ? "text-slate-300"
-                            : isSaturday
-                              ? "text-blue-500"
-                              : isSunday
-                                ? "text-red-500"
-                                : "text-slate-950"
-                      }`}
-                    >
-                      {day.getDate()}
-                    </div>
-
-                    {hiddenTaskCount > 0 && (
-                      <div className="absolute right-[-2px] top-0.5 rounded-full bg-yellow-200 px-1 text-[8px] font-black leading-[13px] text-yellow-800">
-                        +{hiddenTaskCount}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[28px] z-20 grid auto-rows-[13px] grid-cols-7 gap-y-[1px] px-1">
-              {(() => {
-                const visibleTasks = longTasks
-                  .map((task) => ({
-                    task,
-                    placement: getTaskPlacement(task, weekDays),
-                  }))
-                  .filter((item) => item.placement);
-
-                const shownTasks = visibleTasks.slice(0, 3);
+                const hiddenTaskCount = Math.max(
+                  0,
+                  taskCountOnDay - shownTaskCountOnDay
+                );
 
                 return (
-                  <>
-                    {shownTasks.map(({ task, placement }, rowIndex) => (
-                      <button
-                        type="button"
-                        key={`${task.id}-${weekIndex}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-
-                          const weekRow = event.currentTarget.closest(
-                            '[data-week-row="true"]'
-                          );
-                          const rect = weekRow.getBoundingClientRect();
-                          const colWidth = rect.width / 7;
-
-                          const clickedIndex = Math.min(
-                            6,
-                            Math.max(
-                              0,
-                              Math.floor((event.clientX - rect.left) / colWidth)
-                            )
-                          );
-
-                          const targetDay = weekDays[clickedIndex];
-
-                          const target = new Date(targetDay);
-                          target.setHours(0, 0, 0, 0);
-
-                          const tasksOnDay = longTasks.filter((item) => {
-                            const start = parseDate(item.start);
-                            const end = parseDate(item.end);
-
-                            start.setHours(0, 0, 0, 0);
-                            end.setHours(0, 0, 0, 0);
-
-                            return start <= target && target <= end;
-                          });
-
-                          if (tasksOnDay.length >= 3) {
-                            setSelectedDayTasks(tasksOnDay);
-                            setSelectedDayLabel(
-                              `${targetDay.getMonth() + 1}月${targetDay.getDate()}日`
-                            );
-                          } else {
-                            onOpenLongTask(task);
-                          }
-                        }}
-                        className="pointer-events-auto relative flex h-[13px] items-center"
-                        style={{ ...placement, gridRow: `${rowIndex + 1}` }}
+                  <button
+                    type="button"
+                    key={dateKey(day)}
+                    onClick={() => openDayTasks(day)}
+                    className={`relative z-0 flex min-h-0 items-start border-r border-slate-100 px-0.5 pb-1 pt-0.5 text-left last:border-r-0 ${
+                      isSelected ? "bg-emerald-50/70" : ""
+                    }`}
+                  >
+                    <div className="relative h-full w-full">
+                      <div
+                        className={`ml-1 mt-[1px] grid h-6 w-6 place-items-center rounded-full text-[12px] font-black leading-6 ${
+                          isToday
+                            ? "bg-slate-900 text-white"
+                            : !isCurrentMonth
+                              ? "text-slate-300"
+                              : isSaturday
+                                ? "text-blue-500"
+                                : isSunday
+                                  ? "text-red-500"
+                                  : "text-slate-950"
+                        }`}
                       >
-                        <span
-                          className={`${task.color} block h-[12px] w-full truncate rounded-r-full px-1.5 text-[7.5px] font-black leading-[12px] text-white shadow-sm`}
-                        >
-                          {task.title}
-                        </span>
-                      </button>
-                    ))}
-                  </>
+                        {day.getDate()}
+                      </div>
+
+                      {hiddenTaskCount > 0 && (
+                        <div className="absolute right-[-2px] top-0.5 rounded-full bg-yellow-200 px-1 text-[8px] font-black leading-[13px] text-yellow-800">
+                          +{hiddenTaskCount}
+                        </div>
+                      )}
+                    </div>
+                  </button>
                 );
-              })()}
+              })}
+
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[28px] z-20 grid auto-rows-[13px] grid-cols-7 gap-y-[1px] px-1">
+                {shownTasks.map(({ task, placement }, rowIndex) => (
+                  <button
+                    type="button"
+                    key={`${task.id}-${weekIndex}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+
+                      const weekRow = event.currentTarget.closest(
+                        '[data-week-row="true"]'
+                      );
+
+                      if (!weekRow) return;
+
+                      const rect = weekRow.getBoundingClientRect();
+                      const colWidth = rect.width / 7;
+
+                      const clickedIndex = Math.min(
+                        6,
+                        Math.max(
+                          0,
+                          Math.floor((event.clientX - rect.left) / colWidth)
+                        )
+                      );
+
+                      const targetDay = weekDays[clickedIndex];
+                      const tasksOnDay = getTasksOnDay(longTasks, targetDay);
+
+                      if (
+  tasksOnDay.length >= 3 ||
+  getHiddenTaskCountForDay(targetDay) > 0
+) {
+                        setSelectedDayTasks(tasksOnDay);
+                        setSelectedDayLabel(
+                          `${targetDay.getMonth() + 1}月${targetDay.getDate()}日`
+                        );
+                      } else {
+                        onOpenLongTask(task);
+                      }
+                    }}
+                    className="pointer-events-auto relative flex h-[13px] items-center transition-all duration-200"
+                    style={{
+                      ...placement,
+                      gridRow: `${rowIndex + 1}`,
+                    }}
+                  >
+                    <span
+                      className={`${task.color} block h-[12px] w-full truncate rounded-r-full px-1.5 text-[7.5px] font-black leading-[12px] text-white shadow-sm`}
+                    >
+                      {task.title}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {selectedDayTasks.length > 0 && (
@@ -587,34 +719,61 @@ const isThisMonth =
             <p className="text-[14px] font-black text-slate-950">
               {selectedDayLabel} の長期タスク
             </p>
-
-            <button
-              type="button"
-              onClick={() => setSelectedDayTasks([])}
-              className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-[12px] font-black text-slate-500"
-            >
-              ×
-            </button>
           </div>
 
           <div className="space-y-2">
-            {selectedDayTasks.map((task) => (
-              <button
-                type="button"
-                key={task.id}
-                onClick={() => {
-                  setSelectedDayTasks([]);
-                  onOpenLongTask(task);
-                }}
-                className="flex h-10 w-full items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 text-left active:bg-slate-100"
-              >
-                <span className={`h-2.5 w-2.5 rounded-full ${task.color}`} />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-black text-slate-900">
-                  {task.title}
-                </span>
-              </button>
-            ))}
-          </div>
+  {selectedDayTasks.map((task) => (
+    <button
+      type="button"
+      key={task.id}
+      data-long-task-row="true"
+      data-task-id={task.id}
+      onClick={() => {
+        if (dragClickBlockRef.current) {
+          dragClickBlockRef.current = false;
+          return;
+        }
+
+        setSelectedDayTasks([]);
+        onOpenLongTask(task);
+      }}
+      style={
+        draggingTaskId === task.id
+          ? {
+              transform: `translate3d(0, ${dragOffsetY}px, 0) scale(1.015)`,
+            }
+          : undefined
+      }
+      className={`relative flex h-10 w-full items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 text-left transition-transform active:bg-slate-100 ${
+  String(draggingTaskId) === String(task.id)
+    ? "z-[999] opacity-95 shadow-[0_14px_30px_rgba(15,23,42,0.18)] ring-1 ring-slate-200"
+    : ""
+} ${
+  String(dropTargetTaskId) === String(task.id) &&
+  String(draggingTaskId) !== String(task.id)
+    ? "bg-emerald-50 ring-2 ring-emerald-100"
+    : ""
+}`}
+    >
+      <span
+        onPointerDown={(event) => beginDayTaskDragging(event, task.id)}
+        className={`mr-0.5 flex h-8 w-8 shrink-0 touch-none select-none items-center justify-center rounded-xl border transition-all ${
+          draggingTaskId === task.id
+            ? "border-slate-900 bg-slate-900 text-white"
+            : "border-slate-100 bg-white text-slate-300 active:bg-slate-100"
+        }`}
+      >
+        <GripVertical className="h-4 w-4" />
+      </span>
+
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${task.color}`} />
+
+      <span className="min-w-0 flex-1 truncate text-[13px] font-black text-slate-900">
+        {task.title}
+      </span>
+    </button>
+  ))}
+</div>
         </div>
       )}
     </section>
@@ -641,6 +800,9 @@ function MonthSummary({
     const start = parseDate(task.start);
     const end = parseDate(task.end);
 
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
     return end >= monthStart && start <= monthEnd;
   });
 
@@ -648,23 +810,34 @@ function MonthSummary({
 
   const waitingCount = visibleTasks.filter((task) => {
     const start = parseDate(task.start);
+    start.setHours(0, 0, 0, 0);
+
     return start > today;
   }).length;
 
   const activeCount = visibleTasks.filter((task) => {
     const start = parseDate(task.start);
     const end = parseDate(task.end);
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
     return start <= today && today <= end;
   }).length;
 
   const urgentCount = visibleTasks.filter((task) => {
     const end = parseDate(task.end);
+    end.setHours(0, 0, 0, 0);
+
     const diffDays = Math.ceil((end - today) / 86400000);
+
     return diffDays >= 0 && diffDays <= 2;
   }).length;
 
   const completedCount = visibleTasks.filter((task) => {
     const end = parseDate(task.end);
+    end.setHours(0, 0, 0, 0);
+
     return end < today;
   }).length;
 
@@ -677,6 +850,7 @@ function MonthSummary({
       >
         <div className="flex items-center gap-2">
           <Sprout className="h-5 w-5 text-emerald-500" />
+
           <p className="text-[14px] font-black text-slate-950">
             今月のサマリー
           </p>
@@ -701,14 +875,17 @@ function MonthSummary({
             label="進行前"
             value={waitingCount ? `${waitingCount}件` : ""}
           />
+
           <SummaryItem
             label="進行中"
             value={activeCount ? `${activeCount}件` : ""}
           />
+
           <SummaryItem
             label="残り3日"
             value={urgentCount ? `${urgentCount}件` : ""}
           />
+
           <SummaryItem
             label="完了"
             value={completedCount ? `${completedCount}件` : ""}
@@ -720,6 +897,7 @@ function MonthSummary({
             className="ml-3 flex min-w-[58px] flex-col items-center justify-center gap-1 text-emerald-600 active:scale-[0.98]"
           >
             <Plus className="h-5 w-5" />
+
             <span className="text-[10px] font-black leading-tight">
               長期タスク
               <br />
@@ -757,7 +935,9 @@ export default function CalendarPage({ onNavigate }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("month");
   const [summaryExpanded, setSummaryExpanded] = useState(true);
+
   const LONG_TASKS_STORAGE_KEY = "todo-app-long-tasks-v1";
+  const CATEGORIES_STORAGE_KEY = "todo-app-long-task-categories-v1";
 
   const [longTasks, setLongTasks] = useState(() => {
     try {
@@ -768,50 +948,17 @@ export default function CalendarPage({ onNavigate }) {
     }
   });
 
-const CATEGORIES_STORAGE_KEY = "todo-app-long-task-categories-v1";
+  const [longTaskCategories, setLongTaskCategories] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY);
 
-const [longTaskCategories, setLongTaskCategories] = useState(() => {
-  try {
-    const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY);
-    return saved
-      ? JSON.parse(saved)
-      : [{ name: "仕事", color: "bg-blue-500" }];
-  } catch {
-    return [{ name: "仕事", color: "bg-blue-500" }];
-  }
-});
-
-useEffect(() => {
-  try {
-    localStorage.setItem(
-      CATEGORIES_STORAGE_KEY,
-      JSON.stringify(longTaskCategories)
-    );
-  } catch (error) {
-    console.error("長期タスクカテゴリの保存に失敗しました", error);
-  }
-}, [longTaskCategories]);
-
-useEffect(() => {
-  setLongTaskCategories((current) => {
-    const map = new Map(
-      current.map((item) => [item.name, item])
-    );
-
-    longTasks.forEach((task) => {
-      if (!task.category) return;
-
-      if (!map.has(task.category)) {
-        map.set(task.category, {
-          name: task.category,
-          color: task.color ?? "bg-slate-400",
-        });
-      }
-    });
-
-    return Array.from(map.values());
+      return saved
+        ? JSON.parse(saved)
+        : [{ name: "仕事", color: "bg-blue-500" }];
+    } catch {
+      return [{ name: "仕事", color: "bg-blue-500" }];
+    }
   });
-}, [longTasks]);
 
   const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
   const [selectedLongTaskId, setSelectedLongTaskId] = useState(null);
@@ -819,6 +966,7 @@ useEffect(() => {
 
   const selectedLongTask = useMemo(() => {
     if (!selectedLongTaskId) return null;
+
     return longTasks.find((task) => task.id === selectedLongTaskId) ?? null;
   }, [longTasks, selectedLongTaskId]);
 
@@ -831,6 +979,36 @@ useEffect(() => {
     } catch (error) {
       console.error("長期タスクの保存に失敗しました", error);
     }
+  }, [longTasks]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        CATEGORIES_STORAGE_KEY,
+        JSON.stringify(longTaskCategories)
+      );
+    } catch (error) {
+      console.error("長期タスクカテゴリの保存に失敗しました", error);
+    }
+  }, [longTaskCategories]);
+
+  useEffect(() => {
+    setLongTaskCategories((current) => {
+      const map = new Map(current.map((item) => [item.name, item]));
+
+      longTasks.forEach((task) => {
+        if (!task.category) return;
+
+        if (!map.has(task.category)) {
+          map.set(task.category, {
+            name: task.category,
+            color: task.color ?? "bg-slate-400",
+          });
+        }
+      });
+
+      return Array.from(map.values());
+    });
   }, [longTasks]);
 
   const saveLongTask = (task) => {
@@ -862,10 +1040,8 @@ useEffect(() => {
 
     setCurrentDate(new Date(savedTask.start));
     setSelectedDate(new Date(savedTask.start));
-
     setEditingLongTask(null);
     setIsLongTaskModalOpen(false);
-
     setSelectedLongTaskId(savedTask.id);
   };
 
@@ -913,27 +1089,44 @@ useEffect(() => {
   };
 
   const openEditLongTask = (task) => {
-    const latestTask = longTasks.find((item) => item.id === task.id) ?? task;
+  const latestTask = longTasks.find((item) => item.id === task.id) ?? task;
 
-    setEditingLongTask(latestTask);
-    setIsLongTaskModalOpen(true);
-  };
+  setEditingLongTask(latestTask);
+  setIsLongTaskModalOpen(true);
+};
+
+const reorderLongTasks = (orderedIds) => {
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
+
+  setLongTasks((current) => {
+    const orderedKeySet = new Set(orderedIds.map((id) => String(id)));
+    const orderedTasks = orderedIds
+      .map((id) => current.find((task) => String(task.id) === String(id)))
+      .filter(Boolean);
+
+    const otherTasks = current.filter(
+      (task) => !orderedKeySet.has(String(task.id))
+    );
+
+    return [...orderedTasks, ...otherTasks];
+  });
+};
 
   return (
     <div className="h-dvh overflow-hidden bg-[#f6f8f7] text-slate-950 antialiased">
       <div className="mx-auto flex h-dvh w-full max-w-[480px] flex-col overflow-hidden bg-[#fbfcfb] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
-
         <main className="flex min-h-0 flex-1 flex-col pb-[calc(82px+env(safe-area-inset-bottom))]">
           <MonthTabs viewMode={viewMode} setViewMode={setViewMode} />
 
           <MonthPager
-            currentDate={currentDate}
-            setCurrentDate={setCurrentDate}
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            longTasks={longTasks}
-            onOpenLongTask={openLongTaskDetail}
-          />
+  currentDate={currentDate}
+  setCurrentDate={setCurrentDate}
+  selectedDate={selectedDate}
+  setSelectedDate={setSelectedDate}
+  longTasks={longTasks}
+  onOpenLongTask={openLongTaskDetail}
+  onReorderLongTasks={reorderLongTasks}
+/>
 
           <CategoryLegend tasks={longTasks} />
 
@@ -967,13 +1160,13 @@ useEffect(() => {
       )}
 
       <LongTaskModal
-  open={isLongTaskModalOpen}
-  editingTask={editingLongTask}
-  categories={longTaskCategories}
-  setCategories={setLongTaskCategories}
-  onClose={() => setIsLongTaskModalOpen(false)}
-  onSave={saveLongTask}
-/>
+        open={isLongTaskModalOpen}
+        editingTask={editingLongTask}
+        categories={longTaskCategories}
+        setCategories={setLongTaskCategories}
+        onClose={() => setIsLongTaskModalOpen(false)}
+        onSave={saveLongTask}
+      />
     </div>
   );
 }
