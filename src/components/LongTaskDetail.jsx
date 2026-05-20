@@ -204,7 +204,6 @@ onUpdateDailyPlan?.(task, updatedRow, nextRows);
     setDraftMemo(row.memo || "");
   };
 
-  if (!task) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-[#fbfcfb] text-slate-950">

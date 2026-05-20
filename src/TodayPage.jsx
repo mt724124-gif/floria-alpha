@@ -15,7 +15,6 @@ import {
   Pencil,
   Play,
   Plus,
-  Bell,
   RotateCcw,
   Trash2,
   TrendingUp,
@@ -67,20 +66,9 @@ const priorityStyles = {
     number: "border-slate-200 bg-slate-50 text-slate-500",
     empty: "低い重要度のタスクはありません",
   },
-  reminder: {
-    label: "リマインダ",
-    fullLabel: "リマインダ",
-    text: "text-violet-500",
-    badge: "bg-violet-500 text-white",
-    border: "border-violet-100",
-    bg: "bg-violet-50/70",
-    line: "bg-violet-400",
-    number: "border-violet-200 bg-violet-50 text-violet-500",
-    empty: "リマインダはありません",
-  },
 };
 
-const priorityOrder = ["high", "medium", "low", "reminder"];
+const priorityOrder = ["high", "medium", "low"];
 const editablePriorityOrder = ["high", "medium", "low"];
 
 const initialCategories = ["学習", "仕事", "健康", "その他"];
@@ -126,37 +114,16 @@ function formatDateForHeader(date) {
   return `${date.getMonth() + 1}月${date.getDate()}日（${weekdays[date.getDay()]}）`;
 }
 
-function formatDateForTodo(dateString) {
-  if (!dateString) return "";
-  const [year, month, day] = dateString.split("-").map(Number);
-  return formatDateForHeader(new Date(year, month - 1, day));
-}
 
 function getTodoDateKey(todo) {
-  return (
-    todo?.targetDate ??
-    todo?.date ??
-    todo?.createdDate ??
-    todo?.schedule?.date ??
-    todo?.reminder?.date ??
-    getTodayKey()
-  );
+  return todo?.targetDate ?? todo?.date ?? todo?.createdDate ?? getTodayKey();
 }
 
 function getCategoryStyle(category) {
   return defaultCategoryStyles[category] ?? defaultCategoryStyles["その他"];
 }
 
-function isReminder(todo) {
-  return (
-    todo?.type === "reminder" ||
-    todo?.priority === "reminder" ||
-    Boolean(todo?.reminder)
-  );
-}
-
 function getPriority(todo) {
-  if (isReminder(todo)) return "reminder";
   return editablePriorityOrder.includes(todo?.priority) ? todo.priority : "medium";
 }
 
@@ -165,23 +132,8 @@ function getRank(todo, fallback = 9999) {
   return Number.isFinite(rank) && rank > 0 ? rank : fallback;
 }
 
-function getReminderTime(todo) {
-  return todo?.reminder?.time ?? todo?.schedule?.time ?? "99:99";
-}
-
 function isCompleted(todo) {
   return todo?.completed === true || todo?.taskStatus === "completed";
-}
-
-function getReminderLabel(todo) {
-  const lead = todo?.reminder?.reminderLead ?? todo?.schedule?.reminderLead;
-  if (lead === "0") return "指定時刻にリマインド";
-  if (lead === "5") return "5分前にリマインド";
-  if (lead === "10") return "10分前にリマインド";
-  if (lead === "30") return "30分前にリマインド";
-  if (lead === "60") return "1時間前にリマインド";
-  if (lead === "1440") return "1日前にリマインド";
-  return "リマインド予定";
 }
 
 function getInitialActualMinutes(todo, workLog) {
@@ -199,13 +151,6 @@ function getInitialActualMinutes(todo, workLog) {
   return Number(found ?? 15);
 }
 
-function sortByRank(todos) {
-  return [...todos].sort((a, b) => {
-    const rankDiff = getRank(a) - getRank(b);
-    if (rankDiff !== 0) return rankDiff;
-    return Number(a.id ?? 0) - Number(b.id ?? 0);
-  });
-}
 
 function Header({ selectedDate, onChangeDate }) {
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -288,10 +233,8 @@ function TodayGoalCard({
   isPastDate = false,
   isFutureDate = false,
 }) {
-  const selectedIsReminder = isReminder(selectedTask);
   const canStartTimer =
     selectedTask &&
-    !selectedIsReminder &&
     !isReviewConfirmed &&
     !isPastDate &&
     !isFutureDate;
@@ -362,19 +305,15 @@ function TodayGoalCard({
               {selectedTask.title}
             </h1>
 
-            {!selectedIsReminder && (
-              <p className="mb-0.5 text-[12px] font-bold text-slate-400">
-                {selectedTask.category}
-{Number(selectedTask.estimatedMinutes) > 0 && (
-  <>・予定 {formatMinutes(selectedTask.estimatedMinutes)}</>
-)}
-              </p>
-            )}
+            <p className="mb-0.5 text-[12px] font-bold text-slate-400">
+              {selectedTask.category}
+              {Number(selectedTask.estimatedMinutes) > 0 && (
+                <>・予定 {formatMinutes(selectedTask.estimatedMinutes)}</>
+              )}
+            </p>
 
             <p className="text-[12px] font-bold leading-relaxed text-emerald-600">
-              {selectedIsReminder
-                ? getReminderLabel(selectedTask)
-                : "このタスクを開始できます。"}
+              このタスクを開始できます。
             </p>
           </>
         ) : totalCount === 0 ? (
@@ -417,9 +356,7 @@ function TodayGoalCard({
             : isReviewConfirmed && totalCount > 0
               ? "振り返りは完了済みです"
               : selectedTask
-                ? selectedIsReminder
-                  ? `${selectedTask.reminder?.time ?? selectedTask.schedule?.time ?? ""}予定`
-                  : "このタスクで集中開始"
+                ? "このタスクで集中開始"
                 : "タスクを選択してください"}
       </button>
     </section>
@@ -531,8 +468,6 @@ function TodoItem({
           : "border-slate-200 bg-slate-50 text-slate-500";
 
   const Icon = config.icon;
-  const reminder = isReminder(todo);
-
   const [swipeX, setSwipeX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const swipeStartRef = useRef({ x: 0, y: 0 });
@@ -692,8 +627,7 @@ const moveTomorrowThreshold = 104;
 } ${itemDisabled ? "cursor-default opacity-80" : "cursor-pointer"}`}
       >
         <div className="flex min-h-[48px] items-center gap-2">
-          {!reminder && (
-  <button
+          <button
     type="button"
     aria-label="順番を並び替え"
     disabled={!canReorder}
@@ -722,7 +656,6 @@ const moveTomorrowThreshold = 104;
       }`}
     />
   </button>
-)}
 
           <button
             disabled={completeDisabled}
@@ -746,20 +679,10 @@ const moveTomorrowThreshold = 104;
                 isCompleted(todo) ? "text-slate-400" : "text-slate-950"
               }`}
             >
-              {reminder && (
-                <Bell className="mt-[1px] h-3.5 w-3.5 shrink-0 text-amber-500" />
-              )}
-
               <span className="line-clamp-2 break-words">{todo.title}</span>
             </p>
 
             <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-              {todo.schedule && (
-                <p className="truncate text-[10.5px] font-bold text-slate-400">
-                  {formatDateForTodo(todo.schedule.date)} {todo.schedule.time} 開始
-                </p>
-              )}
-
               <div className={`flex items-center gap-1 ${config.color}`}>
                 <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
                 <span className="max-w-[52px] truncate text-[11px] font-black">
@@ -767,16 +690,14 @@ const moveTomorrowThreshold = 104;
                 </span>
               </div>
 
-              {(reminder || Number(todo.estimatedMinutes) > 0) && (
-  <div className="flex items-center gap-1 text-slate-400">
-    <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
-    <span className="text-[11px] font-bold">
-      {reminder
-        ? `${todo.reminder?.time ?? todo.schedule?.time ?? ""}`
-        : formatMinutes(todo.estimatedMinutes)}
-    </span>
-  </div>
-)}
+              {Number(todo.estimatedMinutes) > 0 && (
+                <div className="flex items-center gap-1 text-slate-400">
+                  <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  <span className="text-[11px] font-bold">
+                    {formatMinutes(todo.estimatedMinutes)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -914,7 +835,7 @@ function TodoSection({
                 canEdit={canEdit}
                 canDelete={canDelete}
                 canMoveTomorrow={canMoveTomorrow}
-                canReorder={canReorder && !isReminder(todo)}
+                canReorder={canReorder}
                 selected={selectedTaskId === todo.id}
                 menuOpen={openMenuId === todo.id}
                 dragging={draggingId === todo.id}
@@ -1010,11 +931,6 @@ function TodoListCard({
 
       if (priorityDiff !== 0) return priorityDiff;
 
-      if (getPriority(a) === "reminder") {
-        const timeDiff = getReminderTime(a).localeCompare(getReminderTime(b));
-        if (timeDiff !== 0) return timeDiff;
-      }
-
       const rankDiff = getRank(a) - getRank(b);
       if (rankDiff !== 0) return rankDiff;
 
@@ -1068,7 +984,7 @@ function TodoListCard({
 
   const beginDragging = (id, clientY) => {
     const target = rankedTodos.find((todo) => todo.id === id);
-    if (!target || isReminder(target)) return;
+    if (!target) return;
 
     draggingIdRef.current = id;
     startYRef.current = clientY;
@@ -1160,17 +1076,6 @@ function TodoListCard({
       const targetId = Number(targetElement?.dataset?.todoId);
       const targetTodo = rankedTodos.find((todo) => todo.id === targetId);
       const targetGroup = sectionElement?.dataset?.dropSection ?? null;
-
-      if (targetTodo && isReminder(targetTodo)) {
-        setDropTargetId(null);
-        setDropTargetGroup(null);
-        pendingDropRef.current = {
-          targetId: null,
-          targetGroup: null,
-          visibleOrderIds: rankedTodos.map((todo) => todo.id),
-        };
-        return;
-      }
 
       setDropTargetId(targetId || null);
       setDropTargetGroup(targetGroup);
@@ -1733,16 +1638,13 @@ date: taskDateKey,
 
     const normalizedTodoData = {
       ...todoData,
-      type: todoData.type ?? (todoData.reminder ? "reminder" : "todo"),
-      priority:
-        todoData.type === "reminder" || todoData.reminder
-          ? "reminder"
-          : editablePriorityOrder.includes(todoData.priority)
-            ? todoData.priority
-            : "medium",
+      type: "todo",
+      priority: editablePriorityOrder.includes(todoData.priority)
+        ? todoData.priority
+        : "medium",
+      reminder: undefined,
+      schedule: undefined,
     };
-
-    const reminderFlag = isReminder(normalizedTodoData);
 
     if (todoModal.mode === "edit") {
       setTodos((current) =>
@@ -1787,7 +1689,7 @@ createdDate:
 
       if (
         selectedTaskId === normalizedTodoData.id &&
-        (isCompleted(normalizedTodoData) || reminderFlag || !canSelectTask)
+        (isCompleted(normalizedTodoData) || !canSelectTask)
       ) {
         setSelectedTaskId(null);
       }
@@ -1809,18 +1711,14 @@ createdDate:
       taskStatus: "pending",
       completedAt: null,
       createdDate: selectedDateKey,
-      targetDate:
-        normalizedTodoData.targetDate ??
-        normalizedTodoData.schedule?.date ??
-        normalizedTodoData.reminder?.date ??
-        selectedDateKey,
+      targetDate: normalizedTodoData.targetDate ?? selectedDateKey,
       actualMinutes: normalizedTodoData.actualMinutes ?? 0,
       actualSeconds: normalizedTodoData.actualSeconds ?? 0,
     };
 
     setTodos((current) => [...current, newTodo]);
 
-    if (!reminderFlag && isTodayDate) {
+    if (isTodayDate) {
       setSelectedTaskId(newTodo.id);
     } else {
       setSelectedTaskId(null);
@@ -1875,7 +1773,6 @@ createdDate:
     const target = todos.find((todo) => todo.id === id);
     if (!target) return;
 
-    const reminderFlag = isReminder(target);
     const nextCompleted = !isCompleted(target);
 
     if (!nextCompleted) {
@@ -1891,31 +1788,7 @@ createdDate:
             : todo
         )
       );
-      if (!reminderFlag) setSelectedTaskId(id);
-      return;
-    }
-
-    if (reminderFlag) {
-      setTodos((current) =>
-        current.map((todo) =>
-          todo.id === id
-            ? {
-                ...todo,
-                completed: true,
-                taskStatus: "completed",
-                completedAt: new Date().toISOString(),
-                actualMinutes: 0,
-                actualSeconds: 0,
-                workedMinutes: 0,
-                focusMinutes: 0,
-                priority: getPriority(todo),
-                rank: todo.rank,
-                targetDate: getTodoDateKey(todo),
-              }
-            : todo
-        )
-      );
-      setSelectedTaskId(null);
+      setSelectedTaskId(id);
       return;
     }
 
@@ -1976,12 +1849,6 @@ createdDate:
               completedAt: null,
               targetDate: tomorrowKey,
               date: item.date === originalDate ? tomorrowKey : item.date,
-              schedule: item.schedule
-                ? { ...item.schedule, date: tomorrowKey }
-                : item.schedule,
-              reminder: item.reminder
-                ? { ...item.reminder, date: tomorrowKey }
-                : item.reminder,
             }
           : item
       )
@@ -2036,12 +1903,6 @@ createdDate:
                   todo.date === undoToast.movedDate
                     ? undoToast.originalDate
                     : todo.date,
-                schedule: todo.schedule
-                  ? { ...todo.schedule, date: undoToast.originalDate }
-                  : todo.schedule,
-                reminder: todo.reminder
-                  ? { ...todo.reminder, date: undoToast.originalDate }
-                  : todo.reminder,
               }
             : todo
         )
@@ -2061,11 +1922,8 @@ createdDate:
 
     setTodos((current) => {
       const draggingTodo = current.find((todo) => todo.id === draggingId);
-      const targetTodo = current.find((todo) => todo.id === targetId);
 
-      if (!draggingTodo || isReminder(draggingTodo)) return current;
-      if (targetTodo && isReminder(targetTodo)) return current;
-      if (targetGroup === "reminder") return current;
+      if (!draggingTodo) return current;
 
       const currentDateTodos = current.filter(
         (todo) => getTodoDateKey(todo) === selectedDateKey && !isCompleted(todo)
@@ -2133,14 +1991,10 @@ createdDate:
               .flatMap((priority) =>
                 normalized.filter((todo) => getPriority(todo) === priority)
               )
-              .map((todo, index) =>
-                isReminder(todo)
-                  ? todo
-                  : {
-                      ...todo,
-                      rank: index + 1,
-                    }
-              )
+              .map((todo, index) => ({
+                ...todo,
+                rank: index + 1,
+              }))
           : normalized.map((todo) => ({
               ...todo,
               rank: todo.rank,
@@ -2194,7 +2048,7 @@ completed: log.completeAfterSave ? true : todo.completed,
   };
 
   const openWorkLogModal = (todo) => {
-    if (!canEditTask || isReminder(todo)) return;
+    if (!canEditTask) return;
     setWorkLogModal({
       open: true,
       todo,
@@ -2204,8 +2058,6 @@ completed: log.completeAfterSave ? true : todo.completed,
 
   const startTimer = () => {
   if (!selectedTask || !canSelectTask) return;
-  if (isReminder(selectedTask)) return;
-
   const savedWorkLog = workLogs.find((log) => log.taskId === selectedTask.id);
 
 const baseSeconds =
@@ -2279,7 +2131,7 @@ const baseSeconds =
   canReorder={canReorderTask}
   onSelect={(todo) => {
     if (!canSelectTask) return;
-    if (!isCompleted(todo) && !isReminder(todo)) setSelectedTaskId(todo.id);
+    if (!isCompleted(todo)) setSelectedTaskId(todo.id);
   }}
   onToggle={toggleTodo}
   onEdit={(todo) => {
@@ -2293,13 +2145,21 @@ const baseSeconds =
 />
 
           <TodayRecordCard
-  totalPlannedMinutes={filteredTodos.reduce((sum, todo) => sum + (isReminder(todo) ? 0 : Number(todo.estimatedMinutes || 0)), 0)}
-  hasPlannedMinutes={filteredTodos.some((todo) => !isReminder(todo) && Number(todo.estimatedMinutes) > 0)}
-  totalActualMinutes={filteredTodos.reduce((sum, todo) => sum + (isReminder(todo) ? 0 : Number(todo.actualMinutes || todo.workedMinutes || todo.focusMinutes || todo.elapsedMinutes || 0)), 0)}
-  hasActualMinutes={filteredTodos.some((todo) => !isReminder(todo) && Number(todo.actualMinutes || todo.workedMinutes || todo.focusMinutes || todo.elapsedMinutes || 0) > 0)}
+  totalPlannedMinutes={filteredTodos.reduce((sum, todo) => sum + Number(todo.estimatedMinutes || 0), 0)}
+  hasPlannedMinutes={filteredTodos.some((todo) => Number(todo.estimatedMinutes) > 0)}
+  totalActualMinutes={filteredTodos.reduce((sum, todo) => sum + Number(todo.actualMinutes || todo.workedMinutes || todo.focusMinutes || todo.elapsedMinutes || 0), 0)}
+  hasActualMinutes={filteredTodos.some((todo) => Number(todo.actualMinutes || todo.workedMinutes || todo.focusMinutes || todo.elapsedMinutes || 0) > 0)}
   completedCount={dailyRecord.completedTaskCount ?? 0}
   totalCount={dailyRecord.createdTaskCount ?? 0}
-  onOpenReview={() => onOpenReview?.(selectedDateKey)}
+  onOpenReview={() => {
+  if (typeof onOpenReview === "function") {
+    onOpenReview(selectedDateKey);
+    return;
+  }
+
+  setReviewDateKey?.(selectedDateKey);
+  onNavigate?.("review");
+}}
 />
         </main>
       </div>

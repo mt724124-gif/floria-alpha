@@ -60,17 +60,7 @@ function formatJapaneseDate(dateKey) {
 }
 
 function getTaskDateKey(task, fallbackDateKey) {
-  return task?.targetDate ?? task?.date ?? task?.createdDate ?? task?.schedule?.date ?? task?.reminder?.date ?? fallbackDateKey;
-}
-
-function isReminder(task) {
-  return task?.type === "reminder" || task?.priority === "reminder" || Boolean(task?.reminder);
-}
-
-function formatReminderTime(task) {
-  const time = task?.reminder?.time ?? task?.schedule?.time ?? "";
-  if (!time) return "リマインド予定";
-  return `${time}`;
+  return task?.targetDate ?? task?.date ?? task?.createdDate ?? fallbackDateKey;
 }
 
 function getInitialActualMinutes(task, workLog) {
@@ -195,7 +185,6 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
   const style = categoryStyles[task.category] ?? categoryStyles["その他"];
   const Icon = style.icon;
   const completed = isCompleted(task);
-  const reminder = isReminder(task);
 
   const [swipeX, setSwipeX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -344,9 +333,7 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
               <div className="flex items-center gap-1 text-slate-400">
                 <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
                 <span className="text-[11px] font-bold">
-                  {reminder
-                    ? formatReminderTime(task)
-                    : formatMinutes(task.actualMinutes ?? task.workedMinutes ?? task.focusMinutes ?? task.elapsedMinutes ?? 0)}
+                  {formatMinutes(task.actualMinutes ?? task.workedMinutes ?? task.focusMinutes ?? task.elapsedMinutes ?? 0)}
                 </span>
               </div>
             </div>
@@ -408,15 +395,15 @@ function TaskSection({ record, disabled = false, moveLabel = "明日へ", onTogg
               ) : (
                 incompleteTasks.map((task) => (
                   <TaskRow
-  key={task.id}
-  task={task}
-  disabled={disabled}
-  moveLabel={moveLabel}
-  onToggle={onToggleTask}
-  onEdit={onEditTask}
-  onDelete={onDeleteTask}
-  onPostponeTomorrow={onPostponeTomorrow}
-/>
+                    key={task.id}
+                    task={task}
+                    disabled={disabled}
+                    moveLabel={moveLabel}
+                    onToggle={onToggleTask}
+                    onEdit={onEditTask}
+                    onDelete={onDeleteTask}
+                    onPostponeTomorrow={onPostponeTomorrow}
+                  />
                 ))
               )}
             </div>
@@ -438,15 +425,15 @@ function TaskSection({ record, disabled = false, moveLabel = "明日へ", onTogg
               ) : (
                 completedTasks.map((task) => (
                   <TaskRow
-  key={task.id}
-  task={task}
-  disabled={disabled}
-  moveLabel={moveLabel}
-  onToggle={onToggleTask}
-  onEdit={onEditTask}
-  onDelete={onDeleteTask}
-  onPostponeTomorrow={onPostponeTomorrow}
-/>
+                    key={task.id}
+                    task={task}
+                    disabled={disabled}
+                    moveLabel={moveLabel}
+                    onToggle={onToggleTask}
+                    onEdit={onEditTask}
+                    onDelete={onDeleteTask}
+                    onPostponeTomorrow={onPostponeTomorrow}
+                  />
                 ))
               )}
             </div>
@@ -539,14 +526,14 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
   const taskCount = activeTasks.length;
   const isAutoCompletedEmptyDay = taskCount === 0;
   const isConfirmed = record.status === "confirmed" || record.reviewCompleted === true || isAutoCompletedEmptyDay;
-const canConfirm = !isConfirmed && incompleteTasks.length === 0;
-const todayKey = getTodayKey();
-const isTodayReview = dateKey === todayKey;
-const moveDateKey = isTodayReview ? getTomorrowKey(dateKey) : todayKey;
-const moveLabel = isTodayReview ? "明日へ" : "今日へ";
-const moveMessage = isTodayReview ? "明日に移動しました" : "今日に移動しました";
+  const canConfirm = !isConfirmed && incompleteTasks.length === 0;
+  const todayKey = getTodayKey();
+  const isTodayReview = dateKey === todayKey;
+  const moveDateKey = isTodayReview ? getTomorrowKey(dateKey) : todayKey;
+  const moveLabel = isTodayReview ? "明日へ" : "今日へ";
+  const moveMessage = isTodayReview ? "明日に移動しました" : "今日に移動しました";
 
-const [reflectionText, setReflectionText] = useState(record.reflectionText ?? "");
+  const [reflectionText, setReflectionText] = useState(record.reflectionText ?? "");
 
   useEffect(() => {
     setReflectionText(record.reflectionText ?? "");
@@ -586,10 +573,9 @@ const [reflectionText, setReflectionText] = useState(record.reflectionText ?? ""
   };
 
   const completeTask = (task) => {
-    const reminderFlag = isReminder(task);
     const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
-    const minutes = reminderFlag ? 0 : getInitialActualMinutes(task, workLog);
-    const seconds = reminderFlag ? 0 : minutes * 60;
+    const minutes = getInitialActualMinutes(task, workLog);
+    const seconds = minutes * 60;
 
     setAppData((current) => {
       const nextTasks = (current.tasks ?? []).map((item) =>
@@ -605,16 +591,17 @@ const [reflectionText, setReflectionText] = useState(record.reflectionText ?? ""
               focusMinutes: minutes,
               elapsedMinutes: minutes,
               elapsedSeconds: seconds,
+              type: "todo",
+              reminder: null,
+              schedule: null,
             }
           : item
       );
 
-      const nextWorkLogs = reminderFlag
-        ? current.workLogs ?? []
-        : [
-            ...(current.workLogs ?? []).filter((log) => log.taskId !== task.id),
-            { id: Date.now(), taskId: task.id, taskTitle: task.title, category: task.category, minutes, seconds, date: dateKey },
-          ];
+      const nextWorkLogs = [
+        ...(current.workLogs ?? []).filter((log) => log.taskId !== task.id),
+        { id: Date.now(), taskId: task.id, taskTitle: task.title, category: task.category, minutes, seconds, date: dateKey },
+      ];
 
       return {
         ...current,
@@ -638,11 +625,6 @@ const [reflectionText, setReflectionText] = useState(record.reflectionText ?? ""
         );
         return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
       });
-      return;
-    }
-
-    if (isReminder(task)) {
-      completeTask(task);
       return;
     }
 
@@ -686,30 +668,31 @@ const [reflectionText, setReflectionText] = useState(record.reflectionText ?? ""
   };
 
   const handlePostponeTomorrow = (task) => {
-  if (isConfirmed || isCompleted(task)) return;
+    if (isConfirmed || isCompleted(task)) return;
 
-  const originalDate = getTaskDateKey(task, dateKey);
+    const originalDate = getTaskDateKey(task, dateKey);
 
-  setAppData((current) => {
-    const nextTasks = (current.tasks ?? []).map((item) =>
-      item.id === task.id
-        ? {
-            ...item,
-            completed: false,
-            taskStatus: "pending",
-            completedAt: null,
-            targetDate: moveDateKey,
-            date: item.date === originalDate ? moveDateKey : item.date,
-            schedule: item.schedule ? { ...item.schedule, date: moveDateKey } : item.schedule,
-            reminder: item.reminder ? { ...item.reminder, date: moveDateKey } : item.reminder,
-          }
-        : item
-    );
-    return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
-  });
+    setAppData((current) => {
+      const nextTasks = (current.tasks ?? []).map((item) =>
+        item.id === task.id
+          ? {
+              ...item,
+              completed: false,
+              taskStatus: "pending",
+              completedAt: null,
+              targetDate: moveDateKey,
+              date: item.date === originalDate ? moveDateKey : item.date,
+              type: "todo",
+              reminder: null,
+              schedule: null,
+            }
+          : item
+      );
+      return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
+    });
 
-  showUndoToast({ type: "postpone", message: moveMessage, taskTitle: task.title, task, originalDate, movedDate: moveDateKey });
-};
+    showUndoToast({ type: "postpone", message: moveMessage, taskTitle: task.title, task, originalDate, movedDate: moveDateKey });
+  };
 
   const handleSaveWorkLog = (log) => {
     if (isConfirmed) return;
@@ -730,6 +713,9 @@ const [reflectionText, setReflectionText] = useState(record.reflectionText ?? ""
               completed: log.completeAfterSave ? true : task.completed,
               taskStatus: log.completeAfterSave ? "completed" : task.taskStatus ?? "pending",
               completedAt: log.completeAfterSave ? new Date().toISOString() : task.completedAt ?? null,
+              type: "todo",
+              reminder: null,
+              schedule: null,
             }
           : task
       );
@@ -752,6 +738,9 @@ const [reflectionText, setReflectionText] = useState(record.reflectionText ?? ""
           ? {
               ...item,
               ...updatedTask,
+              type: "todo",
+              reminder: null,
+              schedule: null,
               targetDate: updatedTask.targetDate ?? getTaskDateKey(item, dateKey),
               createdDate: updatedTask.createdDate ?? item.createdDate ?? getTaskDateKey(item, dateKey),
               actualSeconds: updatedTask.actualSeconds ?? (Number(updatedTask.actualMinutes) || 0) * 60,
@@ -790,8 +779,9 @@ const [reflectionText, setReflectionText] = useState(record.reflectionText ?? ""
                 ...task,
                 targetDate: undoToast.originalDate,
                 date: task.date === undoToast.movedDate ? undoToast.originalDate : task.date,
-                schedule: task.schedule ? { ...task.schedule, date: undoToast.originalDate } : task.schedule,
-                reminder: task.reminder ? { ...task.reminder, date: undoToast.originalDate } : task.reminder,
+                type: "todo",
+                reminder: null,
+                schedule: null,
               }
             : task
         );
@@ -855,6 +845,7 @@ const [reflectionText, setReflectionText] = useState(record.reflectionText ?? ""
           <TaskSection
             record={record}
             disabled={isConfirmed}
+            moveLabel={moveLabel}
             onToggleTask={handleToggleTask}
             onEditTask={handleEditTask}
             onDeleteTask={handleDeleteTask}

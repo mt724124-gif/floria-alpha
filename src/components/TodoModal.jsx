@@ -1,27 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Plus, Save, X } from "lucide-react";
 
-function formatDateForInput(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function getDefaultScheduledTime() {
-  const date = new Date();
-  date.setHours(date.getHours() + 3, 0, 0, 0);
-  return { hour: String(date.getHours()).padStart(2, "0"), minute: "00" };
-}
-
-function getInitialType(todo) {
-  if (!todo) return "todo";
-  if (todo.type === "reminder" || todo.priority === "reminder" || todo.reminder) return "reminder";
-  return "todo";
-}
-
-function getInitialPriority(todo, type) {
-  if (type === "reminder") return "reminder";
+function getInitialPriority(todo) {
   if (["high", "medium", "low"].includes(todo?.priority)) return todo.priority;
   return "medium";
 }
@@ -36,11 +16,8 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
   const isEditMode = mode === "edit";
 
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(() => {
-  return localStorage.getItem("last-category") || "学習";
-});
+  const [category, setCategory] = useState(() => localStorage.getItem("last-category") || "学習");
   const [priority, setPriority] = useState("medium");
-  const [itemType, setItemType] = useState("todo");
   const [newCategory, setNewCategory] = useState("");
   const [durationHour, setDurationHour] = useState("");
   const [durationMinute, setDurationMinute] = useState("");
@@ -49,36 +26,24 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
   const [completed, setCompleted] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [showCategoryList, setShowCategoryList] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState(() => formatDateForInput(new Date()));
-  const [scheduledHour, setScheduledHour] = useState(() => getDefaultScheduledTime().hour);
-  const [scheduledMinute, setScheduledMinute] = useState("00");
 
   useEffect(() => {
     if (!open) return;
 
-    const defaultTime = getDefaultScheduledTime();
-
     if (initialTodo) {
-      const detectedType = getInitialType(initialTodo);
-      const [h, m] = (initialTodo.reminder?.time ?? initialTodo.schedule?.time ?? `${defaultTime.hour}:00`).split(":");
       const estimated = initialTodo.estimatedMinutes;
       const actual = initialTodo.actualMinutes ?? initialTodo.workedMinutes ?? initialTodo.focusMinutes ?? 0;
 
-      setItemType(detectedType);
       setTitle(initialTodo.title ?? "");
       setCategory(initialTodo.category ?? "学習");
-      setPriority(getInitialPriority(initialTodo, detectedType));
+      setPriority(getInitialPriority(initialTodo));
       setNewCategory("");
       setDurationHour(estimated == null ? "" : Math.floor(estimated / 60));
       setDurationMinute(estimated == null ? "" : estimated % 60);
       setActualHour(Math.floor(actual / 60));
       setActualMinute(actual % 60);
       setCompleted(Boolean(initialTodo.completed));
-      setScheduledDate(initialTodo.reminder?.date ?? initialTodo.schedule?.date ?? formatDateForInput(new Date()));
-      setScheduledHour(h ?? defaultTime.hour);
-      setScheduledMinute(m ?? "00");
     } else {
-      setItemType("todo");
       setTitle("");
       setCategory(localStorage.getItem("last-category") || "学習");
       setPriority("medium");
@@ -88,9 +53,6 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
       setActualHour(0);
       setActualMinute(0);
       setCompleted(false);
-      setScheduledDate(formatDateForInput(new Date()));
-      setScheduledHour(defaultTime.hour);
-      setScheduledMinute("00");
     }
 
     setShowCategoryList(false);
@@ -100,19 +62,6 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
   if (!open) return null;
 
   const hasEstimated = durationHour !== "" || durationMinute !== "";
-
-  const switchToTodo = () => {
-    setItemType("todo");
-    if (priority === "reminder") {
-      setPriority("medium");
-    }
-  };
-
-  const switchToReminder = () => {
-    setItemType("reminder");
-    setPriority("reminder");
-    setCompleted(false);
-  };
 
   const handleDeleteCategory = (targetCategory) => {
     if (targetCategory === "その他") return;
@@ -125,53 +74,39 @@ export default function TodoModal({ open, mode = "add", initialTodo, categories,
     event.preventDefault();
     if (!title.trim()) return;
 
-    const finalType = isEditMode ? getInitialType(initialTodo) : itemType;
     const estimatedMinutes = hasEstimated ? Number(durationHour || 0) * 60 + Number(durationMinute || 0) : null;
     const actualMinutes = Number(actualHour || 0) * 60 + Number(actualMinute || 0);
 
     let finalCategory = isEditMode ? initialTodo?.category ?? category : category;
 
     if (!isEditMode && category === "__new__") {
-  finalCategory = newCategory.trim().slice(0, 30);
-  if (!finalCategory) return;
-  onAddCategory?.(finalCategory);
-}
+      finalCategory = newCategory.trim().slice(0, 30);
+      if (!finalCategory) return;
+      onAddCategory?.(finalCategory);
+    }
 
-localStorage.setItem("last-category", finalCategory);
+    localStorage.setItem("last-category", finalCategory);
 
-    const finalPriority =
-      finalType === "reminder"
-        ? "reminder"
-        : ["high", "medium", "low"].includes(priority)
-          ? priority
-          : "medium";
+    const finalPriority = ["high", "medium", "low"].includes(priority) ? priority : "medium";
 
     onSave({
       ...initialTodo,
       id: initialTodo?.id,
-      type: finalType,
+      type: "todo",
       title: title.trim().slice(0, 30),
       category: finalCategory,
       priority: finalPriority,
       rank: initialTodo?.rank,
-      estimatedMinutes: finalType === "todo" ? estimatedMinutes : 0,
-      actualMinutes: finalType === "todo" ? actualMinutes : 0,
-actualSeconds: finalType === "todo" ? actualMinutes * 60 : 0,
-workedMinutes: finalType === "todo" ? actualMinutes : 0,
-focusMinutes: finalType === "todo" ? actualMinutes : 0,
-elapsedMinutes: finalType === "todo" ? actualMinutes : 0,
-elapsedSeconds: finalType === "todo" ? actualMinutes * 60 : 0,
-completed: finalType === "todo" ? completed : Boolean(initialTodo?.completed),
+      estimatedMinutes,
+      actualMinutes,
+      actualSeconds: actualMinutes * 60,
+      workedMinutes: actualMinutes,
+      focusMinutes: actualMinutes,
+      elapsedMinutes: actualMinutes,
+      elapsedSeconds: actualMinutes * 60,
+      completed,
       schedule: null,
-      reminder:
-        finalType === "reminder"
-          ? {
-              mode: "start",
-              date: scheduledDate,
-              time: `${scheduledHour}:${scheduledMinute}`,
-              reminderLead: "0",
-            }
-          : null,
+      reminder: null,
     });
 
     onClose();
@@ -199,33 +134,19 @@ completed: finalType === "todo" ? completed : Boolean(initialTodo?.completed),
           </button>
         </div>
 
-        {!isEditMode && !compactTimerEdit && (
-          <div className="mb-4 grid grid-cols-2 overflow-hidden rounded-2xl border border-slate-100 bg-white">
-            <button type="button" onClick={switchToTodo} className={`h-12 text-sm font-black ${itemType === "todo" ? "bg-emerald-500 text-white" : "text-slate-400"}`}>
-              Todo
-            </button>
-
-            <button type="button" onClick={switchToReminder} className={`h-12 text-sm font-black ${itemType === "reminder" ? "bg-emerald-500 text-white" : "text-slate-400"}`}>
-              リマインド
-            </button>
-          </div>
-        )}
-
         <label className="mb-4 block">
-          <span className="mb-2 block text-sm font-black text-slate-600">
-            {itemType === "todo" ? "タスク名" : "リマインド名"}
-          </span>
+          <span className="mb-2 block text-sm font-black text-slate-600">タスク名</span>
 
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value.slice(0, 30))}
             maxLength={30}
-            placeholder={itemType === "todo" ? "例：英単語を30個覚える" : "例：13時から会議"}
+            placeholder="例：英単語を30個覚える"
             className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
           />
         </label>
 
-        {!isEditMode && itemType === "todo" && (
+        {!isEditMode && (
           <div className="mb-4">
             <span className="mb-2 block text-sm font-black text-slate-600">重要度</span>
 
@@ -344,65 +265,63 @@ completed: finalType === "todo" ? completed : Boolean(initialTodo?.completed),
           </div>
         )}
 
-        {itemType === "todo" && (
-          <div className="mb-4">
-            <span className="mb-2 block text-sm font-black text-slate-600">予定時間（任意）</span>
+        <div className="mb-4">
+          <span className="mb-2 block text-sm font-black text-slate-600">予定時間（任意）</span>
 
-            <div className="grid grid-cols-2 gap-3">
-              <select
-                value={durationHour}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setDurationHour(value);
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={durationHour}
+              onChange={(e) => {
+                const value = e.target.value;
+                setDurationHour(value);
 
-                  if (value !== "" && durationMinute === "") {
-                    setDurationMinute(0);
-                  }
+                if (value !== "" && durationMinute === "") {
+                  setDurationMinute(0);
+                }
 
-                  if (value === "" && durationMinute === 0) {
-                    setDurationMinute("");
-                  }
-                }}
-                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-              >
-                <option value="">未設定</option>
-                {Array.from({ length: 13 }, (_, i) => (
-                  <option key={i} value={i}>{i}時間</option>
-                ))}
-              </select>
+                if (value === "" && durationMinute === 0) {
+                  setDurationMinute("");
+                }
+              }}
+              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+            >
+              <option value="">未設定</option>
+              {Array.from({ length: 13 }, (_, i) => (
+                <option key={i} value={i}>{i}時間</option>
+              ))}
+            </select>
 
-              <select
-                value={durationMinute}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setDurationMinute(value);
+            <select
+              value={durationMinute}
+              onChange={(e) => {
+                const value = e.target.value;
+                setDurationMinute(value);
 
-                  if (value !== "" && durationHour === "") {
-                    setDurationHour(0);
-                  }
+                if (value !== "" && durationHour === "") {
+                  setDurationHour(0);
+                }
 
-                  if (value === "" && durationHour === 0) {
-                    setDurationHour("");
-                  }
-                }}
-                className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-              >
-                <option value="">未設定</option>
-                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
-                  <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
-                ))}
-              </select>
-            </div>
-
-            {!hasEstimated && (
-              <p className="mt-2 text-[11px] font-bold leading-relaxed text-slate-400">
-                入力すると予定と実測の差を振り返りやすくなります。
-              </p>
-            )}
+                if (value === "" && durationHour === 0) {
+                  setDurationHour("");
+                }
+              }}
+              className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
+            >
+              <option value="">未設定</option>
+              {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
+                <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
+              ))}
+            </select>
           </div>
-        )}
 
-        {isEditMode && itemType === "todo" && (
+          {!hasEstimated && (
+            <p className="mt-2 text-[11px] font-bold leading-relaxed text-slate-400">
+              入力すると予定と実測の差を振り返りやすくなります。
+            </p>
+          )}
+        </div>
+
+        {isEditMode && (
           <div className="mb-4">
             <span className="mb-2 block text-sm font-black text-slate-600">実測時間</span>
 
@@ -427,56 +346,6 @@ completed: finalType === "todo" ? completed : Boolean(initialTodo?.completed),
                 ))}
               </select>
             </div>
-          </div>
-        )}
-
-        {itemType === "reminder" && (
-          <div className="mb-4 rounded-[20px] border border-slate-100 bg-slate-50/70 p-3.5">
-            <p className="mb-3 text-sm font-black text-slate-900">リマインド時刻</p>
-
-            <label className="mb-4 block w-fit">
-              <span className="mb-2 block text-sm font-black text-slate-600">日付</span>
-              <input
-                type="date"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-                className="h-12 w-[220px] rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-              />
-            </label>
-
-            <div>
-              <span className="mb-2 block text-sm font-black text-slate-600">時間</span>
-
-              <div className="grid grid-cols-2 gap-3">
-                <select
-                  value={scheduledHour}
-                  onChange={(e) => setScheduledHour(e.target.value)}
-                  className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-                >
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={String(i).padStart(2, "0")}>
-                      {String(i).padStart(2, "0")}時
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={scheduledMinute}
-                  onChange={(e) => setScheduledMinute(e.target.value)}
-                  className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-emerald-400"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i * 5).map((minute) => (
-                    <option key={minute} value={String(minute).padStart(2, "0")}>
-                      {String(minute).padStart(2, "0")}分
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <p className="mt-3 text-[11px] font-bold leading-relaxed text-slate-400">
-              ※ 通知機能は今後実装予定。今はリマインダ情報として保存します。
-            </p>
           </div>
         )}
 
