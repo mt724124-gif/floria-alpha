@@ -38,26 +38,26 @@ const categoryStyles = {
 const statusStyles = {
   pending: {
     label: "未達成",
-    text: "text-amber-600",
-    badge: "bg-amber-500 text-white",
-    border: "border-amber-100",
-    bg: "bg-amber-50/50",
+    text: "text-rose-600",
+    badge: "bg-rose-500 text-white",
+    border: "border-rose-200",
+    bg: "bg-rose-50/65",
     empty: "未達成タスクはありません。",
   },
   postponed: {
     label: "延期",
-    text: "text-orange-600",
-    badge: "bg-orange-400 text-white",
-    border: "border-orange-100",
-    bg: "bg-orange-50/60",
+    text: "text-amber-600",
+    badge: "bg-amber-500 text-white",
+    border: "border-amber-200",
+    bg: "bg-amber-50/75",
     empty: "延期タスクはありません。",
   },
   completed: {
     label: "達成",
-    text: "text-slate-600",
-    badge: "bg-slate-400 text-white",
-    border: "border-slate-100",
-    bg: "bg-slate-50/80",
+    text: "text-emerald-600",
+    badge: "bg-emerald-500 text-white",
+    border: "border-emerald-200",
+    bg: "bg-emerald-50/75",
     empty: "達成タスクはまだありません。",
   },
 };
@@ -252,7 +252,11 @@ function TaskRow({
   dragging = false,
   dragOffsetY = 0,
   dropTarget = false,
-  onEdit,
+  dragOriginStatus = null,
+  dragTargetStatus = null,
+recentlyMoved = false,
+recentMovedOriginStatus = null,
+onEdit,
   onDelete,
   onDragHandlePointerDown,
   onChangePostponeDate,
@@ -260,7 +264,27 @@ function TaskRow({
   baseDateKey,
 }) {
   const style = categoryStyles[task.category] ?? categoryStyles["その他"];
-  const Icon = style.icon;
+  const statusStyle = statusStyles[status] ?? statusStyles.pending;
+const originStatus = dragOriginStatus ?? status;
+const targetStatus = dragTargetStatus ?? status;
+const recentOriginStyle = statusStyles[recentMovedOriginStatus] ?? null;
+const originStyle = statusStyles[originStatus] ?? statusStyle;
+const targetStyle = statusStyles[targetStatus] ?? statusStyle;
+
+const dragHandleOuterClass = dragging
+  ? `${originStyle.border} bg-white ${originStyle.text}`
+  : "";
+
+const dragHandleInnerClass = dragging
+  ? `${targetStyle.bg} ${targetStyle.text}`
+  : "";
+
+const recentlyMovedHandleClass =
+  recentlyMoved && recentOriginStyle
+    ? `${recentOriginStyle.border} border-2 bg-white ${recentOriginStyle.text} shadow-[0_0_0_3px_rgba(255,255,255,0.85)]`
+    : "";
+
+const Icon = style.icon;
   const completed = isCompleted(task);
   const postponed = isPostponed(task);
   const [swipeX, setSwipeX] = useState(0);
@@ -365,40 +389,48 @@ function TaskRow({
               ? { transform: `translate3d(${swipeX}px, 0, 0)` }
               : undefined
         }
-        className={`relative z-10 px-3 py-2 transition-transform ${
-          dragging
-            ? "pointer-events-none z-[1000] rounded-[16px] bg-white opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.20)] ring-1 ring-slate-200 duration-100"
-            : "bg-white duration-200"
-        }`}
+        className={`relative z-10 px-3 py-2 transition-all ${
+  dragging
+    ? "pointer-events-none z-[1000] rounded-[16px] bg-white opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.20)] ring-1 ring-slate-200 duration-100"
+    : "bg-white duration-200"
+}`}
       >
         <div className="flex min-h-[48px] items-center gap-2">
           <button
-            type="button"
-            aria-label="分類を移動"
-            disabled={disabled}
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => {
-              if (disabled) return;
-              onDragHandlePointerDown(event, task.id);
-            }}
-            className={`flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
-              disabled
-                ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
-                : dragging
-                  ? "border-slate-900 bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
-                  : status === "completed"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-600"
-                    : status === "postponed"
-                      ? "border-orange-200 bg-orange-50 text-orange-500"
-                      : "border-amber-200 bg-amber-50 text-amber-500"
-            }`}
-          >
-            <GripVertical className={`h-5 w-5 transition-transform ${dragging ? "scale-110" : "scale-100"}`} />
-          </button>
+  type="button"
+  aria-label="分類を移動"
+  disabled={disabled}
+  onClick={(event) => event.stopPropagation()}
+  onPointerDown={(event) => {
+    if (disabled) return;
+    onDragHandlePointerDown(event, task.id);
+  }}
+  className={`relative flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
+  disabled
+    ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
+    : dragging
+      ? `${dragHandleOuterClass} border-2 shadow-[0_6px_14px_rgba(15,23,42,0.16)]`
+      : recentlyMoved
+        ? recentlyMovedHandleClass
+        : status === "completed"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+          : status === "postponed"
+            ? "border-amber-200 bg-amber-50 text-amber-600"
+            : "border-rose-200 bg-rose-50 text-rose-600"
+}`}
+>
+  {dragging && (
+    <span className={`absolute inset-1 rounded-xl ${dragHandleInnerClass}`} />
+  )}
 
-          <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-2xl ${style.bg}`}>
-            <Icon className={`h-5 w-5 ${style.text}`} strokeWidth={2.2} />
-          </div>
+  <GripVertical
+    className={`relative z-10 h-5 w-5 transition-transform ${
+      dragging ? "scale-110" : "scale-100"
+    }`}
+  />
+</button>
+
+          <div className="hidden" />
 
           <div className="min-w-0 flex-1 touch-manipulation select-none">
             <p className={`flex items-start gap-1 text-[13px] font-bold leading-tight tracking-[-0.01em] ${
@@ -492,12 +524,19 @@ function TaskSection({
   baseDateKey,
 }) {
   const tasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
+  const [openStatusKeys, setOpenStatusKeys] = useState(statusOrder);
+  const [showAllStatuses, setShowAllStatuses] = useState(false);
   const [draggingId, setDraggingId] = useState(null);
   const [dragOffsetY, setDragOffsetY] = useState(0);
   const [dropTargetId, setDropTargetId] = useState(null);
   const [dropTargetStatus, setDropTargetStatus] = useState(null);
+  const [recentMovedTaskId, setRecentMovedTaskId] = useState(null);
+  const [recentMovedStatus, setRecentMovedStatus] = useState(null);
+  const [recentMovedOriginStatus, setRecentMovedOriginStatus] = useState(null);
+  const recentMovedTimerRef = useRef(null);
   const draggingIdRef = useRef(null);
   const startYRef = useRef(0);
+  const startScrollYRef = useRef(0);
   const pendingDropRef = useRef({ targetId: null, targetStatus: null });
   const longPressTimerRef = useRef(null);
   const longPressStartRef = useRef({ x: 0, y: 0, id: null });
@@ -515,6 +554,7 @@ function TaskSection({
     if (disabled) return;
     draggingIdRef.current = id;
     startYRef.current = clientY;
+    startScrollYRef.current = window.scrollY;
     previousBodyTouchActionRef.current = document.body.style.touchAction;
     previousBodyUserSelectRef.current = document.body.style.userSelect;
     document.body.style.touchAction = "none";
@@ -554,6 +594,46 @@ function TaskSection({
     }, 50);
   };
 
+  const autoScrollWhileDragging = (clientY) => {
+    const edge = 96;
+    const speed = 18;
+    const windowHeight = window.innerHeight;
+
+    if (clientY < edge) {
+      window.scrollBy({ top: -speed, behavior: "auto" });
+      return;
+    }
+
+    if (clientY > windowHeight - edge) {
+      window.scrollBy({ top: speed, behavior: "auto" });
+    }
+  };
+
+  const toggleShowAllStatuses = () => {
+    setShowAllStatuses((current) => {
+      if (current) {
+        setOpenStatusKeys([]);
+        return false;
+      }
+
+      setOpenStatusKeys(statusOrder);
+      return true;
+    });
+  };
+
+  const toggleStatusSection = (status) => {
+    setOpenStatusKeys((current) => {
+      const isOpen = showAllStatuses || current.includes(status);
+
+      if (isOpen) {
+        setShowAllStatuses(false);
+        return current.filter((key) => key !== status);
+      }
+
+      return [...current, status];
+    });
+  };
+
   useEffect(() => {
     const handlePointerMove = (event) => {
       if (longPressTimerRef.current && !draggingIdRef.current) {
@@ -565,7 +645,14 @@ function TaskSection({
       if (!draggingIdRef.current) return;
       event.preventDefault();
 
-      setDragOffsetY(event.clientY - startYRef.current);
+      autoScrollWhileDragging(event.clientY);
+
+      const nextOffsetY =
+        event.clientY -
+        startYRef.current +
+        (window.scrollY - startScrollYRef.current);
+
+      setDragOffsetY(nextOffsetY);
 
       const element = document.elementFromPoint(event.clientX, event.clientY);
       const targetElement = element?.closest?.("[data-review-task-id]");
@@ -591,16 +678,21 @@ function TaskSection({
         const sections = Array.from(document.querySelectorAll("[data-drop-status]"));
         let nearest = null;
         let nearestDistance = Infinity;
+
         sections.forEach((section) => {
           const rect = section.getBoundingClientRect();
           const centerY = rect.top + rect.height / 2;
           const distance = Math.abs(event.clientY - centerY);
+
           if (distance < nearestDistance) {
             nearest = section;
             nearestDistance = distance;
           }
         });
-        if (nearest && nearestDistance < 220) targetStatus = nearest.dataset?.dropStatus ?? null;
+
+        if (nearest && nearestDistance < 220) {
+          targetStatus = nearest.dataset?.dropStatus ?? null;
+        }
       }
 
       setDropTargetId(targetId || null);
@@ -620,7 +712,25 @@ function TaskSection({
       const { targetStatus } = pendingDropRef.current;
 
       if (targetStatus) {
+        const sourceTask = tasks.find((task) => task.id === id);
+        const sourceStatus = sourceTask ? getReviewStatus(sourceTask) : null;
+
         onMoveTaskToStatus(id, targetStatus);
+
+        setRecentMovedTaskId(id);
+        setRecentMovedStatus(targetStatus);
+        setRecentMovedOriginStatus(sourceStatus);
+
+        if (recentMovedTimerRef.current) {
+          clearTimeout(recentMovedTimerRef.current);
+        }
+
+        recentMovedTimerRef.current = setTimeout(() => {
+          setRecentMovedTaskId(null);
+          setRecentMovedStatus(null);
+          setRecentMovedOriginStatus(null);
+          recentMovedTimerRef.current = null;
+        }, 1200);
       }
 
       stopDragging();
@@ -638,11 +748,41 @@ function TaskSection({
     };
   }, [disabled, onMoveTaskToStatus]);
 
+  useEffect(() => {
+    return () => {
+      if (recentMovedTimerRef.current) {
+        clearTimeout(recentMovedTimerRef.current);
+        recentMovedTimerRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <section className="relative z-20 mb-3 overflow-visible rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
-      <div className="mb-2 flex items-center px-1">
-  <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">今日のタスク</h2>
-</div>
+      <div className="mb-2 flex items-center justify-between gap-3 px-1">
+        <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">今日のタスク</h2>
+
+        {tasks.length > 0 && (
+          <button
+            type="button"
+            onClick={toggleShowAllStatuses}
+            className="flex h-9 shrink-0 items-center gap-2 rounded-full px-1 active:scale-[0.98]"
+          >
+            <span className="text-[12px] font-black text-slate-700">全表示</span>
+            <span
+              className={`relative block h-7 w-12 rounded-full transition-colors ${
+                showAllStatuses ? "bg-emerald-500" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`absolute left-1 top-1 block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  showAllStatuses ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </span>
+          </button>
+        )}
+      </div>
 
       {tasks.length === 0 ? (
         <div className="rounded-[18px] bg-emerald-50 px-4 py-5 text-center text-[13px] font-bold text-emerald-600">
@@ -653,6 +793,7 @@ function TaskSection({
           {statusOrder.map((status) => {
             const style = statusStyles[status];
             const sectionTasks = tasks.filter((task) => getReviewStatus(task) === status);
+            const collapsed = showAllStatuses ? false : !openStatusKeys.includes(status);
 
             return (
               <div
@@ -662,56 +803,80 @@ function TaskSection({
                   dropTargetStatus === status ? "ring-2 ring-emerald-200" : ""
                 }`}
               >
-                <div className="mb-1.5 flex items-center gap-2 px-1">
-  <p className={`text-[14px] font-black ${style.text}`}>{style.label}</p>
-  <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-black ${style.badge}`}>
-    {sectionTasks.length}
-  </span>
+                <button
+                  type="button"
+                  onClick={() => toggleStatusSection(status)}
+                  className="mb-1.5 flex w-full items-center gap-2 rounded-2xl px-1 py-0.5 active:bg-white/70"
+                >
+                  <p className={`text-[14px] font-black ${style.text}`}>{style.label}</p>
 
-  {status === "pending" && sectionTasks.length > 0 && !disabled && (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onPostponeAllPending?.();
-      }}
-      className="ml-auto rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-black text-orange-600 active:scale-[0.98]"
-    >
-      一括延期
-    </button>
-  )}
+                  <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-black ${style.badge}`}>
+                    {sectionTasks.length}
+                  </span>
 
-  {status === "postponed" && sectionTasks.length > 0 && (
-    <span className="ml-auto text-[11px] font-black text-orange-500">日付変更可</span>
-  )}
-</div>
-
-                <div className="overflow-visible rounded-[16px] bg-white">
-                  {sectionTasks.length === 0 ? (
-                    <div className="rounded-[16px] bg-white/75 px-4 py-4 text-center text-[12px] font-bold text-slate-400">
-                      {style.empty}
-                    </div>
-                  ) : (
-                    sectionTasks.map((task) => (
-                      <TaskRow
-  key={task.id}
-  task={task}
-  status={status}
-  disabled={disabled}
-  dragging={draggingId === task.id}
-  dragOffsetY={draggingId === task.id ? dragOffsetY : 0}
-  dropTarget={dropTargetId === task.id}
-  onEdit={onEditTask}
-  onDelete={onDeleteTask}
-  onDragHandlePointerDown={handleDragHandlePointerDown}
-  onChangePostponeDate={onChangePostponeDate}
-  displayPostponeDate={postponeDateOverrides[task.id] ?? task.postponedToDate}
-  baseDateKey={baseDateKey}
-/>
-                    ))
+                  {status === "pending" && sectionTasks.length > 0 && !disabled && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onPostponeAllPending?.();
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onPostponeAllPending?.();
+                      }}
+                      className="ml-auto rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-black text-orange-600 active:scale-[0.98]"
+                    >
+                      一括延期
+                    </span>
                   )}
-                </div>
+
+                  {status === "postponed" && sectionTasks.length > 0 && (
+  <span className="ml-auto mr-3 text-[11px] font-black text-orange-500">
+    日付変更可
+  </span>
+)}
+
+<span className="text-[12px] font-black text-slate-400">
+  {collapsed ? "開く" : "閉じる"}
+</span>
+                </button>
+
+                {!collapsed && (
+                  <div className="overflow-visible rounded-[16px] bg-white">
+                    {sectionTasks.length === 0 ? (
+                      <div className="rounded-[16px] bg-white/75 px-4 py-4 text-center text-[12px] font-bold text-slate-400">
+                        {style.empty}
+                      </div>
+                    ) : (
+                      sectionTasks.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          status={status}
+                          disabled={disabled}
+                          dragging={draggingId === task.id}
+                          dragOffsetY={draggingId === task.id ? dragOffsetY : 0}
+                          dropTarget={dropTargetId === task.id}
+                          dragOriginStatus={status}
+                          dragTargetStatus={recentMovedTaskId === task.id ? recentMovedStatus : dropTargetStatus}
+                          recentlyMoved={recentMovedTaskId === task.id}
+                          recentMovedOriginStatus={recentMovedTaskId === task.id ? recentMovedOriginStatus : null}
+                          onEdit={onEditTask}
+                          onDelete={onDeleteTask}
+                          onDragHandlePointerDown={handleDragHandlePointerDown}
+                          onChangePostponeDate={onChangePostponeDate}
+                          displayPostponeDate={postponeDateOverrides[task.id] ?? task.postponedToDate}
+                          baseDateKey={baseDateKey}
+                        />
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1052,30 +1217,25 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
   const handlePostponeAllPending = () => {
   if (isConfirmed) return;
 
-  setPostponeDateOverrides((current) => {
-    const next = { ...current };
-
-    activeTasks
-      .filter((task) => getReviewStatus(task) === "pending")
-      .forEach((task) => {
-        next[task.id] = task.postponedToDate ?? defaultPostponeDateKey;
-      });
-
-    return next;
-  });
-
   setAppData((current) => {
     const currentDateTasks = (current.tasks ?? []).filter(
       (task) => getTaskDateKey(task, dateKey) === dateKey
     );
 
-    const pendingIds = new Set(
-      currentDateTasks
-        .filter((task) => getReviewStatus(task) === "pending")
-        .map((task) => task.id)
+    const pendingTasks = currentDateTasks.filter(
+      (task) => getReviewStatus(task) === "pending"
     );
 
+    const pendingIds = new Set(pendingTasks.map((task) => task.id));
+
     if (pendingIds.size === 0) return current;
+
+    const previousTasks = pendingTasks.map((task) => ({ ...task }));
+    const previousWorkLogs = (current.workLogs ?? [])
+      .filter((log) => pendingIds.has(log.taskId))
+      .map((log) => ({ ...log }));
+
+    const overrideUpdates = {};
 
     const nextTasks = (current.tasks ?? []).map((task) => {
       if (!pendingIds.has(task.id)) return task;
@@ -1084,6 +1244,8 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
       const minutes = getActualMinutes(task, workLog);
       const seconds = minutes * 60;
       const nextDateKey = task.postponedToDate ?? defaultPostponeDateKey;
+
+      overrideUpdates[task.id] = nextDateKey;
 
       return {
         ...task,
@@ -1102,6 +1264,19 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
         reminder: null,
         schedule: null,
       };
+    });
+
+    setPostponeDateOverrides((currentOverrides) => ({
+      ...currentOverrides,
+      ...overrideUpdates,
+    }));
+
+    showUndoToast({
+      type: "postponeAllPending",
+      message: "未達成を一括延期しました",
+      taskTitle: `${pendingIds.size}件のタスク`,
+      previousTasks,
+      previousWorkLogs,
     });
 
     return {
@@ -1277,23 +1452,68 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
   };
 
   const undoLastAction = () => {
-    if (!undoToast) return;
+  if (!undoToast) return;
 
-    if (undoToast.type === "delete") {
-      setAppData((current) => {
-        const exists = (current.tasks ?? []).some((task) => task.id === undoToast.task.id);
-        const nextTasks = exists ? current.tasks ?? [] : [...(current.tasks ?? []), undoToast.task];
-        const restoredLogs = undoToast.workLogs ?? [];
-        const restoredIds = new Set(restoredLogs.map((log) => log.id));
-        const nextWorkLogs = [...(current.workLogs ?? []).filter((log) => !restoredIds.has(log.id)), ...restoredLogs];
-        return { ...current, tasks: nextTasks, workLogs: nextWorkLogs, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
+  if (undoToast.type === "delete") {
+    setAppData((current) => {
+      const exists = (current.tasks ?? []).some((task) => task.id === undoToast.task.id);
+      const nextTasks = exists ? current.tasks ?? [] : [...(current.tasks ?? []), undoToast.task];
+      const restoredLogs = undoToast.workLogs ?? [];
+      const restoredIds = new Set(restoredLogs.map((log) => log.id));
+      const nextWorkLogs = [
+        ...(current.workLogs ?? []).filter((log) => !restoredIds.has(log.id)),
+        ...restoredLogs,
+      ];
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        workLogs: nextWorkLogs,
+        dailyRecords: syncCurrentDateRecords(current, nextTasks),
+      };
+    });
+  }
+
+  if (undoToast.type === "postponeAllPending") {
+    setAppData((current) => {
+      const previousTasks = undoToast.previousTasks ?? [];
+      const previousTaskById = new Map(previousTasks.map((task) => [task.id, task]));
+      const previousIds = new Set(previousTasks.map((task) => task.id));
+
+      const nextTasks = (current.tasks ?? []).map((task) =>
+        previousTaskById.has(task.id)
+          ? previousTaskById.get(task.id)
+          : task
+      );
+
+      const restoredLogs = undoToast.previousWorkLogs ?? [];
+      const restoredTaskIds = new Set(restoredLogs.map((log) => log.taskId));
+
+      const nextWorkLogs = [
+        ...(current.workLogs ?? []).filter((log) => !previousIds.has(log.taskId) && !restoredTaskIds.has(log.taskId)),
+        ...restoredLogs,
+      ];
+
+      setPostponeDateOverrides((currentOverrides) => {
+        const next = { ...currentOverrides };
+        previousIds.forEach((id) => {
+          delete next[id];
+        });
+        return next;
       });
-    }
 
+      return {
+        ...current,
+        tasks: nextTasks,
+        workLogs: nextWorkLogs,
+        dailyRecords: syncCurrentDateRecords(current, nextTasks),
+      };
+    });
+  }
 
-    setUndoToast(null);
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-  };
+  setUndoToast(null);
+  if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+};
 
   const confirmReview = () => {
   if (!canConfirm) return;
