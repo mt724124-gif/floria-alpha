@@ -5,12 +5,14 @@ import mountainImage from "./assets/mountain.png";
 import {
   BookOpen,
   Briefcase,
+  CalendarDays,
   Check,
   ChevronRight,
   Clock,
   Dumbbell,
   FileText,
   Flag,
+  GripVertical,
   Pencil,
   RotateCcw,
   StickyNote,
@@ -22,6 +24,7 @@ import {
 import {
   getOrCreateDailyRecord,
   confirmDailyRecord,
+  unconfirmDailyRecord,
   syncDailyRecordFromTasks,
 } from "./utils/dailyRecords";
 
@@ -32,16 +35,48 @@ const categoryStyles = {
   その他: { icon: FileText, bg: "bg-slate-50", text: "text-slate-500", badge: "bg-slate-100 text-slate-500" },
 };
 
+const statusStyles = {
+  pending: {
+    label: "未達成",
+    text: "text-amber-600",
+    badge: "bg-amber-500 text-white",
+    border: "border-amber-100",
+    bg: "bg-amber-50/50",
+    empty: "未達成タスクはありません。",
+  },
+  postponed: {
+    label: "延期",
+    text: "text-orange-600",
+    badge: "bg-orange-400 text-white",
+    border: "border-orange-100",
+    bg: "bg-orange-50/60",
+    empty: "延期タスクはありません。",
+  },
+  completed: {
+    label: "達成",
+    text: "text-slate-600",
+    badge: "bg-slate-400 text-white",
+    border: "border-slate-100",
+    bg: "bg-slate-50/80",
+    empty: "達成タスクはまだありません。",
+  },
+};
+
+const statusOrder = ["pending", "postponed", "completed"];
 const initialCategories = ["学習", "仕事", "健康", "その他"];
 
 function getTodayKey() {
   return new Date().toLocaleDateString("sv-SE");
 }
 
-function getTomorrowKey(dateKey) {
+function addDaysToDateKey(dateKey, diffDays) {
   const date = new Date(`${dateKey}T00:00:00`);
-  date.setDate(date.getDate() + 1);
+  date.setDate(date.getDate() + diffDays);
   return date.toLocaleDateString("sv-SE");
+}
+
+function getTomorrowKey(dateKey) {
+  return addDaysToDateKey(dateKey, 1);
 }
 
 function formatMinutes(minutes = 0) {
@@ -59,26 +94,54 @@ function formatJapaneseDate(dateKey) {
   return `${date.getMonth() + 1}月${date.getDate()}日（${weekdays[date.getDay()]}）`;
 }
 
+function formatPostponeButtonLabel(dateKey, baseDateKey) {
+  const targetDateKey = dateKey ?? getTomorrowKey(baseDateKey ?? getTodayKey());
+  const tomorrowKey = getTomorrowKey(baseDateKey ?? getTodayKey());
+  if (targetDateKey === tomorrowKey) return "明日";
+  const date = new Date(`${targetDateKey}T00:00:00`);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
 function getTaskDateKey(task, fallbackDateKey) {
   return task?.targetDate ?? task?.date ?? task?.createdDate ?? fallbackDateKey;
 }
 
-function getInitialActualMinutes(task, workLog) {
+function getActualMinutes(task, workLog) {
   const candidates = [
     workLog?.minutes,
     task?.actualMinutes,
     task?.workedMinutes,
     task?.focusMinutes,
     task?.elapsedMinutes,
-    task?.estimatedMinutes,
-    15,
   ];
   const found = candidates.find((value) => Number(value) > 0);
-  return Number(found ?? 15);
+  return Number(found ?? 0);
+}
+
+function getInitialActualMinutes(task, workLog) {
+  const minutes = getActualMinutes(task, workLog);
+  return minutes > 0 ? minutes : 15;
+}
+
+function hasPlannedTime(task) {
+  return Number(task?.estimatedMinutes) > 0 || Number(task?.plannedMinutes) > 0;
 }
 
 function isCompleted(task) {
+  if (task?.taskStatus === "postponed") return false;
+  if (task?.taskStatus === "pending") return false;
+  if (task?.taskStatus === "deleted") return false;
   return task?.taskStatus === "completed" || task?.completed === true;
+}
+
+function isPostponed(task) {
+  return task?.taskStatus === "postponed";
+}
+
+function getReviewStatus(task) {
+  if (isPostponed(task)) return "postponed";
+  if (isCompleted(task)) return "completed";
+  return "pending";
 }
 
 function StatItem({ icon: Icon, label, value }) {
@@ -152,7 +215,7 @@ function WorkLogModal({ open, targetTask, targetWorkLog, completeAfterSave, onCl
           <p className="text-xs font-black text-emerald-600">対象タスク</p>
           <p className="mt-1 text-base font-black text-slate-950">{targetTask?.title}</p>
           <p className="mt-1 text-xs font-bold text-slate-400">
-            {completeAfterSave ? "0分のままでは達成にできません。実施した時間を入力してください。" : "入力した時間が、このタスクの実測作業時間になります。"}
+            予定時間があるタスクは、実測時間を入力すると達成に分類できます。
           </p>
         </div>
 
@@ -174,18 +237,32 @@ function WorkLogModal({ open, targetTask, targetWorkLog, completeAfterSave, onCl
 
         <div className="grid grid-cols-2 gap-3">
           <button type="button" onClick={onClose} className="h-14 rounded-2xl bg-slate-100 text-base font-black text-slate-600 active:scale-[0.99]">キャンセル</button>
-          <button type="submit" className="h-14 rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]">保存する</button>
+          <button type="submit" className="h-14 rounded-2xl bg-emerald-500 text-base font-black text-white active:scale-[0.99]">保存して達成にする</button>
         </div>
       </form>
     </div>
   );
 }
 
-function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, onEdit, onDelete, onPostponeTomorrow }) {
+
+function TaskRow({
+  task,
+  status,
+  disabled = false,
+  dragging = false,
+  dragOffsetY = 0,
+  dropTarget = false,
+  onEdit,
+  onDelete,
+  onDragHandlePointerDown,
+  onChangePostponeDate,
+  displayPostponeDate,
+  baseDateKey,
+}) {
   const style = categoryStyles[task.category] ?? categoryStyles["その他"];
   const Icon = style.icon;
   const completed = isCompleted(task);
-
+  const postponed = isPostponed(task);
   const [swipeX, setSwipeX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const swipeStartRef = useRef({ x: 0, y: 0 });
@@ -195,7 +272,7 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
   const swipePointerIdRef = useRef(null);
 
   const startSwipe = (event) => {
-    if (disabled || completed) return;
+    if (disabled || dragging) return;
     if (event.pointerType === "mouse") return;
 
     swipePointerIdRef.current = event.pointerId;
@@ -213,7 +290,7 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
     const dx = event.clientX - swipeStartRef.current.x;
     const dy = event.clientY - swipeStartRef.current.y;
 
-    if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 0.7) {
+    if (Math.abs(dy) > 32 && Math.abs(dy) > Math.abs(dx) * 1.4) {
       swipeActiveRef.current = false;
       swipeLatestXRef.current = 0;
       setSwipeX(0);
@@ -227,7 +304,7 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
 
     if (!isSwiping) setIsSwiping(true);
 
-    const limited = Math.max(-118, Math.min(118, dx));
+    const limited = Math.max(-118, Math.min(0, dx));
     swipeLatestXRef.current = limited;
 
     if (swipeFrameRef.current) return;
@@ -259,28 +336,17 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
     setIsSwiping(false);
     setSwipeX(0);
 
-    const deleteThreshold = 84;
-    const moveTomorrowThreshold = 104;
-
-    if (finalX < -deleteThreshold) {
-      onDelete(task);
-      return;
-    }
-
-    if (finalX > moveTomorrowThreshold) {
-      onPostponeTomorrow(task);
-    }
+    if (finalX < -100) onDelete(task);
   };
 
   return (
-    <div className="relative overflow-visible border-b border-slate-100 last:border-b-0">
-      {!completed && !disabled && (
-        <div className="absolute inset-y-0 left-0 z-0 flex w-32 items-center justify-start bg-amber-50 px-4 text-amber-600">
-          <span className="text-xs font-black">{moveLabel}</span>
-        </div>
-      )}
-
-      {!completed && !disabled && (
+    <div
+      data-review-task-id={task.id}
+      className={`relative overflow-visible border-b border-slate-100 last:border-b-0 ${
+        dragging ? "z-[999]" : "z-0"
+      } ${dropTarget && !dragging ? "bg-slate-50" : "bg-white"}`}
+    >
+      {!dragging && !disabled && (
         <div className="absolute inset-y-0 right-0 z-0 flex w-28 items-center justify-end bg-red-50 px-4 text-red-500">
           <span className="mr-1.5 text-xs font-black">削除</span>
           <Trash2 className="h-5 w-5" />
@@ -292,23 +358,42 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
         onPointerMove={moveSwipe}
         onPointerUp={endSwipe}
         onPointerCancel={endSwipe}
-        style={swipeX !== 0 ? { transform: `translate3d(${swipeX}px, 0, 0)` } : undefined}
-        className="relative z-10 bg-white px-3 py-2 transition-transform duration-200"
+        style={
+          dragging
+            ? { transform: `translate3d(0, ${dragOffsetY}px, 0) scale(1.015)` }
+            : swipeX !== 0
+              ? { transform: `translate3d(${swipeX}px, 0, 0)` }
+              : undefined
+        }
+        className={`relative z-10 px-3 py-2 transition-transform ${
+          dragging
+            ? "pointer-events-none z-[1000] rounded-[16px] bg-white opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.20)] ring-1 ring-slate-200 duration-100"
+            : "bg-white duration-200"
+        }`}
       >
         <div className="flex min-h-[48px] items-center gap-2">
           <button
             type="button"
+            aria-label="分類を移動"
             disabled={disabled}
-            onClick={(event) => {
-              event.stopPropagation();
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => {
               if (disabled) return;
-              onToggle(task);
+              onDragHandlePointerDown(event, task.id);
             }}
-            className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
-              completed ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"
-            } ${disabled ? "cursor-not-allowed opacity-45" : ""}`}
+            className={`flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
+              disabled
+                ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
+                : dragging
+                  ? "border-slate-900 bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
+                  : status === "completed"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+                    : status === "postponed"
+                      ? "border-orange-200 bg-orange-50 text-orange-500"
+                      : "border-amber-200 bg-amber-50 text-amber-500"
+            }`}
           >
-            <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            <GripVertical className={`h-5 w-5 transition-transform ${dragging ? "scale-110" : "scale-100"}`} />
           </button>
 
           <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-2xl ${style.bg}`}>
@@ -317,7 +402,7 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
 
           <div className="min-w-0 flex-1 touch-manipulation select-none">
             <p className={`flex items-start gap-1 text-[13px] font-bold leading-tight tracking-[-0.01em] ${
-              completed ? "text-slate-400" : "text-slate-950"
+              completed ? "text-slate-400" : postponed ? "text-slate-700" : "text-slate-950"
             }`}>
               <span className="line-clamp-2 break-words">{task.title || "無題のタスク"}</span>
             </p>
@@ -336,39 +421,218 @@ function TaskRow({ task, disabled = false, moveLabel = "明日へ", onToggle, on
                   {formatMinutes(task.actualMinutes ?? task.workedMinutes ?? task.focusMinutes ?? task.elapsedMinutes ?? 0)}
                 </span>
               </div>
+
+              {Number(task.estimatedMinutes) > 0 && (
+                <span className="text-[11px] font-bold text-slate-400">
+                  予定 {formatMinutes(task.estimatedMinutes)}
+                </span>
+              )}
             </div>
           </div>
 
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (disabled) return;
-              onEdit(task);
-            }}
-            className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
-              disabled ? "cursor-not-allowed text-slate-200" : "text-emerald-500 active:bg-emerald-50"
-            }`}
-          >
-            <Pencil className="h-[17px] w-[17px]" />
-          </button>
+          {postponed ? (
+  <div className="relative h-8 w-[72px] shrink-0 overflow-hidden rounded-xl border border-orange-100 bg-orange-50">
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-1 px-2 text-[11px] font-black text-orange-600">
+      <span>{formatPostponeButtonLabel(displayPostponeDate, baseDateKey)}</span>
+      <CalendarDays className="h-3.5 w-3.5" />
+    </div>
+
+    <input
+  type="date"
+  disabled={disabled}
+  defaultValue={displayPostponeDate ?? getTomorrowKey(baseDateKey)}
+  min={getTomorrowKey(baseDateKey)}
+  onChange={(event) => {
+    if (disabled) return;
+    onChangePostponeDate(task, event.target.value);
+  }}
+  className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
+/>
+  </div>
+) : (
+            <button
+              type="button"
+              disabled={disabled}
+             onClick={(event) => {
+  event.stopPropagation();
+  if (disabled) return;
+  onEdit(task);
+}}
+              className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
+                disabled ? "cursor-not-allowed text-slate-200" : "text-emerald-500 active:bg-emerald-50"
+              }`}
+            >
+              <Pencil className="h-[17px] w-[17px]" />
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function TaskSection({ record, disabled = false, moveLabel = "明日へ", onToggleTask, onEditTask, onDeleteTask, onPostponeTomorrow }) {
+function TaskSection({
+  record,
+  disabled = false,
+  onEditTask,
+  onDeleteTask,
+  onMoveTaskToStatus,
+  onChangePostponeDate,
+  postponeDateOverrides = {},
+  baseDateKey,
+}) {
   const tasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
-  const incompleteTasks = tasks.filter((task) => !isCompleted(task));
-  const completedTasks = tasks.filter((task) => isCompleted(task));
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  const [dropTargetId, setDropTargetId] = useState(null);
+  const [dropTargetStatus, setDropTargetStatus] = useState(null);
+  const draggingIdRef = useRef(null);
+  const startYRef = useRef(0);
+  const pendingDropRef = useRef({ targetId: null, targetStatus: null });
+  const longPressTimerRef = useRef(null);
+  const longPressStartRef = useRef({ x: 0, y: 0, id: null });
+  const previousBodyTouchActionRef = useRef("");
+  const previousBodyUserSelectRef = useRef("");
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const beginDragging = (id, clientY) => {
+    if (disabled) return;
+    draggingIdRef.current = id;
+    startYRef.current = clientY;
+    previousBodyTouchActionRef.current = document.body.style.touchAction;
+    previousBodyUserSelectRef.current = document.body.style.userSelect;
+    document.body.style.touchAction = "none";
+    document.body.style.userSelect = "none";
+    setDraggingId(id);
+    setDragOffsetY(0);
+    pendingDropRef.current = { targetId: null, targetStatus: null };
+    setDropTargetId(null);
+    setDropTargetStatus(null);
+  };
+
+  const stopDragging = () => {
+    clearLongPressTimer();
+    draggingIdRef.current = null;
+    setDraggingId(null);
+    setDragOffsetY(0);
+    setDropTargetId(null);
+    setDropTargetStatus(null);
+    document.body.style.touchAction = previousBodyTouchActionRef.current;
+    document.body.style.userSelect = previousBodyUserSelectRef.current;
+  };
+
+  const handleDragHandlePointerDown = (event, id) => {
+    if (disabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearLongPressTimer();
+
+    longPressStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      id,
+    };
+
+    longPressTimerRef.current = setTimeout(() => {
+      beginDragging(id, longPressStartRef.current.y);
+    }, 50);
+  };
+
+  useEffect(() => {
+    const handlePointerMove = (event) => {
+      if (longPressTimerRef.current && !draggingIdRef.current) {
+        const dx = Math.abs(event.clientX - longPressStartRef.current.x);
+        const dy = Math.abs(event.clientY - longPressStartRef.current.y);
+        if (dx > 8 || dy > 8) clearLongPressTimer();
+      }
+
+      if (!draggingIdRef.current) return;
+      event.preventDefault();
+
+      setDragOffsetY(event.clientY - startYRef.current);
+
+      const element = document.elementFromPoint(event.clientX, event.clientY);
+      const targetElement = element?.closest?.("[data-review-task-id]");
+      const sectionElement = element?.closest?.("[data-drop-status]");
+      const targetId = Number(targetElement?.dataset?.reviewTaskId);
+      let targetStatus = sectionElement?.dataset?.dropStatus ?? null;
+
+      if (!targetStatus) {
+        const sections = Array.from(document.querySelectorAll("[data-drop-status]"));
+        const matched = sections.find((section) => {
+          const rect = section.getBoundingClientRect();
+          return (
+            event.clientY >= rect.top - 28 &&
+            event.clientY <= rect.bottom + 28 &&
+            event.clientX >= rect.left - 24 &&
+            event.clientX <= rect.right + 24
+          );
+        });
+        targetStatus = matched?.dataset?.dropStatus ?? null;
+      }
+
+      if (!targetStatus) {
+        const sections = Array.from(document.querySelectorAll("[data-drop-status]"));
+        let nearest = null;
+        let nearestDistance = Infinity;
+        sections.forEach((section) => {
+          const rect = section.getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.abs(event.clientY - centerY);
+          if (distance < nearestDistance) {
+            nearest = section;
+            nearestDistance = distance;
+          }
+        });
+        if (nearest && nearestDistance < 220) targetStatus = nearest.dataset?.dropStatus ?? null;
+      }
+
+      setDropTargetId(targetId || null);
+      setDropTargetStatus(targetStatus);
+
+      pendingDropRef.current = {
+        targetId: targetId || null,
+        targetStatus,
+      };
+    };
+
+    const handlePointerUp = () => {
+      if (longPressTimerRef.current) clearLongPressTimer();
+      if (!draggingIdRef.current) return;
+
+      const id = draggingIdRef.current;
+      const { targetStatus } = pendingDropRef.current;
+
+      if (targetStatus) {
+        onMoveTaskToStatus(id, targetStatus);
+      }
+
+      stopDragging();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      clearLongPressTimer();
+    };
+  }, [disabled, onMoveTaskToStatus]);
 
   return (
     <section className="relative z-20 mb-3 overflow-visible rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="mb-2 flex items-center gap-2 px-1">
         <div className="grid h-7 w-7 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-500">
-          <Check className="h-4.5 w-4.5" strokeWidth={2.5} />
+          <GripVertical className="h-4.5 w-4.5" strokeWidth={2.5} />
         </div>
         <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">今日のタスク</h2>
       </div>
@@ -379,65 +643,56 @@ function TaskSection({ record, disabled = false, moveLabel = "明日へ", onTogg
         </div>
       ) : (
         <div className="space-y-2.5">
-          <div className="rounded-[18px] border border-amber-100 bg-amber-50/50 p-2">
-            <div className="mb-1.5 flex items-center gap-2 px-1">
-              <p className="text-[14px] font-black text-amber-600">未達成</p>
-              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-amber-500 px-1.5 text-[11px] font-black text-white">
-                {incompleteTasks.length}
-              </span>
-            </div>
+          {statusOrder.map((status) => {
+            const style = statusStyles[status];
+            const sectionTasks = tasks.filter((task) => getReviewStatus(task) === status);
 
-            <div className="overflow-visible rounded-[16px] bg-white">
-              {incompleteTasks.length === 0 ? (
-                <div className="rounded-[16px] bg-white/75 px-4 py-4 text-center text-[12px] font-bold text-emerald-600">
-                  未達成タスクはありません。
+            return (
+              <div
+                key={status}
+                data-drop-status={status}
+                className={`rounded-[18px] border ${style.border} ${style.bg} p-2 ${
+                  dropTargetStatus === status ? "ring-2 ring-emerald-200" : ""
+                }`}
+              >
+                <div className="mb-1.5 flex items-center gap-2 px-1">
+                  <p className={`text-[14px] font-black ${style.text}`}>{style.label}</p>
+                  <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-black ${style.badge}`}>
+                    {sectionTasks.length}
+                  </span>
+                  {status === "postponed" && sectionTasks.length > 0 && (
+                    <span className="ml-auto text-[11px] font-black text-orange-500">日付変更可</span>
+                  )}
                 </div>
-              ) : (
-                incompleteTasks.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    disabled={disabled}
-                    moveLabel={moveLabel}
-                    onToggle={onToggleTask}
-                    onEdit={onEditTask}
-                    onDelete={onDeleteTask}
-                    onPostponeTomorrow={onPostponeTomorrow}
-                  />
-                ))
-              )}
-            </div>
-          </div>
 
-          <div className="rounded-[18px] border border-slate-100 bg-slate-50/80 p-2">
-            <div className="mb-1.5 flex items-center gap-2 px-1">
-              <p className="text-[14px] font-black text-slate-600">達成</p>
-              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-slate-400 px-1.5 text-[11px] font-black text-white">
-                {completedTasks.length}
-              </span>
-            </div>
-
-            <div className="overflow-visible rounded-[16px] bg-white">
-              {completedTasks.length === 0 ? (
-                <div className="rounded-[16px] bg-white/75 px-4 py-4 text-center text-[12px] font-bold text-slate-400">
-                  達成タスクはまだありません。
+                <div className="overflow-visible rounded-[16px] bg-white">
+                  {sectionTasks.length === 0 ? (
+                    <div className="rounded-[16px] bg-white/75 px-4 py-4 text-center text-[12px] font-bold text-slate-400">
+                      {style.empty}
+                    </div>
+                  ) : (
+                    sectionTasks.map((task) => (
+                      <TaskRow
+  key={task.id}
+  task={task}
+  status={status}
+  disabled={disabled}
+  dragging={draggingId === task.id}
+  dragOffsetY={draggingId === task.id ? dragOffsetY : 0}
+  dropTarget={dropTargetId === task.id}
+  onEdit={onEditTask}
+  onDelete={onDeleteTask}
+  onDragHandlePointerDown={handleDragHandlePointerDown}
+  onChangePostponeDate={onChangePostponeDate}
+  displayPostponeDate={postponeDateOverrides[task.id] ?? task.postponedToDate}
+  baseDateKey={baseDateKey}
+/>
+                    ))
+                  )}
                 </div>
-              ) : (
-                completedTasks.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    disabled={disabled}
-                    moveLabel={moveLabel}
-                    onToggle={onToggleTask}
-                    onEdit={onEditTask}
-                    onDelete={onDeleteTask}
-                    onPostponeTomorrow={onPostponeTomorrow}
-                  />
-                ))
-              )}
-            </div>
-          </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </section>
@@ -515,23 +770,33 @@ function UndoToast({ toast, onUndo, onClose }) {
 export default function ReviewPage({ dateKey, appData, setAppData, onNavigate }) {
   const [todoModal, setTodoModal] = useState({ open: false, mode: "edit", todo: null });
   const [workLogModal, setWorkLogModal] = useState({ open: false, task: null, completeAfterSave: false });
+  const [postponeDateOverrides, setPostponeDateOverrides] = useState({});
   const [undoToast, setUndoToast] = useState(null);
   const undoTimerRef = useRef(null);
 
   const reviewTasks = (appData?.tasks ?? []).filter((task) => getTaskDateKey(task, dateKey) === dateKey);
   const syncedDailyRecords = syncDailyRecordFromTasks(appData?.dailyRecords ?? {}, dateKey, reviewTasks);
-  const record = getOrCreateDailyRecord(syncedDailyRecords, dateKey);
-  const activeTasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
-  const incompleteTasks = activeTasks.filter((task) => !isCompleted(task));
-  const taskCount = activeTasks.length;
-  const isAutoCompletedEmptyDay = taskCount === 0;
-  const isConfirmed = record.status === "confirmed" || record.reviewCompleted === true || isAutoCompletedEmptyDay;
-  const canConfirm = !isConfirmed && incompleteTasks.length === 0;
+const record = getOrCreateDailyRecord(syncedDailyRecords, dateKey);
+const rawRecord = appData?.dailyRecords?.[dateKey] ?? {};
+
+const displayRecord = {
+  ...record,
+  status:
+    rawRecord.status === "confirmed" || rawRecord.reviewCompleted === true
+      ? "confirmed"
+      : "editing",
+  reviewCompleted:
+    rawRecord.status === "confirmed" || rawRecord.reviewCompleted === true,
+};
+
+const activeTasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
+const incompleteTasks = activeTasks.filter((task) => getReviewStatus(task) === "pending");
+const taskCount = activeTasks.length;
+const isAutoCompletedEmptyDay = taskCount === 0;
+const isConfirmed = rawRecord.status === "confirmed" || rawRecord.reviewCompleted === true;
+const canConfirm = !isConfirmed && incompleteTasks.length === 0;
   const todayKey = getTodayKey();
-  const isTodayReview = dateKey === todayKey;
-  const moveDateKey = isTodayReview ? getTomorrowKey(dateKey) : todayKey;
-  const moveLabel = isTodayReview ? "明日へ" : "今日へ";
-  const moveMessage = isTodayReview ? "明日に移動しました" : "今日に移動しました";
+  const defaultPostponeDateKey = getTomorrowKey(dateKey);
 
   const [reflectionText, setReflectionText] = useState(record.reflectionText ?? "");
 
@@ -558,6 +823,29 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     };
   }, []);
 
+  useEffect(() => {
+    if (isConfirmed) return;
+
+    setAppData((current) => {
+      const hasClonesFromThisDate = (current.tasks ?? []).some((task) => task.postponedFromDate === dateKey);
+      if (!hasClonesFromThisDate) return current;
+
+      const nextTasks = (current.tasks ?? [])
+        .filter((task) => task.postponedFromDate !== dateKey)
+        .map((task) =>
+          getTaskDateKey(task, dateKey) === dateKey
+            ? { ...task, postponedCloneId: null }
+            : task
+        );
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        dailyRecords: syncCurrentDateRecords(current, nextTasks),
+      };
+    });
+  }, [isConfirmed, dateKey, setAppData]);
+
   const showUndoToast = (toast) => {
     setUndoToast(toast);
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -572,13 +860,16 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     );
   };
 
-  const completeTask = (task) => {
+  const completeTask = (task, forcedMinutes = null) => {
     const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
-    const minutes = getInitialActualMinutes(task, workLog);
+    const minutes = forcedMinutes != null ? Number(forcedMinutes) : getActualMinutes(task, workLog);
     const seconds = minutes * 60;
 
     setAppData((current) => {
-      const nextTasks = (current.tasks ?? []).map((item) =>
+      const sourceTasks = task.postponedCloneId
+        ? (current.tasks ?? []).filter((item) => item.id !== task.postponedCloneId)
+        : (current.tasks ?? []);
+      const nextTasks = sourceTasks.map((item) =>
         item.id === task.id
           ? {
               ...item,
@@ -591,6 +882,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
               focusMinutes: minutes,
               elapsedMinutes: minutes,
               elapsedSeconds: seconds,
+              postponedToDate: null,
               type: "todo",
               reminder: null,
               schedule: null,
@@ -598,10 +890,12 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
           : item
       );
 
-      const nextWorkLogs = [
-        ...(current.workLogs ?? []).filter((log) => log.taskId !== task.id),
-        { id: Date.now(), taskId: task.id, taskTitle: task.title, category: task.category, minutes, seconds, date: dateKey },
-      ];
+      const nextWorkLogs = minutes > 0
+        ? [
+            ...(current.workLogs ?? []).filter((log) => log.taskId !== task.id),
+            { id: Date.now(), taskId: task.id, taskTitle: task.title, category: task.category, minutes, seconds, date: dateKey },
+          ]
+        : (current.workLogs ?? []).filter((log) => log.taskId !== task.id);
 
       return {
         ...current,
@@ -612,40 +906,160 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     });
   };
 
-  const handleToggleTask = (task) => {
-    if (isConfirmed) return;
-    const nextCompleted = !isCompleted(task);
+  const removePostponedClone = (tasks, sourceTask) => {
+    const cloneId = sourceTask?.postponedCloneId;
+    if (!cloneId) return tasks;
+    return tasks.filter((task) => task.id !== cloneId);
+  };
 
-    if (!nextCompleted) {
-      setAppData((current) => {
-        const nextTasks = (current.tasks ?? []).map((item) =>
-          item.id === task.id
-            ? { ...item, completed: false, taskStatus: "pending", completedAt: null }
-            : item
-        );
-        return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
-      });
-      return;
-    }
+  const createPostponedClone = (task, postponeDateKey, cloneId) => ({
+    ...task,
+    id: cloneId,
+    completed: false,
+    taskStatus: "pending",
+    completedAt: null,
+    actualMinutes: 0,
+    actualSeconds: 0,
+    workedMinutes: 0,
+    focusMinutes: 0,
+    elapsedMinutes: 0,
+    elapsedSeconds: 0,
+    targetDate: postponeDateKey,
+    date: postponeDateKey,
+    createdDate: task.createdDate ?? getTaskDateKey(task, dateKey),
+    postponedFromDate: dateKey,
+    originalTaskId: task.originalTaskId ?? task.id,
+    postponedToDate: null,
+    postponedCloneId: null,
+    type: "todo",
+    reminder: null,
+    schedule: null,
+  });
+
+  const postponeTask = (task, postponeDateKey = defaultPostponeDateKey) => {
+    if (isConfirmed) return;
 
     const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
-    const hasActualTime =
-      Number(workLog?.minutes) > 0 ||
-      Number(task.actualMinutes) > 0 ||
-      Number(task.workedMinutes) > 0 ||
-      Number(task.focusMinutes) > 0 ||
-      Number(task.elapsedMinutes) > 0;
+    const minutes = getActualMinutes(task, workLog);
+    const seconds = minutes * 60;
 
-    if (!hasActualTime) {
+    setAppData((current) => {
+      const withoutOldClone = removePostponedClone(current.tasks ?? [], task);
+      const nextTasks = withoutOldClone.map((item) =>
+        item.id === task.id
+          ? {
+              ...item,
+              completed: false,
+              taskStatus: "postponed",
+              completedAt: null,
+              actualMinutes: minutes,
+              actualSeconds: seconds,
+              workedMinutes: minutes,
+              focusMinutes: minutes,
+              elapsedMinutes: minutes,
+              elapsedSeconds: seconds,
+              postponedToDate: postponeDateKey,
+              postponedCloneId: null,
+              type: "todo",
+              reminder: null,
+              schedule: null,
+            }
+          : item
+      );
+
+      const nextWorkLogs = minutes > 0
+        ? [
+            ...(current.workLogs ?? []).filter((log) => log.taskId !== task.id),
+            { id: Date.now(), taskId: task.id, taskTitle: task.title, category: task.category, minutes, seconds, date: dateKey },
+          ]
+        : (current.workLogs ?? []).filter((log) => log.taskId !== task.id);
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        workLogs: nextWorkLogs,
+        dailyRecords: syncCurrentDateRecords(current, nextTasks),
+      };
+    });
+  };
+
+  const moveTaskToPending = (task) => {
+    if (isConfirmed) return;
+
+    setAppData((current) => {
+      const withoutOldClone = removePostponedClone(current.tasks ?? [], task);
+      const nextTasks = withoutOldClone.map((item) =>
+        item.id === task.id
+          ? {
+              ...item,
+              completed: false,
+              taskStatus: "pending",
+              completedAt: null,
+              postponedToDate: null,
+              postponedCloneId: null,
+              type: "todo",
+              reminder: null,
+              schedule: null,
+            }
+          : item
+      );
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        dailyRecords: syncCurrentDateRecords(current, nextTasks),
+      };
+    });
+
+  };
+
+  const requestCompleteTask = (task) => {
+    if (isConfirmed) return;
+
+    const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
+    const minutes = getActualMinutes(task, workLog);
+
+    if (hasPlannedTime(task) && minutes <= 0) {
       setWorkLogModal({ open: true, task, completeAfterSave: true });
       return;
     }
 
-    completeTask(task);
+    completeTask(task, minutes);
+  };
+
+  const handleMoveTaskToStatus = (taskId, nextStatus) => {
+    if (isConfirmed) return;
+
+    const task = (appData?.tasks ?? []).find((item) => item.id === taskId);
+    if (!task) return;
+
+    const currentStatus = getReviewStatus(task);
+    if (currentStatus === nextStatus) return;
+
+    if (nextStatus === "pending") {
+      moveTaskToPending(task);
+      return;
+    }
+
+    if (nextStatus === "completed") {
+      requestCompleteTask(task);
+      return;
+    }
+
+    if (nextStatus === "postponed") {
+  const nextDateKey = task.postponedToDate ?? defaultPostponeDateKey;
+
+  setPostponeDateOverrides((current) => ({
+    ...current,
+    [task.id]: nextDateKey,
+  }));
+
+  postponeTask(task, nextDateKey);
+}
   };
 
   const handleEditTask = (task) => {
-    if (isConfirmed) return;
+    if (isConfirmed || isPostponed(task)) return;
     setTodoModal({ open: true, mode: "edit", todo: task });
   };
 
@@ -655,7 +1069,8 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     const deletedLogs = (appData?.workLogs ?? []).filter((log) => log.taskId === task.id);
 
     setAppData((current) => {
-      const nextTasks = (current.tasks ?? []).filter((item) => item.id !== task.id);
+      const withoutClone = removePostponedClone(current.tasks ?? [], task);
+      const nextTasks = withoutClone.filter((item) => item.id !== task.id);
       return {
         ...current,
         tasks: nextTasks,
@@ -667,32 +1082,38 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
     showUndoToast({ type: "delete", message: "削除しました", taskTitle: task.title, task, workLogs: deletedLogs });
   };
 
-  const handlePostponeTomorrow = (task) => {
-    if (isConfirmed || isCompleted(task)) return;
+  const handleChangePostponeDate = (task, nextDateKey) => {
+  if (isConfirmed || !nextDateKey) return;
 
-    const originalDate = getTaskDateKey(task, dateKey);
+  setPostponeDateOverrides((current) => ({
+    ...current,
+    [task.id]: nextDateKey,
+  }));
 
-    setAppData((current) => {
-      const nextTasks = (current.tasks ?? []).map((item) =>
-        item.id === task.id
-          ? {
-              ...item,
-              completed: false,
-              taskStatus: "pending",
-              completedAt: null,
-              targetDate: moveDateKey,
-              date: item.date === originalDate ? moveDateKey : item.date,
-              type: "todo",
-              reminder: null,
-              schedule: null,
-            }
-          : item
-      );
-      return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
-    });
+  setAppData((current) => {
+    const currentTask = (current.tasks ?? []).find((item) => item.id === task.id);
+    if (!currentTask || !isPostponed(currentTask)) return current;
 
-    showUndoToast({ type: "postpone", message: moveMessage, taskTitle: task.title, task, originalDate, movedDate: moveDateKey });
-  };
+    const withoutOldClone = removePostponedClone(current.tasks ?? [], currentTask);
+
+    const nextTasks = withoutOldClone.map((item) =>
+      item.id === currentTask.id
+        ? {
+            ...item,
+            postponedToDate: nextDateKey,
+            postponedCloneId: null,
+          }
+        : item
+    );
+
+    return {
+      ...current,
+      tasks: nextTasks,
+      dailyRecords: syncCurrentDateRecords(current, nextTasks),
+    };
+  });
+};
+
 
   const handleSaveWorkLog = (log) => {
     if (isConfirmed) return;
@@ -713,6 +1134,8 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
               completed: log.completeAfterSave ? true : task.completed,
               taskStatus: log.completeAfterSave ? "completed" : task.taskStatus ?? "pending",
               completedAt: log.completeAfterSave ? new Date().toISOString() : task.completedAt ?? null,
+              postponedToDate: log.completeAfterSave ? null : task.postponedToDate ?? null,
+              postponedCloneId: log.completeAfterSave ? null : task.postponedCloneId ?? null,
               type: "todo",
               reminder: null,
               schedule: null,
@@ -720,12 +1143,20 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
           : task
       );
 
+      const targetTask = (current.tasks ?? []).find((task) => task.id === log.taskId);
+      const nextTasksWithoutClone = log.completeAfterSave && targetTask ? removePostponedClone(nextTasks, targetTask) : nextTasks;
+
       const nextWorkLogs = [
         ...(current.workLogs ?? []).filter((item) => item.taskId !== log.taskId),
         { ...log, seconds, id: Date.now(), date: dateKey },
       ];
 
-      return { ...current, tasks: nextTasks, workLogs: nextWorkLogs, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
+      return {
+        ...current,
+        tasks: nextTasksWithoutClone,
+        workLogs: nextWorkLogs,
+        dailyRecords: syncCurrentDateRecords(current, nextTasksWithoutClone),
+      };
     });
   };
 
@@ -771,46 +1202,78 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
       });
     }
 
-    if (undoToast.type === "postpone") {
-      setAppData((current) => {
-        const nextTasks = (current.tasks ?? []).map((task) =>
-          task.id === undoToast.task.id
-            ? {
-                ...task,
-                targetDate: undoToast.originalDate,
-                date: task.date === undoToast.movedDate ? undoToast.originalDate : task.date,
-                type: "todo",
-                reminder: null,
-                schedule: null,
-              }
-            : task
-        );
-        return { ...current, tasks: nextTasks, dailyRecords: syncCurrentDateRecords(current, nextTasks) };
-      });
-    }
 
     setUndoToast(null);
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   };
 
   const confirmReview = () => {
-    if (!canConfirm) return;
+  if (!canConfirm) return;
 
-    setAppData((current) => ({
+  setAppData((current) => {
+    const currentDateTasks = (current.tasks ?? []).filter((task) => getTaskDateKey(task, dateKey) === dateKey);
+    const postponedTasks = currentDateTasks.filter((task) => isPostponed(task));
+    const cloneSourceIds = new Set(postponedTasks.map((task) => String(task.id)));
+    const withoutOldClones = (current.tasks ?? []).filter(
+      (task) => !(task.postponedFromDate === dateKey && cloneSourceIds.has(String(task.originalTaskId)))
+    );
+
+    const clones = postponedTasks.map((task) => {
+      const postponeDateKey = task.postponedToDate ?? defaultPostponeDateKey;
+      const cloneId = `${task.id}-postponed-${postponeDateKey}-${Date.now()}`;
+      return createPostponedClone(task, postponeDateKey, cloneId);
+    });
+
+    const tasksWithCloneIds = withoutOldClones.map((task) => {
+      const matched = clones.find((clone) => String(clone.originalTaskId) === String(task.id));
+      return matched ? { ...task, postponedCloneId: matched.id, postponedToDate: matched.targetDate } : task;
+    });
+
+    const nextTasks = [...tasksWithCloneIds, ...clones];
+    const nextDailyRecords = syncDailyRecordFromTasks(
+      current.dailyRecords ?? {},
+      dateKey,
+      nextTasks.filter((task) => getTaskDateKey(task, dateKey) === dateKey)
+    );
+
+    return {
       ...current,
-      dailyRecords: confirmDailyRecord(
-        syncDailyRecordFromTasks(
-          current.dailyRecords ?? {},
-          dateKey,
-          (current.tasks ?? []).filter((task) => getTaskDateKey(task, dateKey) === dateKey)
-        ),
-        dateKey,
-        { reflectionText }
-      ),
-    }));
+      tasks: nextTasks,
+      dailyRecords: confirmDailyRecord(nextDailyRecords, dateKey, { reflectionText }),
+    };
+  });
+};
 
-    onNavigate?.("today");
-  };
+  const unconfirmReview = () => {
+  setAppData((current) => {
+    const nextTasks = (current.tasks ?? [])
+      .filter((task) => task.postponedFromDate !== dateKey)
+      .map((task) =>
+        getTaskDateKey(task, dateKey) === dateKey
+          ? {
+              ...task,
+              postponedCloneId: null,
+            }
+          : task
+      );
+
+    const currentDateTasks = nextTasks.filter(
+      (task) => getTaskDateKey(task, dateKey) === dateKey
+    );
+
+    const syncedRecords = syncDailyRecordFromTasks(
+      current.dailyRecords ?? {},
+      dateKey,
+      currentDateTasks
+    );
+
+    return {
+      ...current,
+      tasks: nextTasks,
+      dailyRecords: unconfirmDailyRecord(syncedRecords, dateKey),
+    };
+  });
+};
 
   const targetWorkLog = workLogModal.task
     ? (appData?.workLogs ?? []).find((log) => log.taskId === workLogModal.task.id)
@@ -822,7 +1285,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
         <AppHeader title={formatJapaneseDate(dateKey)} leftType="back" rightType="none" onBack={() => onNavigate?.("today")} />
 
         <div className="space-y-2.5 min-[390px]:space-y-3">
-          <SummaryCard record={record} />
+          <SummaryCard record={displayRecord} />
 
           {isAutoCompletedEmptyDay && (
             <div className="rounded-[20px] bg-emerald-50 px-4 py-3 text-[13px] font-black leading-5 text-emerald-700">
@@ -838,19 +1301,26 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
 
           {!isConfirmed && incompleteTasks.length > 0 && (
             <div className="rounded-[20px] bg-amber-50 px-4 py-3 text-[13px] font-bold leading-5 text-amber-700">
-              未達成タスクを「達成・{moveLabel}・削除」のどれかに整理すると、振り返りを完了できます。
+              未達成タスクを「延期」または「達成」に分類すると、振り返りを完了できます。左スライドで削除できます。
+            </div>
+          )}
+
+          {!isConfirmed && incompleteTasks.length === 0 && !isAutoCompletedEmptyDay && (
+            <div className="rounded-[20px] bg-emerald-50 px-4 py-3 text-[13px] font-bold leading-5 text-emerald-700">
+              すべてのタスクが分類済みです。振り返りを完了できます。
             </div>
           )}
 
           <TaskSection
-            record={record}
-            disabled={isConfirmed}
-            moveLabel={moveLabel}
-            onToggleTask={handleToggleTask}
-            onEditTask={handleEditTask}
-            onDeleteTask={handleDeleteTask}
-            onPostponeTomorrow={handlePostponeTomorrow}
-          />
+  record={displayRecord}
+  disabled={isConfirmed}
+  onEditTask={handleEditTask}
+  onDeleteTask={handleDeleteTask}
+  onMoveTaskToStatus={handleMoveTaskToStatus}
+  onChangePostponeDate={handleChangePostponeDate}
+  postponeDateOverrides={postponeDateOverrides}
+  baseDateKey={dateKey}
+/>
 
           {!isAutoCompletedEmptyDay && <LongTaskSection />}
 
@@ -863,19 +1333,41 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
           )}
         </div>
 
-        {!isConfirmed && (
-          <button
-            type="button"
-            disabled={!canConfirm}
-            onClick={confirmReview}
-            className={`fixed bottom-[max(10px,env(safe-area-inset-bottom))] left-1/2 z-30 flex h-[52px] w-[calc(100%-24px)] max-w-[456px] -translate-x-1/2 items-center justify-center gap-2 rounded-[20px] text-[17px] font-black shadow-[0_14px_26px_rgba(16,185,129,0.28)] active:scale-[0.985] ${
-              canConfirm ? "bg-emerald-500 text-white" : "cursor-not-allowed bg-slate-200 text-slate-400 shadow-none"
-            }`}
-          >
-            <Check className="h-5 w-5" strokeWidth={2.8} />
-            {canConfirm ? "今日の振り返りを完了する" : "未達成タスクを整理してください"}
-          </button>
-        )}
+{!isAutoCompletedEmptyDay && (
+        <button
+  type="button"
+  disabled={!isConfirmed && !canConfirm}
+  onClick={(event) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (isConfirmed) {
+    unconfirmReview();
+  } else {
+    confirmReview();
+  }
+}}
+  className={`fixed bottom-[max(10px,env(safe-area-inset-bottom))] left-1/2 z-30 flex h-[52px] w-[calc(100%-24px)] max-w-[456px] -translate-x-1/2 items-center justify-center gap-2 rounded-[20px] text-[17px] font-black active:scale-[0.985] ${
+    isConfirmed
+      ? "bg-slate-100 text-slate-500 shadow-[0_10px_22px_rgba(15,23,42,0.08)]"
+      : canConfirm
+        ? "bg-emerald-500 text-white shadow-[0_14px_26px_rgba(16,185,129,0.28)]"
+        : "cursor-not-allowed bg-slate-200 text-slate-400 shadow-none"
+  }`}
+>
+  {isConfirmed ? (
+    <RotateCcw className="h-5 w-5" strokeWidth={2.8} />
+  ) : (
+    <Check className="h-5 w-5" strokeWidth={2.8} />
+  )}
+
+  {isConfirmed
+    ? "振り返り完了を解除する"
+    : canConfirm
+      ? "今日の振り返りを完了する"
+      : "未達成タスクを分類してください"}
+</button>
+)}
       </main>
 
       <TodoModal
@@ -911,6 +1403,7 @@ export default function ReviewPage({ dateKey, appData, setAppData, onNavigate })
         onClose={() => setWorkLogModal({ open: false, task: null, completeAfterSave: false })}
         onSave={handleSaveWorkLog}
       />
+
 
       <UndoToast
         toast={undoToast}

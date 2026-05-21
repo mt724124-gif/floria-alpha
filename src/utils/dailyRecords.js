@@ -167,6 +167,7 @@ export function recalculateDailyRecord(record) {
   const tasks = normalizeTaskRanks(record.tasks ?? []);
 
   const activeTasks = tasks.filter((task) => task.taskStatus !== "deleted");
+
   const completedTasks = activeTasks.filter(
     (task) => task.taskStatus === "completed"
   );
@@ -210,11 +211,19 @@ export function recalculateDailyRecord(record) {
 
   activeTasks.forEach((task) => {
     const category = task.category ?? "その他";
-    if (categoryMinutes[category] == null) categoryMinutes[category] = 0;
+
+    if (categoryMinutes[category] == null) {
+      categoryMinutes[category] = 0;
+    }
+
     categoryMinutes[category] += Number(task.actualMinutes ?? 0);
 
     const priority = normalizePriority(task.priority);
-    if (priorityCounts[priority] == null) priorityCounts[priority] = 0;
+
+    if (priorityCounts[priority] == null) {
+      priorityCounts[priority] = 0;
+    }
+
     priorityCounts[priority] += 1;
   });
 
@@ -233,6 +242,13 @@ export function recalculateDailyRecord(record) {
     reviewCompleted = true;
     reviewCompletedAt = reviewCompletedAt ?? confirmedAt ?? now;
   } else if (pendingTaskCount > 0) {
+    status = "draft";
+    reviewed = false;
+    reviewedAt = null;
+    confirmedAt = null;
+    reviewCompleted = false;
+    reviewCompletedAt = null;
+  } else if (record.forceDraft === true) {
     status = "draft";
     reviewed = false;
     reviewedAt = null;
@@ -281,6 +297,7 @@ export function recalculateDailyRecord(record) {
 
 export function upsertTaskToDailyRecord(record, taskSnapshot) {
   const tasks = record.tasks ?? [];
+
   const exists = tasks.some((task) => task.id === taskSnapshot.id);
 
   const nextTasks = exists
@@ -289,7 +306,9 @@ export function upsertTaskToDailyRecord(record, taskSnapshot) {
           ? {
               ...task,
               ...taskSnapshot,
-              priority: normalizePriority(taskSnapshot.priority ?? task.priority),
+              priority: normalizePriority(
+                taskSnapshot.priority ?? task.priority
+              ),
               rank: normalizeRank(taskSnapshot.rank ?? task.rank),
               updatedAt: new Date().toISOString(),
             }
@@ -313,8 +332,13 @@ export function updateDailyRecordTask(
   if (!task?.id || !dateKey) return dailyRecords;
 
   const currentRecord = getOrCreateDailyRecord(dailyRecords, dateKey);
+
   const taskSnapshot = createTaskSnapshot(task, options);
-  const updatedRecord = upsertTaskToDailyRecord(currentRecord, taskSnapshot);
+
+  const updatedRecord = upsertTaskToDailyRecord(
+    currentRecord,
+    taskSnapshot
+  );
 
   return {
     ...dailyRecords,
@@ -322,7 +346,11 @@ export function updateDailyRecordTask(
   };
 }
 
-export function addTaskToDailyRecord(dailyRecords = {}, dateKey, task) {
+export function addTaskToDailyRecord(
+  dailyRecords = {},
+  dateKey,
+  task
+) {
   return updateDailyRecordTask(dailyRecords, dateKey, task, {
     completed: false,
     taskStatus: "pending",
@@ -332,11 +360,23 @@ export function addTaskToDailyRecord(dailyRecords = {}, dateKey, task) {
   });
 }
 
-export function updateTaskInDailyRecord(dailyRecords = {}, dateKey, task) {
+export function updateTaskInDailyRecord(
+  dailyRecords = {},
+  dateKey,
+  task
+) {
   return updateDailyRecordTask(dailyRecords, dateKey, task, {
-    taskStatus: task.completed ? "completed" : task.taskStatus ?? "pending",
+    taskStatus:
+      task.completed
+        ? "completed"
+        : task.taskStatus ?? "pending",
+
     completed: task.completed ?? false,
-    completedAt: task.completed ? task.completedAt ?? new Date().toISOString() : null,
+
+    completedAt: task.completed
+      ? task.completedAt ?? new Date().toISOString()
+      : null,
+
     priority: task.priority ?? "medium",
     rank: task.rank,
   });
@@ -367,14 +407,24 @@ export function updateTaskActualTimeInDailyRecord(
   return updateDailyRecordTask(dailyRecords, dateKey, task, {
     actualMinutes,
     actualSeconds: actualSeconds ?? actualMinutes * 60,
-    taskStatus: task.completed ? "completed" : task.taskStatus ?? "pending",
+
+    taskStatus:
+      task.completed
+        ? "completed"
+        : task.taskStatus ?? "pending",
+
     completed: task.completed ?? false,
+
     priority: task.priority ?? "medium",
     rank: task.rank,
   });
 }
 
-export function markTaskDeletedInDailyRecord(dailyRecords = {}, dateKey, task) {
+export function markTaskDeletedInDailyRecord(
+  dailyRecords = {},
+  dateKey,
+  task
+) {
   return updateDailyRecordTask(dailyRecords, dateKey, task, {
     completed: false,
     taskStatus: "deleted",
@@ -389,11 +439,17 @@ export function confirmDailyRecord(
   dateKey,
   reviewData = {}
 ) {
-  const currentRecord = getOrCreateDailyRecord(dailyRecords, dateKey);
+  const currentRecord = getOrCreateDailyRecord(
+    dailyRecords,
+    dateKey
+  );
+
   const now = new Date().toISOString();
 
   const confirmedRecord = recalculateDailyRecord({
     ...currentRecord,
+
+    forceDraft: false,
 
     status: "confirmed",
     reviewed: true,
@@ -404,10 +460,16 @@ export function confirmDailyRecord(
     reviewCompletedAt: now,
 
     reflectionText:
-      reviewData.reflectionText ?? currentRecord.reflectionText ?? "",
+      reviewData.reflectionText ??
+      currentRecord.reflectionText ??
+      "",
+
     mood: reviewData.mood ?? currentRecord.mood ?? null,
     energy: reviewData.energy ?? currentRecord.energy ?? null,
-    dailyStyle: reviewData.dailyStyle ?? currentRecord.dailyStyle ?? null,
+    dailyStyle:
+      reviewData.dailyStyle ??
+      currentRecord.dailyStyle ??
+      null,
 
     updatedAt: now,
   });
@@ -418,11 +480,19 @@ export function confirmDailyRecord(
   };
 }
 
-export function unconfirmDailyRecord(dailyRecords = {}, dateKey) {
-  const currentRecord = getOrCreateDailyRecord(dailyRecords, dateKey);
+export function unconfirmDailyRecord(
+  dailyRecords = {},
+  dateKey
+) {
+  const currentRecord = getOrCreateDailyRecord(
+    dailyRecords,
+    dateKey
+  );
 
   const draftRecord = recalculateDailyRecord({
     ...currentRecord,
+
+    forceDraft: true,
 
     status: "draft",
     reviewed: false,
@@ -437,7 +507,10 @@ export function unconfirmDailyRecord(dailyRecords = {}, dateKey) {
 
   return {
     ...dailyRecords,
-    [dateKey]: draftRecord,
+    [dateKey]: {
+      ...draftRecord,
+      forceDraft: false,
+    },
   };
 }
 
@@ -447,25 +520,42 @@ export function getDailyRecordList(dailyRecords = {}) {
   });
 }
 
-export function getConfirmedDailyRecordList(dailyRecords = {}) {
+export function getConfirmedDailyRecordList(
+  dailyRecords = {}
+) {
   return getDailyRecordList(dailyRecords).filter(
-    (record) => record.status === "confirmed" || record.reviewCompleted === true
+    (record) =>
+      record.status === "confirmed" ||
+      record.reviewCompleted === true
   );
 }
 
-export function syncDailyRecordFromTasks(dailyRecords = {}, dateKey, tasks = []) {
-  const currentRecord = getOrCreateDailyRecord(dailyRecords, dateKey);
+export function syncDailyRecordFromTasks(
+  dailyRecords = {},
+  dateKey,
+  tasks = []
+) {
+  const currentRecord = getOrCreateDailyRecord(
+    dailyRecords,
+    dateKey
+  );
+
   const existingTasks = currentRecord.tasks ?? [];
-  const existingById = new Map(existingTasks.map((task) => [task.id, task]));
+
+  const existingById = new Map(
+    existingTasks.map((task) => [task.id, task])
+  );
 
   const syncedTasks = tasks.map((task, index) => {
     const existing = existingById.get(task.id);
+
     const taskStatus =
       task.taskStatus ??
       (
         task.completed
           ? "completed"
-          : existing?.taskStatus === "completed" && task.completed
+          : existing?.taskStatus === "completed" &&
+            task.completed
             ? "completed"
             : "pending"
       );
@@ -477,29 +567,56 @@ export function syncDailyRecordFromTasks(dailyRecords = {}, dateKey, tasks = [])
         task.focusMinutes ??
         existing?.actualMinutes ??
         0,
+
       actualSeconds:
         task.actualSeconds ??
         existing?.actualSeconds ??
         0,
+
       completed: taskStatus === "completed",
+
       taskStatus,
+
       completedAt:
         taskStatus === "completed"
-          ? task.completedAt ?? existing?.completedAt ?? new Date().toISOString()
+          ? task.completedAt ??
+            existing?.completedAt ??
+            new Date().toISOString()
           : null,
-      usedTimer: task.usedTimer ?? existing?.usedTimer ?? false,
+
+      usedTimer:
+        task.usedTimer ??
+        existing?.usedTimer ??
+        false,
+
       timerSessionCount:
-        existing?.timerSessionCount ?? task.timerSessionCount ?? 0,
-      extensionCount: existing?.extensionCount ?? task.extensionCount ?? 0,
-      priority: task.priority ?? existing?.priority ?? "medium",
-      rank: task.rank ?? existing?.rank ?? index + 1,
+        existing?.timerSessionCount ??
+        task.timerSessionCount ??
+        0,
+
+      extensionCount:
+        existing?.extensionCount ??
+        task.extensionCount ??
+        0,
+
+      priority:
+        task.priority ??
+        existing?.priority ??
+        "medium",
+
+      rank:
+        task.rank ??
+        existing?.rank ??
+        index + 1,
     });
   });
 
   const deletedTasks = existingTasks.filter(
     (task) =>
       task.taskStatus === "deleted" &&
-      !tasks.some((currentTask) => currentTask.id === task.id)
+      !tasks.some(
+        (currentTask) => currentTask.id === task.id
+      )
   );
 
   const syncedRecord = recalculateDailyRecord({
