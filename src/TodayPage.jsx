@@ -2194,6 +2194,7 @@ return (
   hasPlannedMinutes={filteredTodos.some(
     (todo) => Number(todo.estimatedMinutes) > 0
   )}
+
   totalActualMinutes={filteredTodos.reduce((sum, todo) => {
     const savedWorkLog = workLogs.find(
       (log) => log.taskId === todo.id
