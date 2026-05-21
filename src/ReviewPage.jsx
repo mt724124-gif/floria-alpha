@@ -158,14 +158,13 @@ function StatItem({ icon: Icon, label, value }) {
 
 function SummaryCard({ record }) {
   return (
-    <section className="relative mb-3 overflow-hidden rounded-[24px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-50 p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
-      <img src={mountainImage} alt="山のイラスト" className="pointer-events-none absolute bottom-2 right-2 h-[92px] w-[108px] object-contain opacity-90" />
+    <section className="relative mb-2 overflow-hidden rounded-[22px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-50 px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.05)]">
       <div className="relative z-10">
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-2.5 flex items-center gap-2">
           <Sun className="h-5 w-5 text-yellow-400" fill="currentColor" />
           <h2 className="text-[18px] font-black tracking-[-0.04em] text-slate-950">今日の記録</h2>
         </div>
-        <div className="grid max-w-[280px] grid-cols-3 gap-4">
+        <div className="grid w-full grid-cols-3 gap-3">
           <StatItem icon={Clock} label="集中時間" value={formatMinutes(record.totalActualMinutes)} />
           <StatItem icon={Check} label="完了タスク" value={`${record.completedTaskCount ?? 0}件`} />
           <StatItem icon={Target} label="達成率" value={`${record.achievementRate ?? 0}%`} />
@@ -256,8 +255,10 @@ function TaskRow({
   dragTargetStatus = null,
 recentlyMoved = false,
 recentMovedOriginStatus = null,
+onMoveToCompleted,
+onMoveToPending,
 onEdit,
-  onDelete,
+onDelete,
   onDragHandlePointerDown,
   onChangePostponeDate,
   displayPostponeDate,
@@ -430,7 +431,29 @@ const Icon = style.icon;
   />
 </button>
 
-          <div className="hidden" />
+          <button
+  type="button"
+  disabled={disabled}
+  onClick={(event) => {
+    event.stopPropagation();
+
+    if (disabled) return;
+
+    if (status === "completed") {
+      onMoveToPending?.(task);
+      return;
+    }
+
+    onMoveToCompleted?.(task);
+  }}
+  className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
+    status === "completed"
+      ? "border-emerald-500 bg-emerald-500 text-white"
+      : "border-slate-300 bg-white text-transparent"
+  } ${disabled ? "cursor-not-allowed opacity-45" : ""}`}
+>
+  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+</button>
 
           <div className="min-w-0 flex-1 touch-manipulation select-none">
             <p className={`flex items-start gap-1 text-[13px] font-bold leading-tight tracking-[-0.01em] ${
@@ -517,7 +540,9 @@ function TaskSection({
   disabled = false,
   onEditTask,
   onDeleteTask,
-  onMoveTaskToStatus,
+onMoveTaskToStatus,
+moveTaskToPending,
+requestCompleteTask,
   onChangePostponeDate,
   onPostponeAllPending,
   postponeDateOverrides = {},
@@ -759,7 +784,7 @@ function TaskSection({
 
   return (
     <section className="relative z-20 mb-3 overflow-visible rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
-      <div className="mb-2 flex items-center justify-between gap-3 px-1">
+            <div className="mb-0.5 flex items-center justify-between gap-3 px-1">
         <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">今日のタスク</h2>
 
         {tasks.length > 0 && (
@@ -784,6 +809,10 @@ function TaskSection({
         )}
       </div>
 
+            <p className="mb-2 px-1 text-[10px] font-bold text-slate-400">
+  ※左スライドで削除できます。
+</p>
+
       {tasks.length === 0 ? (
         <div className="rounded-[18px] bg-emerald-50 px-4 py-5 text-center text-[13px] font-bold text-emerald-600">
           この日は記録されたTodoがありません。振り返りは完了扱いです。
@@ -799,14 +828,14 @@ function TaskSection({
               <div
                 key={status}
                 data-drop-status={status}
-                className={`rounded-[18px] border ${style.border} ${style.bg} p-2 ${
+                className={`rounded-[18px] border ${style.border} ${style.bg} px-2 py-1.5 ${
                   dropTargetStatus === status ? "ring-2 ring-emerald-200" : ""
                 }`}
               >
                 <button
                   type="button"
                   onClick={() => toggleStatusSection(status)}
-                  className="mb-1.5 flex w-full items-center gap-2 rounded-2xl px-1 py-0.5 active:bg-white/70"
+                  className="flex h-7 w-full items-center gap-2 rounded-2xl px-1 active:bg-white/70"
                 >
                   <p className={`text-[14px] font-black ${style.text}`}>{style.label}</p>
 
@@ -841,7 +870,15 @@ function TaskSection({
   </span>
 )}
 
-<span className="text-[12px] font-black text-slate-400">
+<span
+  className={`text-[12px] font-black text-slate-400 ${
+    status === "pending" && sectionTasks.length > 0 && !disabled
+      ? ""
+      : status === "postponed" && sectionTasks.length > 0
+        ? ""
+        : "ml-auto"
+  }`}
+>
   {collapsed ? "開く" : "閉じる"}
 </span>
                 </button>
@@ -866,8 +903,10 @@ function TaskSection({
                           dragTargetStatus={recentMovedTaskId === task.id ? recentMovedStatus : dropTargetStatus}
                           recentlyMoved={recentMovedTaskId === task.id}
                           recentMovedOriginStatus={recentMovedTaskId === task.id ? recentMovedOriginStatus : null}
-                          onEdit={onEditTask}
-                          onDelete={onDeleteTask}
+                          onMoveToCompleted={requestCompleteTask}
+onMoveToPending={moveTaskToPending}
+onEdit={onEditTask}
+onDelete={onDeleteTask}
                           onDragHandlePointerDown={handleDragHandlePointerDown}
                           onChangePostponeDate={onChangePostponeDate}
                           displayPostponeDate={postponeDateOverrides[task.id] ?? task.postponedToDate}
@@ -1607,11 +1646,7 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
             </div>
           )}
 
-          {!isConfirmed && incompleteTasks.length > 0 && (
-            <div className="rounded-[20px] bg-amber-50 px-4 py-3 text-[13px] font-bold leading-5 text-amber-700">
-              未達成タスクを「延期」または「達成」に分類すると、振り返りを完了できます。左スライドで削除できます。
-            </div>
-          )}
+    
 
           {!isConfirmed && incompleteTasks.length === 0 && !isAutoCompletedEmptyDay && (
             <div className="rounded-[20px] bg-emerald-50 px-4 py-3 text-[13px] font-bold leading-5 text-emerald-700">
@@ -1624,7 +1659,9 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
   disabled={isConfirmed}
   onEditTask={handleEditTask}
   onDeleteTask={handleDeleteTask}
-  onMoveTaskToStatus={handleMoveTaskToStatus}
+onMoveTaskToStatus={handleMoveTaskToStatus}
+moveTaskToPending={moveTaskToPending}
+requestCompleteTask={requestCompleteTask}
   onChangePostponeDate={handleChangePostponeDate}
   onPostponeAllPending={handlePostponeAllPending}
   postponeDateOverrides={postponeDateOverrides}

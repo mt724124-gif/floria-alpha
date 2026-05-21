@@ -706,7 +706,7 @@ function SectionHeader({ label, count, type, groupKey }) {
 
   if (type === "priority") {
     return (
-      <div className="mb-1.5 flex items-center gap-2 px-1">
+      <div className="mb-1.5 flex flex-1 items-center gap-2 px-1">
         <p className={`text-[14px] font-black ${priorityConfig.text}`}>
           {label}
         </p>
@@ -723,7 +723,7 @@ function SectionHeader({ label, count, type, groupKey }) {
   const Icon = categoryStyle.icon;
 
   return (
-    <div className="mb-1.5 flex items-center gap-2 px-1">
+    <div className="mb-1.5 flex flex-1 items-center gap-2 px-1">
       <div className={`grid h-5 w-5 place-items-center rounded-lg ${categoryStyle.bg}`}>
         <Icon className={`h-4 w-4 ${categoryStyle.color}`} strokeWidth={2.3} />
       </div>
@@ -773,10 +773,10 @@ function TodoSection({
       } ${sortMode === "priority" ? priorityConfig.bg : "bg-white"} p-1`}
     >
       <button
-        type="button"
-        onClick={onToggleCollapse}
-        className="flex w-full items-center justify-between rounded-2xl px-1 py-0.5 active:bg-slate-50"
-      >
+  type="button"
+  onClick={onToggleCollapse}
+  className="flex w-full items-center rounded-2xl px-1 py-0.5 active:bg-slate-50"
+>
         <SectionHeader
           label={section.label}
           count={section.todos.length}
@@ -784,9 +784,9 @@ function TodoSection({
           groupKey={section.key}
         />
 
-        <span className="text-[13px] font-black text-slate-400">
-          {collapsed ? "開く" : "閉じる"}
-        </span>
+        <span className="ml-auto text-[13px] font-black text-slate-400">
+  {collapsed ? "開く" : "閉じる"}
+</span>
       </button>
 
       {!collapsed && (
