@@ -20,7 +20,11 @@ const priorityOptions = [
   { value: "low", label: "低", activeClass: "border-slate-300 bg-slate-100 text-slate-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
 ];
 
-export default function TodoModal({ open, mode = "add", initialTodo, categories, onClose, onSave, onAddCategory, onDeleteCategory, compactTimerEdit = false }) {
+export default function TodoModal({
+  open,
+  mode = "add",
+  initialTodo,
+  defaultDateKey,categories, onClose, onSave, onAddCategory, onDeleteCategory, compactTimerEdit = false }) {
   const isEditMode = mode === "edit";
 
   const [title, setTitle] = useState("");
@@ -61,10 +65,14 @@ setDurationMinute(estimated == null ? "" : estimated % 60);
       setCategory(localStorage.getItem("last-category") || "学習");
       setPriority("medium");
       setNewCategory("");
-setTargetDate(getTodayKey());
-setHasPlannedTime(false);
-setDurationHour("");
-setDurationMinute("");
+setTargetDate(defaultDateKey ?? getTodayKey());
+
+const savedHasPlannedTime =
+  localStorage.getItem("last-has-planned-time") === "true";
+
+setHasPlannedTime(savedHasPlannedTime);
+setDurationHour(1);
+setDurationMinute(0);
       setActualHour(0);
       setActualMinute(0);
       setCompleted(false);
@@ -101,6 +109,11 @@ setDurationMinute("");
     }
 
     localStorage.setItem("last-category", finalCategory);
+    localStorage.setItem(
+  "last-has-planned-time",
+  hasPlannedTime
+);
+
 
     const finalPriority = ["high", "medium", "low"].includes(priority) ? priority : "medium";
 
@@ -173,13 +186,18 @@ estimatedMinutes,
     </div>
 
     <input
-      type="date"
-      value={targetDate}
-      onChange={(e) => {
-        setTargetDate(e.target.value);
-      }}
-      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-    />
+  type="date"
+  value={targetDate}
+  onChange={(e) => {
+    setTargetDate(e.target.value);
+
+    setTimeout(() => {
+      e.target.blur();
+      document.activeElement?.blur?.();
+    }, 0);
+  }}
+  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+/>
   </div>
 </div>
 
@@ -301,18 +319,20 @@ estimatedMinutes,
     <button
       type="button"
       onClick={() => {
-        setHasPlannedTime((current) => {
-          const next = !current;
-          if (!next) {
-            setDurationHour("");
-            setDurationMinute("");
-          } else {
-            setDurationHour(0);
-            setDurationMinute(30);
-          }
-          return next;
-        });
-      }}
+  setHasPlannedTime((current) => {
+    const next = !current;
+
+    if (!next) {
+      setDurationHour("");
+      setDurationMinute("");
+    } else {
+  setDurationHour(1);
+  setDurationMinute(0);
+}
+
+    return next;
+  });
+}}
       className={`flex h-8 items-center gap-2 rounded-full px-3 text-xs font-black active:scale-[0.98] ${
         hasPlannedTime ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"
       }`}

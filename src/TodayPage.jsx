@@ -168,6 +168,7 @@ function TodayGoalCard({
     !isPastDate &&
     !isFutureDate;
 
+
   return (
     <section className="relative overflow-hidden rounded-[24px] border border-emerald-100/70 bg-white p-3.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_22%,rgba(187,247,208,0.55),transparent_38%),linear-gradient(135deg,rgba(240,253,244,0.9),white_58%)]" />
@@ -184,20 +185,31 @@ function TodayGoalCard({
     ☀️
   </span>
 
-  <label className="relative inline-flex items-center rounded-xl px-1 py-0.5 text-[16px] font-black tracking-[-0.03em] text-slate-900 active:bg-slate-100">
+  <label className="relative inline-flex items-center gap-1 rounded-xl px-1 py-0.5 text-[16px] font-black tracking-[-0.03em] text-slate-900 active:bg-slate-100">
+  <>
     {formatDateForHeader(selectedDate)}
+    <ChevronRight
+      className="h-4 w-4 rotate-90 text-slate-400"
+      strokeWidth={2.8}
+    />
+  </>
 
     <input
       type="date"
       value={formatDateForInput(selectedDate)}
       onChange={(event) => {
-        const value = event.target.value;
-        if (!value) return;
+  const value = event.target.value;
+  if (!value) return;
 
-        const [year, month, day] = value.split("-").map(Number);
+  const [year, month, day] = value.split("-").map(Number);
 
-        onSetDate(new Date(year, month - 1, day));
-      }}
+  onSetDate(new Date(year, month - 1, day));
+
+  setTimeout(() => {
+    event.target.blur();
+    document.activeElement?.blur?.();
+  }, 0);
+}}
       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
     />
   </label>
@@ -2222,7 +2234,8 @@ return (
       <BottomNav active="today" onNavigate={onNavigate} />
 
       <TodoModal
-        open={todoModal.open}
+  open={todoModal.open}
+  defaultDateKey={selectedDateKey}
         mode={todoModal.mode}
         initialTodo={todoModal.todo}
         categories={categories}
