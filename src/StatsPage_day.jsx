@@ -263,6 +263,21 @@ export default function StatsPage({ onNavigate }) {
         <Header />
         <PeriodTabs />
 
+<input
+  ref={dateInputRef}
+  type="date"
+  value={formatDateForInput(selectedDate)}
+  onChange={(event) => {
+    const value = event.target.value;
+    if (!value) return;
+
+    const [year, month, day] = value.split("-").map(Number);
+
+    setSelectedDate(new Date(year, month - 1, day));
+  }}
+  className="pointer-events-none absolute opacity-0"
+/>
+
         <main>
           <SummaryCard />
           <FocusChartCard />

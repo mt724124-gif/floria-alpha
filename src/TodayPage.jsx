@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import mountainImage from "./assets/mountain.png";
 import TodoModal from "./components/TodoModal";
 import BottomNav from "./components/BottomNav";
-import AppHeader from "./components/AppHeader";
 import {
   BookOpen,
   Briefcase,
@@ -152,57 +151,9 @@ function getInitialActualMinutes(todo, workLog) {
 }
 
 
-function Header({ selectedDate, onChangeDate }) {
-  const dateInputRef = useRef(null);
-
-  const moveDate = (diffDays) => {
-    const nextDate = new Date(selectedDate);
-    nextDate.setDate(nextDate.getDate() + diffDays);
-    onChangeDate(nextDate);
-  };
-
-  const handleDateChange = (event) => {
-    const value = event.target.value;
-    if (!value) return;
-    const [year, month, day] = value.split("-").map(Number);
-    onChangeDate(new Date(year, month - 1, day));
-  };
-
-  const openDatePicker = () => {
-  const input = dateInputRef.current;
-  if (!input) return;
-
-  if (typeof input.showPicker === "function") {
-    input.showPicker();
-    return;
-  }
-
-  input.click();
-};
-
-  return (
-  <div className="relative">
-    <AppHeader
-      title={formatDateForHeader(selectedDate)}
-      leftType="menu"
-      rightType="bell"
-      onPrev={() => moveDate(-1)}
-      onNext={() => moveDate(1)}
-      onTitleClick={openDatePicker}
-    />
-
-    <input
-  ref={dateInputRef}
-  type="date"
-  value={formatDateForInput(selectedDate)}
-  onChange={handleDateChange}
-  className="absolute left-1/2 top-0 z-[60] h-12 w-[170px] -translate-x-1/2 cursor-pointer opacity-0"
-/>
-    </div>
-  );
-}
-
 function TodayGoalCard({
+  selectedDate,
+  onSetDate,
   totalCount,
   incompleteCount,
   selectedTask,
@@ -228,12 +179,29 @@ function TodayGoalCard({
       />
 
       <div className="relative z-10 min-h-[104px] pr-[104px] min-[390px]:pr-[116px]">
-        <div className="mb-2 flex items-center gap-2 text-[13px] font-extrabold text-slate-900">
-          <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-amber-100 text-[13px]">
-            ☀️
-          </span>
-          {selectedTask ? "選択中のタスク" : "今日の目標"}
-        </div>
+        <div className="mb-2 flex items-center gap-2">
+  <span className="grid h-[24px] w-[24px] place-items-center rounded-full bg-amber-100 text-[14px]">
+    ☀️
+  </span>
+
+  <label className="relative inline-flex items-center rounded-xl px-1 py-0.5 text-[16px] font-black tracking-[-0.03em] text-slate-900 active:bg-slate-100">
+    {formatDateForHeader(selectedDate)}
+
+    <input
+      type="date"
+      value={formatDateForInput(selectedDate)}
+      onChange={(event) => {
+        const value = event.target.value;
+        if (!value) return;
+
+        const [year, month, day] = value.split("-").map(Number);
+
+        onSetDate(new Date(year, month - 1, day));
+      }}
+      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+    />
+  </label>
+</div>
 
         {isPastDate && isReviewConfirmed && totalCount === 0 ? (
           <>
@@ -422,6 +390,10 @@ function TodoItem({
   dragging,
   dragOffsetY,
   dropTarget,
+  dragOriginGroup = null,
+  dragTargetGroup = null,
+  recentlyMoved = false,
+  recentMovedOriginGroup = null,
   onSelect,
   onToggle,
   onEdit,
@@ -436,14 +408,39 @@ function TodoItem({
   const priority = getPriority(todo);
   const priorityConfig = priorityStyles[priority] ?? priorityStyles.medium;
 
-  const categoryNumberClass =
-    todo.category === "学習"
+  const getCategoryNumberClass = (category) =>
+    category === "学習"
       ? "border-emerald-200 bg-emerald-50 text-emerald-500"
-      : todo.category === "仕事"
+      : category === "仕事"
         ? "border-blue-200 bg-blue-50 text-blue-500"
-        : todo.category === "健康"
+        : category === "健康"
           ? "border-violet-200 bg-violet-50 text-violet-500"
           : "border-slate-200 bg-slate-50 text-slate-500";
+
+  const getDragHandleClass = (groupKey) => {
+    if (sortMode === "category") {
+      return getCategoryNumberClass(groupKey ?? todo.category ?? "その他");
+    }
+
+    return (priorityStyles[groupKey] ?? priorityConfig).number;
+  };
+
+  const currentHandleClass =
+    sortMode === "category"
+      ? getCategoryNumberClass(todo.category)
+      : priorityConfig.number;
+
+  const originHandleClass = dragOriginGroup
+    ? getDragHandleClass(dragOriginGroup)
+    : currentHandleClass;
+
+  const targetHandleClass = dragTargetGroup
+    ? getDragHandleClass(dragTargetGroup)
+    : currentHandleClass;
+
+  const recentOriginHandleClass = recentMovedOriginGroup
+    ? getDragHandleClass(recentMovedOriginGroup)
+    : "";
 
   const Icon = config.icon;
   const [swipeX, setSwipeX] = useState(0);
@@ -614,22 +611,25 @@ const moveTomorrowThreshold = 104;
       if (!canReorder) return;
       onDragHandlePointerDown(event, todo.id);
     }}
-    className={`flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
+    className={`relative flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
       !canReorder
         ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
         : dragging
-          ? "border-slate-900 bg-slate-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.16)]"
-          : sortMode === "category"
-            ? categoryNumberClass
-            : priorityConfig.number
+          ? `${originHandleClass} border-2 shadow-[0_6px_14px_rgba(15,23,42,0.16)]`
+          : recentlyMoved && recentMovedOriginGroup
+            ? `${recentOriginHandleClass} border-2 shadow-[0_0_0_3px_rgba(255,255,255,0.85)]`
+            : currentHandleClass
     }`}
   >
-    <span className="text-[14px] font-black leading-none">
+    {dragging && (
+      <span className={`absolute inset-1 rounded-xl ${targetHandleClass}`} />
+    )}
+    <span className="relative z-10 text-[14px] font-black leading-none">
       {displayRank}
     </span>
 
     <GripVertical
-      className={`mt-0.5 h-3 w-3 transition-transform ${
+      className={`relative z-10 mt-0.5 h-3 w-3 transition-transform ${
         dragging ? "scale-110" : "scale-100"
       }`}
     />
@@ -753,6 +753,9 @@ function TodoSection({
   dragOffsetY,
   dropTargetId,
   dropTargetGroup,
+  recentMovedTodoId,
+  recentMovedTargetGroup,
+  recentMovedOriginGroup,
   onSelect,
   onToggle,
   onEdit,
@@ -819,6 +822,10 @@ function TodoSection({
                 dragging={draggingId === todo.id}
                 dragOffsetY={draggingId === todo.id ? dragOffsetY : 0}
                 dropTarget={dropTargetId === todo.id}
+                dragOriginGroup={section.key}
+                dragTargetGroup={recentMovedTodoId === todo.id ? recentMovedTargetGroup : dropTargetGroup}
+                recentlyMoved={recentMovedTodoId === todo.id}
+                recentMovedOriginGroup={recentMovedTodoId === todo.id ? recentMovedOriginGroup : null}
                 onSelect={onSelect}
                 onToggle={onToggle}
                 onEdit={(target) => {
@@ -855,6 +862,8 @@ function TodoListCard({
   todos,
   categories,
   showAllTasks,
+  onSetShowAllTasks,
+  showAllTasksResetKey,
   sortMode,
   selectedTaskId,
   canSelect,
@@ -877,6 +886,10 @@ function TodoListCard({
   const [dragOffsetY, setDragOffsetY] = useState(0);
   const [dropTargetId, setDropTargetId] = useState(null);
   const [dropTargetGroup, setDropTargetGroup] = useState(null);
+  const [recentMovedTodoId, setRecentMovedTodoId] = useState(null);
+  const [recentMovedTargetGroup, setRecentMovedTargetGroup] = useState(null);
+  const [recentMovedOriginGroup, setRecentMovedOriginGroup] = useState(null);
+  const recentMovedTimerRef = useRef(null);
   const draggingIdRef = useRef(null);
   const startYRef = useRef(0);
   const pendingDropRef = useRef({
@@ -952,6 +965,15 @@ function TodoListCard({
       todos: rankedTodos.filter((todo) => getPriority(todo) === key),
     }));
   }, [categories, rankedTodos, sortMode]);
+
+  useEffect(() => {
+    if (!showAllTasks) return;
+    setOpenSectionKeys(sections.map((section) => section.key));
+  }, [showAllTasks, sections]);
+
+  useEffect(() => {
+    setOpenSectionKeys([]);
+  }, [showAllTasksResetKey]);
 
   const clearLongPressTimer = () => {
     if (longPressTimerRef.current) {
@@ -1035,6 +1057,15 @@ function TodoListCard({
   }, [openMenuId]);
 
   useEffect(() => {
+    return () => {
+      if (recentMovedTimerRef.current) {
+        clearTimeout(recentMovedTimerRef.current);
+        recentMovedTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const handlePointerMove = (event) => {
       if (longPressTimerRef.current && !draggingIdRef.current) {
         const dx = Math.abs(event.clientX - longPressStartRef.current.x);
@@ -1073,7 +1104,28 @@ function TodoListCard({
       const { targetId, targetGroup, visibleOrderIds } = pendingDropRef.current;
 
       if (targetId || targetGroup) {
+        const sourceTodo = rankedTodos.find((todo) => todo.id === draggingId);
+        const sourceGroup =
+          sortMode === "priority"
+            ? getPriority(sourceTodo)
+            : sourceTodo?.category ?? "その他";
+
         onReorder(draggingId, targetId, targetGroup, visibleOrderIds);
+
+        setRecentMovedTodoId(draggingId);
+        setRecentMovedTargetGroup(targetGroup);
+        setRecentMovedOriginGroup(sourceGroup);
+
+        if (recentMovedTimerRef.current) {
+          clearTimeout(recentMovedTimerRef.current);
+        }
+
+        recentMovedTimerRef.current = setTimeout(() => {
+          setRecentMovedTodoId(null);
+          setRecentMovedTargetGroup(null);
+          setRecentMovedOriginGroup(null);
+          recentMovedTimerRef.current = null;
+        }, 1200);
       }
 
       stopDragging();
@@ -1089,7 +1141,7 @@ function TodoListCard({
       window.removeEventListener("pointercancel", handlePointerUp);
       clearLongPressTimer();
     };
-  }, [onReorder, rankedTodos]);
+  }, [onReorder, rankedTodos, sortMode]);
 
   return (
     <section className="relative z-20 overflow-visible rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
@@ -1105,7 +1157,7 @@ function TodoListCard({
       ) : (
         <div className="space-y-1.5">
           {sections.map((section) => {
-  const collapsed = !showAllTasks && !openSectionKeys.includes(section.key);
+  const collapsed = !openSectionKeys.includes(section.key);
 
             return (
               <TodoSection
@@ -1113,13 +1165,19 @@ function TodoListCard({
                 section={section}
                 sortMode={sortMode}
                 collapsed={collapsed}
-                onToggleCollapse={() =>
+                onToggleCollapse={() => {
+                  if (showAllTasks) {
+                    onSetShowAllTasks?.(false);
+                    setOpenSectionKeys(sections.map((item) => item.key).filter((key) => key !== section.key));
+                    return;
+                  }
+
                   setOpenSectionKeys((current) =>
                     current.includes(section.key)
                       ? current.filter((key) => key !== section.key)
                       : [...current, section.key]
-                  )
-                }
+                  );
+                }}
                 selectedTaskId={selectedTaskId}
                 canSelect={canSelect}
                 canComplete={canComplete}
@@ -1133,6 +1191,9 @@ function TodoListCard({
                 dragOffsetY={dragOffsetY}
                 dropTargetId={dropTargetId}
                 dropTargetGroup={dropTargetGroup}
+                recentMovedTodoId={recentMovedTodoId}
+                recentMovedTargetGroup={recentMovedTargetGroup}
+                recentMovedOriginGroup={recentMovedOriginGroup}
                 onSelect={onSelect}
                 onToggle={onToggle}
                 onEdit={onEdit}
@@ -1467,6 +1528,7 @@ export default function TodayPage({
 
   const [sortMode, setSortMode] = useState("priority");
   const [showAllTasks, setShowAllTasks] = useState(false);
+  const [showAllTasksResetKey, setShowAllTasksResetKey] = useState(0);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [todoModal, setTodoModal] = useState({
     open: false,
@@ -1478,8 +1540,8 @@ export default function TodayPage({
     todo: null,
     completeAfterSave: false,
   });
-  const [undoToast, setUndoToast] = useState(null);
-  const undoTimerRef = useRef(null);
+ const [undoToast, setUndoToast] = useState(null);
+const undoTimerRef = useRef(null);
 
   const selectedTask =
     filteredTodos.find((todo) => todo.id === selectedTaskId && !isCompleted(todo)) ??
@@ -2069,17 +2131,19 @@ const baseSeconds =
 };
 
   const targetWorkLog = workLogModal.todo
-    ? workLogs.find((log) => log.taskId === workLogModal.todo.id)
-    : null;
+  ? workLogs.find((log) => log.taskId === workLogModal.todo.id)
+  : null;
 
-  return (
+return (
+  <>
     <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
       <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(82px+env(safe-area-inset-bottom))] pt-[calc(8px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
-        <Header selectedDate={selectedDate} onChangeDate={setSelectedDate} />
 
         <main className="space-y-2.5 min-[390px]:space-y-3">
           <TodayGoalCard
-            totalCount={totalCount}
+  selectedDate={selectedDate}
+  onSetDate={setSelectedDate}
+  totalCount={totalCount}
             incompleteCount={incompleteCount}
             selectedTask={selectedTask}
             onStartTimer={startTimer}
@@ -2092,12 +2156,20 @@ const baseSeconds =
             sortMode={sortMode}
             onChange={setSortMode}
             showAllTasks={showAllTasks}
-            onToggleShowAll={() => setShowAllTasks((current) => !current)}
+            onToggleShowAll={() => {
+              setShowAllTasks((current) => {
+                const next = !current;
+                if (!next) setShowAllTasksResetKey((key) => key + 1);
+                return next;
+              });
+            }}
           />
 
           <TodoListCard
   todos={incompleteTodos}
   showAllTasks={showAllTasks}
+  onSetShowAllTasks={setShowAllTasks}
+  showAllTasksResetKey={showAllTasksResetKey}
   categories={categories}
   sortMode={sortMode}
   selectedTaskId={selectedTaskId}
@@ -2182,6 +2254,7 @@ const baseSeconds =
         onUndo={undoLastAction}
         onClose={() => setUndoToast(null)}
       />
-    </div>
-  );
+        </div>
+  </>
+);
 }
