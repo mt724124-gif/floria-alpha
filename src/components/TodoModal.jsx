@@ -14,6 +14,19 @@ function getInitialDateKey(todo) {
   return todo?.targetDate ?? todo?.date ?? todo?.createdDate ?? getTodayKey();
 }
 
+function getActualMinutesFromInitialTodo(todo) {
+  const candidates = [
+    todo?.actualMinutes,
+    todo?.workedMinutes,
+    todo?.focusMinutes,
+    todo?.elapsedMinutes,
+    todo?.actualSeconds != null ? Math.round(Number(todo.actualSeconds) / 60) : null,
+    todo?.elapsedSeconds != null ? Math.round(Number(todo.elapsedSeconds) / 60) : null,
+  ];
+
+  return Number(candidates.find((value) => Number(value) > 0) ?? 0);
+}
+
 const priorityOptions = [
   { value: "high", label: "高", activeClass: "border-red-300 bg-red-50 text-red-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
   { value: "medium", label: "中", activeClass: "border-amber-300 bg-amber-50 text-amber-500", inactiveClass: "border-slate-200 bg-white text-slate-400" },
@@ -47,7 +60,7 @@ const [durationMinute, setDurationMinute] = useState("");
 
     if (initialTodo) {
       const estimated = initialTodo.estimatedMinutes;
-      const actual = initialTodo.actualMinutes ?? initialTodo.workedMinutes ?? initialTodo.focusMinutes ?? 0;
+      const actual = getActualMinutesFromInitialTodo(initialTodo);
 
       setTitle(initialTodo.title ?? "");
       setCategory(initialTodo.category ?? "学習");
@@ -427,9 +440,11 @@ estimatedMinutes,
                 onChange={(e) => setActualMinute(e.target.value)}
                 className="h-12 w-full rounded-2xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-emerald-400"
               >
-                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
-                  <option key={minute} value={minute}>{String(minute).padStart(2, "0")}分</option>
-                ))}
+                {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
+  <option key={minute} value={minute}>
+    {String(minute).padStart(2, "0")}分
+  </option>
+))}
               </select>
             </div>
           </div>

@@ -150,6 +150,36 @@ function getInitialActualMinutes(todo, workLog) {
   return Number(found ?? 15);
 }
 
+function getActualMinutesFromTask(todo, workLog) {
+  const candidates = [
+    todo?.actualMinutes,
+    todo?.workedMinutes,
+    todo?.focusMinutes,
+    todo?.elapsedMinutes,
+    workLog?.minutes,
+    todo?.actualSeconds != null ? Math.round(Number(todo.actualSeconds) / 60) : null,
+    todo?.elapsedSeconds != null ? Math.round(Number(todo.elapsedSeconds) / 60) : null,
+    workLog?.seconds != null ? Math.round(Number(workLog.seconds) / 60) : null,
+  ];
+
+  return Number(candidates.find((value) => Number(value) > 0) ?? 0);
+}
+
+function getActualSecondsFromTask(todo, workLog) {
+  const candidates = [
+    todo?.actualSeconds,
+    todo?.elapsedSeconds,
+    workLog?.seconds,
+    todo?.actualMinutes != null ? Number(todo.actualMinutes) * 60 : null,
+    todo?.workedMinutes != null ? Number(todo.workedMinutes) * 60 : null,
+    todo?.focusMinutes != null ? Number(todo.focusMinutes) * 60 : null,
+    todo?.elapsedMinutes != null ? Number(todo.elapsedMinutes) * 60 : null,
+    workLog?.minutes != null ? Number(workLog.minutes) * 60 : null,
+  ];
+
+  return Number(candidates.find((value) => Number(value) > 0) ?? 0);
+}
+
 
 function TodayGoalCard({
   selectedDate,
@@ -1441,8 +1471,6 @@ function UndoToast({ toast, onUndo, onClose }) {
 export default function TodayPage({
   initialDateKey,
   onOpenTimer,
-  timerCompletion,
-  onTimerCompletionHandled,
   taskUpdateRequest,
   onTaskUpdateHandled,
   appData,
@@ -1607,59 +1635,6 @@ const undoTimerRef = useRef(null);
     onTaskUpdateHandled?.();
   }, [taskUpdateRequest, onTaskUpdateHandled]);
 
-  useEffect(() => {
-    if (!timerCompletion?.task?.id) return;
-
-    const finishedTask = timerCompletion.task;
-    const taskDateKey = getTodoDateKey(finishedTask);
-
-    setTodos((current) =>
-      current.map((todo) =>
-        todo.id === finishedTask.id
-          ? {
-              ...todo,
-              completed: timerCompletion.completed === true,
-              taskStatus: timerCompletion.completed === true ? "completed" : todo.taskStatus ?? "pending",
-              completedAt: timerCompletion.completed === true ? new Date().toISOString() : todo.completedAt ?? null,
-              actualMinutes: timerCompletion.actualMinutes,
-actualSeconds:
-  timerCompletion.actualSeconds ??
-  timerCompletion.actualMinutes * 60,
-workedMinutes: timerCompletion.actualMinutes,
-focusMinutes: timerCompletion.actualMinutes,
-elapsedMinutes: timerCompletion.actualMinutes,
-elapsedSeconds:
-  timerCompletion.actualSeconds ??
-  timerCompletion.actualMinutes * 60,
-priority: getPriority(todo),
-rank: todo.rank,
-targetDate: getTodoDateKey(todo),
-            }
-          : todo
-      )
-    );
-
-    setWorkLogs((current) => [
-      ...current.filter((log) => log.taskId !== finishedTask.id),
-      {
-        id: Date.now(),
-        taskId: finishedTask.id,
-        taskTitle: finishedTask.title,
-        category: finishedTask.category,
-        priority: getPriority(finishedTask),
-        rank: finishedTask.rank,
-        minutes: timerCompletion.actualMinutes,
-seconds:
-  timerCompletion.actualSeconds ??
-  timerCompletion.actualMinutes * 60,
-date: taskDateKey,
-      },
-    ]);
-
-    setSelectedTaskId(timerCompletion.completed ? null : finishedTask.id);
-
-    onTimerCompletionHandled?.();
-  }, [timerCompletion, onTimerCompletionHandled]);
 
   const addCategory = (category) => {
     setCategories((current) =>
@@ -2110,26 +2085,13 @@ completed: log.completeAfterSave ? true : todo.completed,
 
   const startTimer = () => {
   if (!selectedTask || !canSelectTask) return;
+
   const savedWorkLog = workLogs.find((log) => log.taskId === selectedTask.id);
 
-const baseSeconds =
-  selectedTask.actualSeconds ??
-  selectedTask.elapsedSeconds ??
-  savedWorkLog?.seconds ??
-  ((selectedTask.actualMinutes ??
-    selectedTask.elapsedMinutes ??
-    selectedTask.workedMinutes ??
-    selectedTask.focusMinutes ??
-    savedWorkLog?.minutes ??
-    0) * 60);
-
+  const baseSeconds = getActualSecondsFromTask(selectedTask, savedWorkLog);
   const baseMinutes =
-  selectedTask.actualMinutes ??
-  selectedTask.elapsedMinutes ??
-  selectedTask.workedMinutes ??
-  selectedTask.focusMinutes ??
-  savedWorkLog?.minutes ??
-  Math.round(baseSeconds / 60);
+    getActualMinutesFromTask(selectedTask, savedWorkLog) ||
+    Math.round(baseSeconds / 60);
 
   onOpenTimer?.({
     ...selectedTask,
@@ -2197,9 +2159,27 @@ return (
   }}
   onToggle={toggleTodo}
   onEdit={(todo) => {
-    if (!canEditTask) return;
-    setTodoModal({ open: true, mode: "edit", todo });
-  }}
+  if (!canEditTask) return;
+
+  const savedWorkLog = workLogs.find((log) => log.taskId === todo.id);
+  const actualMinutes = getActualMinutesFromTask(todo, savedWorkLog);
+  const actualSeconds = getActualSecondsFromTask(todo, savedWorkLog);
+
+  setTodoModal({
+    open: true,
+    mode: "edit",
+    todo: {
+      ...todo,
+      actualMinutes,
+      actualSeconds,
+      workedMinutes: actualMinutes,
+      focusMinutes: actualMinutes,
+      elapsedMinutes: actualMinutes,
+      elapsedSeconds: actualSeconds,
+    },
+  });
+}}
+
   onDelete={deleteTodo}
   onMoveTomorrow={moveTodoTomorrow}
   onWorkLogEdit={openWorkLogModal}
@@ -2207,10 +2187,32 @@ return (
 />
 
           <TodayRecordCard
-  totalPlannedMinutes={filteredTodos.reduce((sum, todo) => sum + Number(todo.estimatedMinutes || 0), 0)}
-  hasPlannedMinutes={filteredTodos.some((todo) => Number(todo.estimatedMinutes) > 0)}
-  totalActualMinutes={filteredTodos.reduce((sum, todo) => sum + Number(todo.actualMinutes || todo.workedMinutes || todo.focusMinutes || todo.elapsedMinutes || 0), 0)}
-  hasActualMinutes={filteredTodos.some((todo) => Number(todo.actualMinutes || todo.workedMinutes || todo.focusMinutes || todo.elapsedMinutes || 0) > 0)}
+  totalPlannedMinutes={filteredTodos.reduce(
+    (sum, todo) => sum + Number(todo.estimatedMinutes ?? 0),
+    0
+  )}
+  hasPlannedMinutes={filteredTodos.some(
+    (todo) => Number(todo.estimatedMinutes) > 0
+  )}
+  totalActualMinutes={filteredTodos.reduce((sum, todo) => {
+    const savedWorkLog = workLogs.find(
+      (log) => log.taskId === todo.id
+    );
+
+    return (
+      sum + getActualMinutesFromTask(todo, savedWorkLog)
+    );
+  }, 0)}
+  hasActualMinutes={filteredTodos.some((todo) => {
+    const savedWorkLog = workLogs.find(
+      (log) => log.taskId === todo.id
+    );
+
+    return (
+      getActualMinutesFromTask(todo, savedWorkLog) > 0
+    );
+  })}
+
   completedCount={dailyRecord.completedTaskCount ?? 0}
   totalCount={dailyRecord.createdTaskCount ?? 0}
   onOpenReview={() => {

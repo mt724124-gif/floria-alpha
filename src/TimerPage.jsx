@@ -52,18 +52,19 @@ function formatClock(totalSeconds) {
 }
 
 function getInitialActualSeconds(task) {
-  if (task?.actualSeconds != null) {
-    return Math.max(0, Math.round(Number(task.actualSeconds)));
-  }
+  const candidates = [
+    task?.actualSeconds,
+    task?.elapsedSeconds,
+    task?.actualMinutes != null ? Number(task.actualMinutes) * 60 : null,
+    task?.workedMinutes != null ? Number(task.workedMinutes) * 60 : null,
+    task?.focusMinutes != null ? Number(task.focusMinutes) * 60 : null,
+    task?.elapsedMinutes != null ? Number(task.elapsedMinutes) * 60 : null,
+  ];
 
-  const minutes =
-    task?.actualMinutes ??
-    task?.workedMinutes ??
-    task?.focusMinutes ??
-    task?.elapsedMinutes ??
-    0;
-
-  return Math.max(0, Math.round(Number(minutes) * 60));
+  return Math.max(
+    0,
+    Math.round(Number(candidates.find((value) => Number(value) > 0) ?? 0))
+  );
 }
 
 
@@ -165,19 +166,39 @@ function CircularTimer({ elapsedSeconds, plannedSeconds, plannedMinutes }) {
   );
 }
 
-function PauseButton({ isRunning, onToggle }) {
+function PauseButton({ isRunning, onPause, onResume, onBackHome }) {
+  if (!isRunning) {
+    return (
+      <div className="flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={onResume}
+          className="flex h-[42px] min-w-[104px] items-center justify-center gap-1.5 rounded-[16px] bg-emerald-500 px-4 text-[14px] font-black text-white shadow-[0_8px_18px_rgba(16,185,129,0.20)] active:scale-[0.98]"
+        >
+          <Play className="h-5 w-5 fill-current" />
+          再開
+        </button>
+
+        <button
+          type="button"
+          onClick={onBackHome}
+          className="flex h-[42px] min-w-[104px] items-center justify-center gap-1.5 rounded-[16px] bg-white px-4 text-[14px] font-black text-slate-500 shadow-[0_8px_18px_rgba(15,23,42,0.08)] active:scale-[0.98]"
+        >
+          <Home className="h-5 w-5" />
+          ホーム
+        </button>
+      </div>
+    );
+  }
+
   return (
     <button
-      onClick={onToggle}
-      className="flex h-[48px] min-w-[142px] items-center justify-center gap-2 rounded-[18px] bg-white px-5 text-[15px] font-black text-emerald-600 shadow-[0_10px_26px_rgba(15,23,42,0.08)] active:scale-[0.98]"
+      type="button"
+      onClick={onPause}
+      className="flex h-[54px] min-w-[176px] items-center justify-center gap-3 rounded-[20px] bg-white px-7 text-[16px] font-black text-emerald-600 shadow-[0_12px_28px_rgba(15,23,42,0.10)] active:scale-[0.98]"
     >
-      {isRunning ? (
-        <Pause className="h-6 w-6 fill-emerald-500" />
-      ) : (
-        <Play className="h-6 w-6 fill-emerald-500" />
-      )}
-
-      {isRunning ? "一時停止" : "再開"}
+      <Pause className="h-7 w-7 fill-emerald-500" />
+      一時停止
     </button>
   );
 }
@@ -386,7 +407,6 @@ const plannedSeconds = plannedMinutes * 60;
   }, [isRunning]);
 
   const pauseTimer = () => {
-  saveProgress();
   setIsRunning(false);
 };
 
@@ -426,18 +446,20 @@ const plannedSeconds = plannedMinutes * 60;
 };
 
   const handleClose = () => {
-    saveProgress();
+  if (!localTask?.id) {
     onClose?.();
-  };
+    return;
+  }
+
+  onComplete?.(buildResult(false));
+};
 
   const completeWork = () => {
-    if (!localTask?.id || hasSavedRef.current) return;
+  if (!localTask?.id) return;
 
-    hasSavedRef.current = true;
-
-    onComplete?.(buildResult(true));
-    onClose?.();
-  };
+  setIsRunning(false);
+  onComplete?.(buildResult(true));
+};
 
   const saveEditedTask = (updatedTask) => {
   const mergedTask = {
@@ -500,15 +522,12 @@ const plannedSeconds = plannedMinutes * 60;
           />
 
           <div className="timer-action-area flex flex-col items-center gap-1.5">
-            <PauseButton isRunning={isRunning} onToggle={toggleTimer} />
-
-            <button
-              onClick={handleClose}
-              className="mx-auto flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-2xl px-4 text-[12px] font-black text-slate-400 active:bg-slate-100"
-            >
-              <Home className="h-4 w-4" />
-              ホームに戻る
-            </button>
+            <PauseButton
+  isRunning={isRunning}
+  onPause={pauseTimer}
+  onResume={resumeTimer}
+  onBackHome={handleClose}
+/>
           </div>
         </div>
 

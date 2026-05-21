@@ -40,6 +40,14 @@ function saveData(data) {
   }
 }
 
+function createId() {
+  if (crypto?.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function createInitialAppData() {
   return {
     tasks: [],
@@ -55,7 +63,6 @@ function createInitialAppData() {
 export default function App() {
   const [screen, setScreen] = useState("today");
   const [timerTask, setTimerTask] = useState(null);
-  const [timerCompletion, setTimerCompletion] = useState(null);
   const [taskUpdateRequest, setTaskUpdateRequest] = useState(null);
   const [reviewDateKey, setReviewDateKey] = useState(getTodayKey());
   const [todayInitialDateKey, setTodayInitialDateKey] = useState(null);
@@ -84,15 +91,23 @@ export default function App() {
   };
 
   const closeTimer = () => {
-    setScreen("today");
-  };
+  setTimerTask(null);
+  setScreen("today");
+};
 
 const saveTimerResultToAppData = (result) => {
   const sessionDate = getTaskDateKey(result?.task);
   const actualMinutes = Math.max(
-    0,
-    Number(result?.actualMinutes ?? 0)
-  );
+  0,
+  Number(
+    result?.actualMinutes ??
+    (
+      result?.actualSeconds != null
+        ? Math.round(Number(result.actualSeconds) / 60)
+        : 0
+    )
+  )
+);
 
   const actualSeconds = Math.max(
     0,
@@ -106,7 +121,7 @@ const saveTimerResultToAppData = (result) => {
   );
 
   const session = {
-    id: crypto.randomUUID(),
+    id: createId(),
     taskId: result?.task?.id,
     taskTitle: result?.task?.title,
     category: result?.task?.category,
@@ -214,33 +229,26 @@ const saveTimerResultToAppData = (result) => {
 };
 
 const handleTimerResult = (result) => {
-  const normalizedResult =
-    saveTimerResultToAppData(result);
+  saveTimerResultToAppData(result);
 
-  setTimerCompletion(normalizedResult);
+  setTimerTask(null);
   setScreen("today");
 };
 
 const handleTimerProgress = (result) => {
-  const normalizedResult =
-    saveTimerResultToAppData(result);
+  const normalizedResult = saveTimerResultToAppData(result);
+
 
   setTimerTask((current) =>
     current?.id === normalizedResult.task?.id
       ? {
           ...current,
-          actualMinutes:
-            normalizedResult.actualMinutes,
-          actualSeconds:
-            normalizedResult.actualSeconds,
-          workedMinutes:
-            normalizedResult.actualMinutes,
-          focusMinutes:
-            normalizedResult.actualMinutes,
-          elapsedMinutes:
-            normalizedResult.actualMinutes,
-          elapsedSeconds:
-            normalizedResult.actualSeconds,
+          actualMinutes: normalizedResult.actualMinutes,
+          actualSeconds: normalizedResult.actualSeconds,
+          workedMinutes: normalizedResult.actualMinutes,
+          focusMinutes: normalizedResult.actualMinutes,
+          elapsedMinutes: normalizedResult.actualMinutes,
+          elapsedSeconds: normalizedResult.actualSeconds,
         }
       : current
   );
@@ -264,8 +272,6 @@ const handleTimerProgress = (result) => {
         <TodayPage
   initialDateKey={todayInitialDateKey}
   onOpenTimer={openTimer}
-  timerCompletion={timerCompletion}
-  onTimerCompletionHandled={() => setTimerCompletion(null)}
   taskUpdateRequest={taskUpdateRequest}
   onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
   appData={appData}
