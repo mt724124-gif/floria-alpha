@@ -142,6 +142,14 @@ export function createTaskSnapshot(task, options = {}) {
     schedule: task.schedule ?? null,
     reminder: task.reminder ?? null,
 
+    targetDate: task.targetDate ?? task.date ?? null,
+    date: task.date ?? task.targetDate ?? null,
+    createdDate: task.createdDate ?? null,
+    postponedToDate: task.postponedToDate ?? null,
+    postponedFromDate: task.postponedFromDate ?? null,
+    postponedCloneId: task.postponedCloneId ?? null,
+    originalTaskId: task.originalTaskId ?? null,
+
     createdAt: task.createdAt ?? now,
     updatedAt: now,
   };

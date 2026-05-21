@@ -440,11 +440,20 @@ function TaskRow({
     <input
   type="date"
   disabled={disabled}
-  defaultValue={displayPostponeDate ?? getTomorrowKey(baseDateKey)}
+  value={displayPostponeDate ?? getTomorrowKey(baseDateKey)}
   min={getTomorrowKey(baseDateKey)}
   onChange={(event) => {
     if (disabled) return;
-    onChangePostponeDate(task, event.target.value);
+
+    const minDateKey = getTomorrowKey(baseDateKey);
+    const selectedDateKey = event.target.value;
+
+    if (!selectedDateKey || selectedDateKey < minDateKey) {
+      onChangePostponeDate(task, minDateKey);
+      return;
+    }
+
+    onChangePostponeDate(task, selectedDateKey);
   }}
   className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
 />
@@ -478,6 +487,7 @@ function TaskSection({
   onDeleteTask,
   onMoveTaskToStatus,
   onChangePostponeDate,
+  onPostponeAllPending,
   postponeDateOverrides = {},
   baseDateKey,
 }) {
@@ -630,12 +640,9 @@ function TaskSection({
 
   return (
     <section className="relative z-20 mb-3 overflow-visible rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
-      <div className="mb-2 flex items-center gap-2 px-1">
-        <div className="grid h-7 w-7 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-500">
-          <GripVertical className="h-4.5 w-4.5" strokeWidth={2.5} />
-        </div>
-        <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">今日のタスク</h2>
-      </div>
+      <div className="mb-2 flex items-center px-1">
+  <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">今日のタスク</h2>
+</div>
 
       {tasks.length === 0 ? (
         <div className="rounded-[18px] bg-emerald-50 px-4 py-5 text-center text-[13px] font-bold text-emerald-600">
@@ -656,14 +663,29 @@ function TaskSection({
                 }`}
               >
                 <div className="mb-1.5 flex items-center gap-2 px-1">
-                  <p className={`text-[14px] font-black ${style.text}`}>{style.label}</p>
-                  <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-black ${style.badge}`}>
-                    {sectionTasks.length}
-                  </span>
-                  {status === "postponed" && sectionTasks.length > 0 && (
-                    <span className="ml-auto text-[11px] font-black text-orange-500">日付変更可</span>
-                  )}
-                </div>
+  <p className={`text-[14px] font-black ${style.text}`}>{style.label}</p>
+  <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-black ${style.badge}`}>
+    {sectionTasks.length}
+  </span>
+
+  {status === "pending" && sectionTasks.length > 0 && !disabled && (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onPostponeAllPending?.();
+      }}
+      className="ml-auto rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-black text-orange-600 active:scale-[0.98]"
+    >
+      一括延期
+    </button>
+  )}
+
+  {status === "postponed" && sectionTasks.length > 0 && (
+    <span className="ml-auto text-[11px] font-black text-orange-500">日付変更可</span>
+  )}
+</div>
 
                 <div className="overflow-visible rounded-[16px] bg-white">
                   {sectionTasks.length === 0 ? (
@@ -1027,36 +1049,99 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
     completeTask(task, minutes);
   };
 
-  const handleMoveTaskToStatus = (taskId, nextStatus) => {
-    if (isConfirmed) return;
+  const handlePostponeAllPending = () => {
+  if (isConfirmed) return;
 
-    const task = (appData?.tasks ?? []).find((item) => item.id === taskId);
-    if (!task) return;
+  setPostponeDateOverrides((current) => {
+    const next = { ...current };
 
-    const currentStatus = getReviewStatus(task);
-    if (currentStatus === nextStatus) return;
+    activeTasks
+      .filter((task) => getReviewStatus(task) === "pending")
+      .forEach((task) => {
+        next[task.id] = task.postponedToDate ?? defaultPostponeDateKey;
+      });
 
-    if (nextStatus === "pending") {
-      moveTaskToPending(task);
-      return;
-    }
+    return next;
+  });
 
-    if (nextStatus === "completed") {
-      requestCompleteTask(task);
-      return;
-    }
+  setAppData((current) => {
+    const currentDateTasks = (current.tasks ?? []).filter(
+      (task) => getTaskDateKey(task, dateKey) === dateKey
+    );
 
-    if (nextStatus === "postponed") {
-  const nextDateKey = task.postponedToDate ?? defaultPostponeDateKey;
+    const pendingIds = new Set(
+      currentDateTasks
+        .filter((task) => getReviewStatus(task) === "pending")
+        .map((task) => task.id)
+    );
 
-  setPostponeDateOverrides((current) => ({
-    ...current,
-    [task.id]: nextDateKey,
-  }));
+    if (pendingIds.size === 0) return current;
 
-  postponeTask(task, nextDateKey);
-}
-  };
+    const nextTasks = (current.tasks ?? []).map((task) => {
+      if (!pendingIds.has(task.id)) return task;
+
+      const workLog = (current.workLogs ?? []).find((log) => log.taskId === task.id);
+      const minutes = getActualMinutes(task, workLog);
+      const seconds = minutes * 60;
+      const nextDateKey = task.postponedToDate ?? defaultPostponeDateKey;
+
+      return {
+        ...task,
+        completed: false,
+        taskStatus: "postponed",
+        completedAt: null,
+        actualMinutes: minutes,
+        actualSeconds: seconds,
+        workedMinutes: minutes,
+        focusMinutes: minutes,
+        elapsedMinutes: minutes,
+        elapsedSeconds: seconds,
+        postponedToDate: nextDateKey,
+        postponedCloneId: null,
+        type: "todo",
+        reminder: null,
+        schedule: null,
+      };
+    });
+
+    return {
+      ...current,
+      tasks: nextTasks,
+      dailyRecords: syncCurrentDateRecords(current, nextTasks),
+    };
+  });
+};
+
+const handleMoveTaskToStatus = (taskId, nextStatus) => {
+  if (isConfirmed) return;
+
+  const task = (appData?.tasks ?? []).find((item) => item.id === taskId);
+  if (!task) return;
+
+  const currentStatus = getReviewStatus(task);
+  if (currentStatus === nextStatus) return;
+
+  if (nextStatus === "pending") {
+    moveTaskToPending(task);
+    return;
+  }
+
+  if (nextStatus === "completed") {
+    requestCompleteTask(task);
+    return;
+  }
+
+  if (nextStatus === "postponed") {
+    const nextDateKey = task.postponedToDate ?? defaultPostponeDateKey;
+
+    setPostponeDateOverrides((current) => ({
+      ...current,
+      [task.id]: nextDateKey,
+    }));
+
+    postponeTask(task, nextDateKey);
+  }
+};
 
   const handleEditTask = (task) => {
     if (isConfirmed || isPostponed(task)) return;
@@ -1085,9 +1170,12 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
   const handleChangePostponeDate = (task, nextDateKey) => {
   if (isConfirmed || !nextDateKey) return;
 
+  const minDateKey = getTomorrowKey(dateKey);
+  const safeNextDateKey = nextDateKey < minDateKey ? minDateKey : nextDateKey;
+
   setPostponeDateOverrides((current) => ({
     ...current,
-    [task.id]: nextDateKey,
+    [task.id]: safeNextDateKey,
   }));
 
   setAppData((current) => {
@@ -1100,7 +1188,7 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
       item.id === currentTask.id
         ? {
             ...item,
-            postponedToDate: nextDateKey,
+            postponedToDate: safeNextDateKey,
             postponedCloneId: null,
           }
         : item
@@ -1318,6 +1406,7 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
   onDeleteTask={handleDeleteTask}
   onMoveTaskToStatus={handleMoveTaskToStatus}
   onChangePostponeDate={handleChangePostponeDate}
+  onPostponeAllPending={handlePostponeAllPending}
   postponeDateOverrides={postponeDateOverrides}
   baseDateKey={dateKey}
 />
