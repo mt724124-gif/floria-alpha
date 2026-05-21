@@ -70,19 +70,34 @@ function createInitialAppData() {
 }
 
 function normalizeLongTasksFromAI(tasks) {
+  const categoryColors = [
+    "bg-blue-500",
+    "bg-emerald-500",
+    "bg-pink-500",
+    "bg-orange-500",
+    "bg-violet-500",
+    "bg-cyan-500",
+  ];
+
   return (tasks ?? []).map((task, index) => {
     const id = task.id ?? createId();
+    const start = task.start ?? task.startDate ?? task.start_date ?? "";
+    const end = task.end ?? task.endDate ?? task.end_date ?? task.deadline ?? "";
 
     return {
       ...task,
       id,
       source: task.source ?? "ai",
       title: task.title ?? `長期タスク${index + 1}`,
-      startDate: task.startDate ?? task.start_date ?? "",
-      endDate: task.endDate ?? task.end_date ?? task.deadline ?? "",
+      start,
+      end,
+      startDate: start,
+      endDate: end,
+      category: task.category ?? "AI",
+      color: task.color ?? categoryColors[index % categoryColors.length],
       estimatedMinutes: Number(task.estimatedMinutes ?? 0) || 0,
       progress: task.progress ?? 0,
-      status: task.status ?? "active",
+      status: task.status ?? "進行前",
       createdAt: task.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       dailyPlans: (task.dailyPlans ?? []).map((plan) => ({
@@ -91,9 +106,12 @@ function normalizeLongTasksFromAI(tasks) {
         selected: plan.selected ?? true,
         date: plan.date ?? "",
         title: plan.title ?? "",
+        completed: plan.completed ?? false,
+        actualMinutes: plan.actualMinutes ?? null,
+        memo: plan.memo ?? "",
         estimatedMinutes:
           plan.estimatedMinutes === "" || plan.estimatedMinutes == null
-            ? null
+            ? ""
             : Number(plan.estimatedMinutes),
         status: plan.status ?? "pending",
       })),

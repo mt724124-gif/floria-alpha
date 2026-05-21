@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   CalendarDays,
@@ -6,20 +6,22 @@ import {
   ChevronDown,
   Clipboard,
   Clock,
-  Copy,
-  GripVertical,
+  ExternalLink,
   HelpCircle,
-  Pencil,
+  Link,
   Plus,
   RefreshCcw,
+  Settings,
   Sparkles,
   Trash2,
-  X,
 } from "lucide-react";
 
-const PROJECT_URL = "https://chatgpt.com/";
+const DEFAULT_AI_URL = "https://chatgpt.com/";
+const AI_DESTINATIONS_STORAGE_KEY = "todo-app-ai-destinations-v1";
+const SELECTED_AI_DESTINATION_ID_STORAGE_KEY = "todo-app-selected-ai-destination-id-v1";
 
 const today = new Date();
+
 const formatDateKey = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -33,14 +35,30 @@ const addDays = (date, days) => {
   return next;
 };
 
+const getNextDateKey = (dateKey, days = 7) => {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return formatDateKey(date);
+};
+
+const defaultAiDestinations = [
+  {
+    id: "default-chatgpt",
+    name: "ChatGPT",
+    url: DEFAULT_AI_URL,
+    locked: true,
+  },
+];
+
 const initialRequestTasks = [
   {
     id: 1,
-    title: "学会ポスター作成",
+    title: "",
     startDate: formatDateKey(today),
-    endDate: formatDateKey(addDays(today, 39)),
-    detail:
-      "・6/20締切の学会ポスターを作成したい\n・共同演者の確認が必要\n・図表を先に作ってから、考察を書きたい\n・5月後半は少し忙しくなりそう",
+    endDate: formatDateKey(addDays(today, 7)),
+    detail: "",
+    open: true,
   },
 ];
 
@@ -49,59 +67,21 @@ const sampleAiJson = {
   longTasks: [
     {
       title: "学会ポスター作成",
-      startDate: "2026-05-12",
+      startDate: "2026-05-22",
       endDate: "2026-06-20",
       estimatedMinutes: 1080,
       dailyPlans: [
         {
-          date: "2026-05-12",
-          title: "ポスターの全体構成を考える",
-          estimatedMinutes: 120,
-          status: "accepted",
-        },
-        {
-          date: "2026-05-13",
-          title: "図表の候補を集める・整理する",
-          estimatedMinutes: 150,
-          status: "accepted",
-        },
-        {
-          date: "2026-05-14",
-          title: "結果の図表を作成する",
-          estimatedMinutes: null,
-          status: "pending",
-        },
-        {
-          date: "2026-05-15",
-          title: "考察のアウトラインを作る",
-          estimatedMinutes: null,
-          status: "pending",
-        },
-        {
-          date: "2026-05-18",
-          title: "ポスターのレイアウトを作成",
-          estimatedMinutes: null,
-          status: "pending",
-        },
-      ],
-    },
-    {
-      title: "文献紹介スライド作成",
-      startDate: "2026-05-18",
-      endDate: "2026-06-05",
-      estimatedMinutes: 360,
-      dailyPlans: [
-        {
-          date: "2026-05-18",
-          title: "論文全体を読み直す",
+          date: "2026-05-22",
+          title: "ポスター全体構成を決める",
           estimatedMinutes: 60,
           status: "accepted",
         },
         {
-          date: "2026-05-19",
-          title: "背景・目的スライドを作る",
-          estimatedMinutes: 90,
-          status: "pending",
+          date: "2026-05-23",
+          title: "必要な図表を洗い出す",
+          estimatedMinutes: 45,
+          status: "accepted",
         },
       ],
     },
@@ -127,15 +107,6 @@ function daysBetween(start, end) {
   return Math.max(1, Math.round((e - s) / 86400000) + 1);
 }
 
-function minutesLabel(minutes) {
-  if (minutes == null || minutes === "" || Number(minutes) <= 0) return "未設定";
-  const h = Math.floor(Number(minutes) / 60);
-  const m = Number(minutes) % 60;
-  if (h === 0) return `${m}分`;
-  if (m === 0) return `${h}時間`;
-  return `${h}時間${m}分`;
-}
-
 function shortHoursLabel(minutes) {
   if (minutes == null || minutes === "" || Number(minutes) <= 0) return "未設定";
   const h = Number(minutes) / 60;
@@ -144,6 +115,46 @@ function shortHoursLabel(minutes) {
 
 function makeId() {
   return Date.now() + Math.floor(Math.random() * 10000);
+}
+
+function normalizeUrl(url) {
+  const text = String(url ?? "").trim();
+  if (!text) return "";
+
+  if (text.startsWith("http://") || text.startsWith("https://")) {
+    return text;
+  }
+
+  return `https://${text}`;
+}
+
+function loadAiDestinations() {
+  try {
+    const saved = localStorage.getItem(AI_DESTINATIONS_STORAGE_KEY);
+    if (!saved) return defaultAiDestinations;
+
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return defaultAiDestinations;
+
+    const merged = [
+      ...defaultAiDestinations,
+      ...parsed.filter((item) => item.id !== "default-chatgpt"),
+    ];
+
+    return merged.length > 0 ? merged : defaultAiDestinations;
+  } catch {
+    return defaultAiDestinations;
+  }
+}
+
+function loadSelectedAiDestinationId(destinations) {
+  try {
+    const saved = localStorage.getItem(SELECTED_AI_DESTINATION_ID_STORAGE_KEY);
+    if (saved && destinations.some((item) => item.id === saved)) return saved;
+    return destinations[0]?.id ?? "default-chatgpt";
+  } catch {
+    return destinations[0]?.id ?? "default-chatgpt";
+  }
 }
 
 function normalizeAiData(raw) {
@@ -165,9 +176,7 @@ function normalizeAiData(raw) {
       (plan, planIndex) => ({
         id: makeId() + taskIndex * 100 + planIndex,
         selected:
-  plan.selected !== undefined
-    ? plan.selected
-    : plan.status === "accepted",
+          plan.selected !== undefined ? plan.selected : plan.status === "accepted",
         date: plan.date ?? "",
         title: plan.title ?? plan.content ?? "",
         estimatedMinutes:
@@ -179,6 +188,14 @@ function normalizeAiData(raw) {
 }
 
 function buildAiPrompt(tasks) {
+  const cleanTasks = tasks.map((task) => ({
+    id: task.id,
+    title: task.title,
+    startDate: task.startDate,
+    endDate: task.endDate,
+    detail: task.detail,
+  }));
+
   return JSON.stringify(
     {
       requestType: "create_long_task_plan",
@@ -204,7 +221,7 @@ function buildAiPrompt(tasks) {
           },
         ],
       },
-      tasks,
+      tasks: cleanTasks,
     },
     null,
     2
@@ -223,7 +240,11 @@ function StepTabs({ step, setStep }) {
             : "text-slate-500"
         }`}
       >
-        <span className={`grid h-6 w-6 place-items-center rounded-full ${step === 1 ? "bg-white text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+        <span
+          className={`grid h-6 w-6 place-items-center rounded-full ${
+            step === 1 ? "bg-white text-emerald-600" : "bg-slate-100 text-slate-500"
+          }`}
+        >
           1
         </span>
         要望を入力
@@ -238,7 +259,11 @@ function StepTabs({ step, setStep }) {
             : "text-slate-500"
         }`}
       >
-        <span className={`grid h-6 w-6 place-items-center rounded-full ${step === 2 ? "bg-white text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+        <span
+          className={`grid h-6 w-6 place-items-center rounded-full ${
+            step === 2 ? "bg-white text-emerald-600" : "bg-slate-100 text-slate-500"
+          }`}
+        >
           2
         </span>
         提案を編集
@@ -276,94 +301,349 @@ function Header({ onBack, step, setStep }) {
   );
 }
 
-function RequestTaskCard({ task, index, onChange, onDelete, canDelete }) {
+function AiDestinationSelector({
+  destinations,
+  setDestinations,
+  selectedDestinationId,
+  setSelectedDestinationId,
+  setToast,
+}) {
+  const [open, setOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+
+  const selectedDestination =
+    destinations.find((item) => item.id === selectedDestinationId) ??
+    destinations[0] ??
+    defaultAiDestinations[0];
+
+  const saveNewDestination = () => {
+    const name = newName.trim();
+    const url = normalizeUrl(newUrl);
+
+    if (!name || !url) {
+      setToast("名前とURLを入力してください");
+      return;
+    }
+
+    const nextDestination = {
+      id: String(makeId()),
+      name,
+      url,
+      locked: false,
+    };
+
+    setDestinations((current) => [...current, nextDestination]);
+    setSelectedDestinationId(nextDestination.id);
+    setNewName("");
+    setNewUrl("");
+    setToast("AI遷移先を追加しました");
+  };
+
+  const deleteDestination = (id) => {
+    const target = destinations.find((item) => item.id === id);
+    if (!target || target.locked) return;
+
+    setDestinations((current) => current.filter((item) => item.id !== id));
+
+    if (selectedDestinationId === id) {
+      setSelectedDestinationId("default-chatgpt");
+    }
+
+    setToast("AI遷移先を削除しました");
+  };
+
   return (
     <section className="rounded-[22px] border border-slate-100 bg-white p-3.5 shadow-[0_10px_26px_rgba(15,23,42,0.055)]">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-600 text-[14px] font-black text-white">
-            {index + 1}
-          </span>
-          <p className="text-[13px] font-black text-slate-600">タスクのタイトル（必須）</p>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <div className="min-w-0">
+          <div className="mb-1 flex items-center gap-2">
+            <Settings className="h-4 w-4 text-emerald-500" />
+            <p className="text-[14px] font-black text-slate-950">AI遷移先</p>
+          </div>
+          <p className="truncate text-[13px] font-bold text-slate-500">
+            選択中：{selectedDestination.name}
+          </p>
         </div>
 
-        <button
-          type="button"
-          disabled={!canDelete}
-          onClick={onDelete}
-          className={`grid h-10 w-10 place-items-center rounded-2xl border ${
-            canDelete
-              ? "border-red-100 bg-white text-red-500 active:bg-red-50"
-              : "border-slate-100 bg-slate-50 text-slate-200"
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${
+            open ? "rotate-180" : ""
           }`}
-        >
-          <Trash2 className="h-5 w-5" />
-        </button>
-      </div>
+        />
+      </button>
 
-      <input
-        value={task.title}
-        onChange={(e) => onChange({ ...task, title: e.target.value })}
-        placeholder="例）学会ポスター作成"
-        maxLength={50}
-        className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-950 outline-none focus:border-emerald-400"
-      />
-      <p className="mt-1 text-right text-[12px] font-bold text-slate-400">
-        {task.title.length}/50
-      </p>
+      {open && (
+        <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+          <div className="space-y-2">
+            {destinations.map((item) => {
+              const active = item.id === selectedDestinationId;
 
-      <p className="mb-2 mt-2 text-[13px] font-black text-slate-600">期間（必須）</p>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <label className="relative flex h-12 items-center rounded-2xl border border-slate-200 bg-white px-3">
-          <input
-            type="date"
-            value={task.startDate}
-            onChange={(e) => onChange({ ...task, startDate: e.target.value })}
-            className="w-full bg-transparent text-[14px] font-bold text-slate-900 outline-none"
-          />
-          <CalendarDays className="h-5 w-5 text-emerald-500" />
-        </label>
+              return (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${
+                    active
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-slate-100 bg-white"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDestinationId(item.id);
+                      setToast(`${item.name}を選択しました`);
+                    }}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p
+                      className={`truncate text-[14px] font-black ${
+                        active ? "text-emerald-700" : "text-slate-800"
+                      }`}
+                    >
+                      {item.name}
+                    </p>
+                    <p className="truncate text-[12px] font-bold text-slate-400">
+                      {item.url}
+                    </p>
+                  </button>
 
-        <span className="text-[18px] font-black text-slate-500">〜</span>
+                  {!item.locked && (
+                    <button
+                      type="button"
+                      onClick={() => deleteDestination(item.id)}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-red-400 active:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-        <label className="relative flex h-12 items-center rounded-2xl border border-slate-200 bg-white px-3">
-          <input
-            type="date"
-            value={task.endDate}
-            onChange={(e) => onChange({ ...task, endDate: e.target.value })}
-            className="w-full bg-transparent text-[14px] font-bold text-slate-900 outline-none"
-          />
-          <CalendarDays className="h-5 w-5 text-emerald-500" />
-        </label>
-      </div>
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="mb-2 text-[13px] font-black text-slate-700">
+              URLを追加
+            </p>
 
-      <p className="mb-2 mt-3 text-[13px] font-black text-slate-600">
-        AIに相談したい内容（任意・自由記述）
-      </p>
-      <textarea
-        value={task.detail}
-        onChange={(e) => onChange({ ...task, detail: e.target.value })}
-        placeholder={"例）\n・締切までに完成させたい\n・先に図表を作りたい\n・忙しい時期がある"}
-        maxLength={500}
-        className="h-[132px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[14px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
-      />
-      <p className="mt-1 text-right text-[12px] font-bold text-slate-400">
-        {task.detail.length}/500
-      </p>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="例）Todoプロジェクト"
+              className="mb-2 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400"
+            />
+
+            <input
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              placeholder="例）https://chatgpt.com/..."
+              inputMode="url"
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400"
+            />
+
+            <button
+              type="button"
+              onClick={saveNewDestination}
+              className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-[14px] font-black text-white active:scale-[0.985]"
+            >
+              <Plus className="h-4 w-4" />
+              このURLを追加
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
-function RequestPage({ requestTasks, setRequestTasks, setStep, setToast }) {
+function RequestTaskCard({
+  task,
+  index,
+  onChange,
+  onDelete,
+  canDelete,
+  onToggleOpen,
+}) {
+  const endDateInputRef = useRef(null);
+
+  const handleStartDateChange = (event) => {
+    const nextStartDate = event.target.value;
+    const suggestedEndDate = getNextDateKey(nextStartDate, 7);
+
+    onChange({
+      ...task,
+      startDate: nextStartDate,
+      endDate:
+        !task.endDate || String(task.endDate) < String(nextStartDate)
+          ? suggestedEndDate
+          : task.endDate,
+    });
+
+    setTimeout(() => {
+      endDateInputRef.current?.showPicker?.();
+      endDateInputRef.current?.focus?.();
+    }, 100);
+  };
+
+  const handleEndDateChange = (event) => {
+    const nextEndDate = event.target.value;
+
+    onChange({
+      ...task,
+      endDate: nextEndDate,
+    });
+
+    setTimeout(() => {
+      event.target.blur();
+      document.activeElement?.blur?.();
+    }, 0);
+  };
+
+  return (
+    <section className="rounded-[22px] border border-slate-100 bg-white p-3.5 shadow-[0_10px_26px_rgba(15,23,42,0.055)]">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onToggleOpen}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-600 text-[14px] font-black text-white">
+            {index + 1}
+          </span>
+
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-black text-slate-600">
+              {task.title.trim() || "タスクのタイトル（必須）"}
+            </p>
+            {!task.open && (
+              <p className="mt-0.5 truncate text-[11px] font-bold text-slate-400">
+                {toSlashDate(task.startDate)}〜{toSlashDate(task.endDate)}
+              </p>
+            )}
+          </div>
+        </button>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onToggleOpen}
+            className="grid h-10 w-10 place-items-center rounded-2xl border border-slate-100 bg-white text-slate-500 active:bg-slate-50"
+          >
+            <ChevronDown
+              className={`h-5 w-5 transition-transform ${task.open ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          <button
+            type="button"
+            disabled={!canDelete}
+            onClick={onDelete}
+            className={`grid h-10 w-10 place-items-center rounded-2xl border ${
+              canDelete
+                ? "border-red-100 bg-white text-red-500 active:bg-red-50"
+                : "border-slate-100 bg-slate-50 text-slate-200"
+            }`}
+          >
+            <Trash2 className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      {task.open && (
+        <>
+          <input
+            value={task.title}
+            onChange={(e) => onChange({ ...task, title: e.target.value })}
+            placeholder="例）学会ポスター作成"
+            maxLength={50}
+            className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-950 outline-none focus:border-emerald-400"
+          />
+
+          <p className="mt-1 text-right text-[12px] font-bold text-slate-400">
+            {task.title.length}/50
+          </p>
+
+          <p className="mb-2 mt-2 text-[13px] font-black text-slate-600">
+            期間（必須）
+          </p>
+
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <label className="relative flex h-12 items-center rounded-2xl border border-slate-200 bg-white px-3">
+              <input
+                type="date"
+                value={task.startDate}
+                onChange={handleStartDateChange}
+                className="w-full bg-transparent text-[16px] font-bold text-slate-900 outline-none"
+              />
+              <CalendarDays className="h-5 w-5 shrink-0 text-emerald-500" />
+            </label>
+
+            <span className="text-[18px] font-black text-slate-500">〜</span>
+
+            <label className="relative flex h-12 items-center rounded-2xl border border-slate-200 bg-white px-3">
+              <input
+                ref={endDateInputRef}
+                type="date"
+                value={task.endDate}
+                min={task.startDate}
+                onChange={handleEndDateChange}
+                className="w-full bg-transparent text-[16px] font-bold text-slate-900 outline-none"
+              />
+              <CalendarDays className="h-5 w-5 shrink-0 text-emerald-500" />
+            </label>
+          </div>
+
+          <p className="mb-2 mt-3 text-[13px] font-black text-slate-600">
+            AIに相談したい内容（任意・自由記述）
+          </p>
+
+          <textarea
+            value={task.detail}
+            onChange={(e) => onChange({ ...task, detail: e.target.value })}
+            placeholder={"例）\n・締切までに完成させたい\n・先に図表を作りたい\n・忙しい時期がある"}
+            maxLength={500}
+            className="h-[132px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
+          />
+
+          <p className="mt-1 text-right text-[12px] font-bold text-slate-400">
+            {task.detail.length}/500
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function RequestPage({
+  requestTasks,
+  setRequestTasks,
+  setStep,
+  setToast,
+  aiDestinations,
+  setAiDestinations,
+  selectedAiDestinationId,
+  setSelectedAiDestinationId,
+}) {
+  const selectedAiDestination =
+    aiDestinations.find((item) => item.id === selectedAiDestinationId) ??
+    aiDestinations[0] ??
+    defaultAiDestinations[0];
+
   const addTask = () => {
     setRequestTasks((current) => [
-      ...current,
+      ...current.map((task) => ({ ...task, open: false })),
       {
         id: makeId(),
         title: "",
         startDate: formatDateKey(today),
-        endDate: formatDateKey(addDays(today, 14)),
+        endDate: formatDateKey(addDays(today, 7)),
         detail: "",
+        open: true,
       },
     ]);
   };
@@ -373,11 +653,23 @@ function RequestPage({ requestTasks, setRequestTasks, setStep, setToast }) {
   };
 
   const deleteTask = (id) => {
-    setRequestTasks((current) => current.filter((task) => task.id !== id));
+    setRequestTasks((current) => {
+      const next = current.filter((task) => task.id !== id);
+      return next.length > 0 ? next : initialRequestTasks;
+    });
+  };
+
+  const toggleTaskOpen = (id) => {
+    setRequestTasks((current) =>
+      current.map((task) =>
+        task.id === id ? { ...task, open: !task.open } : task
+      )
+    );
   };
 
   const copyAndOpen = async () => {
     const prompt = buildAiPrompt(requestTasks);
+
     try {
       await navigator.clipboard.writeText(prompt);
       setToast("AIへの依頼内容をコピーしました");
@@ -385,7 +677,7 @@ function RequestPage({ requestTasks, setRequestTasks, setStep, setToast }) {
       setToast("コピーできませんでした。手動でコピーしてください");
     }
 
-    window.open(PROJECT_URL, "_blank");
+    window.open(selectedAiDestination?.url || DEFAULT_AI_URL, "_blank");
     setStep(2);
   };
 
@@ -400,8 +692,19 @@ function RequestPage({ requestTasks, setRequestTasks, setStep, setToast }) {
         </p>
       </section>
 
+      <AiDestinationSelector
+        destinations={aiDestinations}
+        setDestinations={setAiDestinations}
+        selectedDestinationId={selectedAiDestinationId}
+        setSelectedDestinationId={setSelectedAiDestinationId}
+        setToast={setToast}
+      />
+
       <section className="flex items-center justify-between px-1">
-        <h3 className="text-[16px] font-black text-slate-950">依頼する長期タスク</h3>
+        <h3 className="text-[16px] font-black text-slate-950">
+          依頼する長期タスク
+        </h3>
+
         <button
           type="button"
           onClick={addTask}
@@ -420,11 +723,14 @@ function RequestPage({ requestTasks, setRequestTasks, setStep, setToast }) {
           canDelete={requestTasks.length > 1}
           onChange={(next) => updateTask(task.id, next)}
           onDelete={() => deleteTask(task.id)}
+          onToggleOpen={() => toggleTaskOpen(task.id)}
         />
       ))}
 
       <section className="rounded-[18px] border border-emerald-100 bg-emerald-50/70 px-4 py-3">
-        <p className="text-[13px] font-black text-emerald-800">💡 書き方のポイント</p>
+        <p className="text-[13px] font-black text-emerald-800">
+          💡 書き方のポイント
+        </p>
         <p className="mt-1 text-[12px] font-bold leading-relaxed text-slate-600">
           目的・締切・優先したいこと・忙しい時期を書いておくと、日別予定が作りやすくなります。
         </p>
@@ -440,7 +746,7 @@ function RequestPage({ requestTasks, setRequestTasks, setStep, setToast }) {
       </button>
 
       <p className="pb-2 text-center text-[12px] font-bold text-slate-400">
-        入力した内容はAIに送信されます
+        依頼内容をコピーして、{selectedAiDestination.name}を開きます
       </p>
     </main>
   );
@@ -451,11 +757,14 @@ function PasteCard({ jsonText, setJsonText, onParse, parseStatus, onLoadSample }
     <section className="rounded-[22px] border border-slate-100 bg-white p-3.5 shadow-[0_10px_26px_rgba(15,23,42,0.055)]">
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h2 className="text-[16px] font-black text-slate-950">AIからの提案</h2>
+          <h2 className="text-[16px] font-black text-slate-950">
+            AIからの提案
+          </h2>
           <p className="mt-0.5 text-[12px] font-bold text-slate-500">
-            AIから返ってきた内容を貼り付けてください
+            AIから返ってきたJSONを貼り付けてください
           </p>
         </div>
+
         <button
           type="button"
           onClick={onLoadSample}
@@ -470,7 +779,7 @@ function PasteCard({ jsonText, setJsonText, onParse, parseStatus, onLoadSample }
           value={jsonText}
           onChange={(e) => setJsonText(e.target.value)}
           placeholder='例）{"longTasks":[...]}'
-          className="h-12 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 text-[13px] font-bold text-slate-800 outline-none focus:border-emerald-400"
+          className="h-12 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-800 outline-none focus:border-emerald-400"
         />
 
         <button
@@ -527,10 +836,14 @@ function LongTaskSummary({ task, index, active, onClick, onToggleOpen }) {
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-black text-slate-950">{task.title}</p>
+          <p className="truncate text-[15px] font-black text-slate-950">
+            {task.title}
+          </p>
           <p className="mt-1 text-[11px] font-bold text-slate-500">
             期間：{toSlashDate(task.startDate)}〜{toSlashDate(task.endDate)}
-            {task.startDate && task.endDate ? `（${daysBetween(task.startDate, task.endDate)}日間）` : ""}
+            {task.startDate && task.endDate
+              ? `（${daysBetween(task.startDate, task.endDate)}日間）`
+              : ""}
           </p>
         </div>
 
@@ -542,7 +855,9 @@ function LongTaskSummary({ task, index, active, onClick, onToggleOpen }) {
           }}
           className="grid h-8 w-8 place-items-center rounded-xl text-slate-700 active:bg-slate-100"
         >
-          <ChevronDown className={`h-5 w-5 transition-transform ${task.open ? "rotate-180" : ""}`} />
+          <ChevronDown
+            className={`h-5 w-5 transition-transform ${task.open ? "rotate-180" : ""}`}
+          />
         </button>
       </div>
     </button>
@@ -566,7 +881,9 @@ function PlanRow({ plan, onChange, onDelete }) {
 
       <div className="text-center">
         <p className="text-[12px] font-black leading-none text-slate-900">
-          {plan.date ? `${Number(plan.date.slice(5, 7))}/${Number(plan.date.slice(8, 10))}` : "日付"}
+          {plan.date
+            ? `${Number(plan.date.slice(5, 7))}/${Number(plan.date.slice(8, 10))}`
+            : "日付"}
         </p>
         <p className="mt-1 text-[10px] font-bold text-slate-500">
           {plan.date ? `(${getDayLabel(plan.date)})` : ""}
@@ -576,7 +893,7 @@ function PlanRow({ plan, onChange, onDelete }) {
       <input
         value={plan.title}
         onChange={(e) => onChange({ ...plan, title: e.target.value })}
-        className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-[12px] font-bold text-slate-900 outline-none focus:border-emerald-400"
+        className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400"
       />
 
       <input
@@ -584,13 +901,13 @@ function PlanRow({ plan, onChange, onDelete }) {
         onChange={(e) => onChange({ ...plan, estimatedMinutes: e.target.value })}
         placeholder="未"
         inputMode="numeric"
-        className="h-9 rounded-full border border-slate-200 bg-slate-50 px-2 text-center text-[11px] font-black text-slate-700 outline-none focus:border-emerald-400"
+        className="h-9 rounded-full border border-slate-200 bg-slate-50 px-2 text-center text-[16px] font-black text-slate-700 outline-none focus:border-emerald-400"
       />
 
       <select
         value={plan.status}
         onChange={(e) => onChange({ ...plan, status: e.target.value })}
-        className="h-9 rounded-xl border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700 outline-none focus:border-emerald-400"
+        className="h-9 rounded-xl border border-slate-200 bg-white px-2 text-[16px] font-black text-slate-700 outline-none focus:border-emerald-400"
       >
         <option value="accepted">採用</option>
         <option value="pending">未設定</option>
@@ -703,7 +1020,8 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
   const [parseStatus, setParseStatus] = useState(null);
   const [activeTaskId, setActiveTaskId] = useState(aiTasks[0]?.id ?? null);
 
-  const activeTask = aiTasks.find((task) => task.id === activeTaskId) ?? aiTasks[0] ?? null;
+  const activeTask =
+    aiTasks.find((task) => task.id === activeTaskId) ?? aiTasks[0] ?? null;
 
   const totalEstimated = useMemo(
     () => aiTasks.reduce((sum, task) => sum + (Number(task.estimatedMinutes) || 0), 0),
@@ -715,7 +1033,10 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
       const normalized = normalizeAiData(jsonText);
       setAiTasks(normalized);
       setActiveTaskId(normalized[0]?.id ?? null);
-      setParseStatus({ type: "success", message: "JSONを読み込みました。内容を確認して編集できます。" });
+      setParseStatus({
+        type: "success",
+        message: "JSONを読み込みました。内容を確認して編集できます。",
+      });
     } catch (error) {
       setParseStatus({
         type: "error",
@@ -753,8 +1074,20 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
 
       <section>
         <div className="mb-2 flex items-center justify-between px-1">
-          <h2 className="text-[17px] font-black text-slate-950">提案された長期タスク</h2>
-          <button className="text-[12px] font-black text-slate-500">すべて閉じる</button>
+          <h2 className="text-[17px] font-black text-slate-950">
+            提案された長期タスク
+          </h2>
+          <button
+            type="button"
+            onClick={() =>
+              setAiTasks((current) =>
+                current.map((task) => ({ ...task, open: false }))
+              )
+            }
+            className="text-[12px] font-black text-slate-500"
+          >
+            すべて閉じる
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -782,18 +1115,28 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
           <div className="rounded-[16px] border border-slate-100 bg-white p-3 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
             <CalendarDays className="mx-auto mb-1 h-5 w-5 text-emerald-500" />
             <p className="text-[10px] font-black text-slate-400">タスク数</p>
-            <p className="text-[17px] font-black text-slate-950">{aiTasks.length}件</p>
+            <p className="text-[17px] font-black text-slate-950">
+              {aiTasks.length}件
+            </p>
           </div>
+
           <div className="rounded-[16px] border border-slate-100 bg-white p-3 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
             <Clock className="mx-auto mb-1 h-5 w-5 text-emerald-500" />
             <p className="text-[10px] font-black text-slate-400">推定時間</p>
-            <p className="text-[17px] font-black text-slate-950">{shortHoursLabel(totalEstimated)}</p>
+            <p className="text-[17px] font-black text-slate-950">
+              {shortHoursLabel(totalEstimated)}
+            </p>
           </div>
+
           <div className="rounded-[16px] border border-slate-100 bg-white p-3 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
             <Check className="mx-auto mb-1 h-5 w-5 text-emerald-500" />
             <p className="text-[10px] font-black text-slate-400">保存対象</p>
             <p className="text-[17px] font-black text-slate-950">
-              {aiTasks.reduce((sum, task) => sum + task.dailyPlans.filter((p) => p.selected).length, 0)}件
+              {aiTasks.reduce(
+                (sum, task) => sum + task.dailyPlans.filter((p) => p.selected).length,
+                0
+              )}
+              件
             </p>
           </div>
         </section>
@@ -832,16 +1175,34 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
   );
 }
 
-export default function AIPage({
-  onBack,
-  onSaveLongTasks,
-}) {
+export default function AIPage({ onBack, onSaveLongTasks }) {
   const [step, setStep] = useState(1);
   const [requestTasks, setRequestTasks] = useState(initialRequestTasks);
   const [aiTasks, setAiTasks] = useState([]);
   const [toast, setToast] = useState("");
 
-  React.useEffect(() => {
+  const [aiDestinations, setAiDestinations] = useState(() => loadAiDestinations());
+  const [selectedAiDestinationId, setSelectedAiDestinationId] = useState(() =>
+    loadSelectedAiDestinationId(loadAiDestinations())
+  );
+
+  useEffect(() => {
+    try {
+      const saveTargets = aiDestinations.filter((item) => !item.locked);
+      localStorage.setItem(AI_DESTINATIONS_STORAGE_KEY, JSON.stringify(saveTargets));
+    } catch {}
+  }, [aiDestinations]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        SELECTED_AI_DESTINATION_ID_STORAGE_KEY,
+        selectedAiDestinationId
+      );
+    } catch {}
+  }, [selectedAiDestinationId]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2200);
     return () => window.clearTimeout(timer);
@@ -858,6 +1219,10 @@ export default function AIPage({
             setRequestTasks={setRequestTasks}
             setStep={setStep}
             setToast={setToast}
+            aiDestinations={aiDestinations}
+            setAiDestinations={setAiDestinations}
+            selectedAiDestinationId={selectedAiDestinationId}
+            setSelectedAiDestinationId={setSelectedAiDestinationId}
           />
         ) : (
           <EditPage

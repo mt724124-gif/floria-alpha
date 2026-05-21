@@ -930,7 +930,7 @@ function SummaryItem({ label, value }) {
   );
 }
 
-export default function CalendarPage({ onNavigate }) {
+export default function CalendarPage({ appData, setAppData, onNavigate }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("month");
@@ -940,13 +940,19 @@ export default function CalendarPage({ onNavigate }) {
   const CATEGORIES_STORAGE_KEY = "todo-app-long-task-categories-v1";
 
   const [longTasks, setLongTasks] = useState(() => {
-    try {
-      const saved = localStorage.getItem(LONG_TASKS_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : initialLongTasks;
-    } catch {
-      return initialLongTasks;
-    }
-  });
+  const fromAppData = appData?.longTasks;
+
+  if (Array.isArray(fromAppData) && fromAppData.length > 0) {
+    return fromAppData;
+  }
+
+  try {
+    const saved = localStorage.getItem(LONG_TASKS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : initialLongTasks;
+  } catch {
+    return initialLongTasks;
+  }
+});
 
   const [longTaskCategories, setLongTaskCategories] = useState(() => {
     try {
@@ -970,16 +976,22 @@ export default function CalendarPage({ onNavigate }) {
     return longTasks.find((task) => task.id === selectedLongTaskId) ?? null;
   }, [longTasks, selectedLongTaskId]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        LONG_TASKS_STORAGE_KEY,
-        JSON.stringify(longTasks)
-      );
-    } catch (error) {
-      console.error("長期タスクの保存に失敗しました", error);
-    }
-  }, [longTasks]);
+ useEffect(() => {
+  if (!Array.isArray(appData?.longTasks)) return;
+
+  setLongTasks(appData.longTasks);
+}, [appData?.longTasks]);
+
+useEffect(() => {
+  try {
+    localStorage.setItem(
+      LONG_TASKS_STORAGE_KEY,
+      JSON.stringify(longTasks)
+    );
+  } catch (error) {
+    console.error("長期タスクの保存に失敗しました", error);
+  }
+}, [longTasks]);
 
   useEffect(() => {
     try {
