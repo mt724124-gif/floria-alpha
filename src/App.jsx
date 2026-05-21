@@ -4,8 +4,9 @@ import TimerPage from "./TimerPage";
 import CalendarPage from "./CalendarPage";
 import StatsPageDay from "./StatsPage_day";
 import SetPage from "./SetPage";
-import { updateDailyRecordTask } from "./utils/dailyRecords";
 import ReviewPage from "./ReviewPage";
+import AIPage from "./AIPage";
+import { updateDailyRecordTask } from "./utils/dailyRecords";
 
 const STORAGE_KEY = "todo-app-data-v1";
 
@@ -14,7 +15,13 @@ function getTodayKey() {
 }
 
 function getTaskDateKey(task) {
-  return task?.targetDate ?? task?.date ?? task?.createdDate ?? task?.schedule?.date ?? getTodayKey();
+  return (
+    task?.targetDate ??
+    task?.date ??
+    task?.createdDate ??
+    task?.schedule?.date ??
+    getTodayKey()
+  );
 }
 
 function isFutureDateKey(dateKey) {
@@ -55,9 +62,43 @@ function createInitialAppData() {
     workLogs: [],
     timerSessions: [],
     dailyRecords: {},
+    longTasks: [],
+    aiLongTaskDrafts: [],
     settings: {},
     ...(loadSavedData() ?? {}),
   };
+}
+
+function normalizeLongTasksFromAI(tasks) {
+  return (tasks ?? []).map((task, index) => {
+    const id = task.id ?? createId();
+
+    return {
+      ...task,
+      id,
+      source: task.source ?? "ai",
+      title: task.title ?? `長期タスク${index + 1}`,
+      startDate: task.startDate ?? task.start_date ?? "",
+      endDate: task.endDate ?? task.end_date ?? task.deadline ?? "",
+      estimatedMinutes: Number(task.estimatedMinutes ?? 0) || 0,
+      progress: task.progress ?? 0,
+      status: task.status ?? "active",
+      createdAt: task.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      dailyPlans: (task.dailyPlans ?? []).map((plan) => ({
+        ...plan,
+        id: plan.id ?? createId(),
+        selected: plan.selected ?? true,
+        date: plan.date ?? "",
+        title: plan.title ?? "",
+        estimatedMinutes:
+          plan.estimatedMinutes === "" || plan.estimatedMinutes == null
+            ? null
+            : Number(plan.estimatedMinutes),
+        status: plan.status ?? "pending",
+      })),
+    };
+  });
 }
 
 export default function App() {
@@ -91,168 +132,146 @@ export default function App() {
   };
 
   const closeTimer = () => {
-  setTimerTask(null);
-  setScreen("today");
-};
-
-const saveTimerResultToAppData = (result) => {
-  const sessionDate = getTaskDateKey(result?.task);
-  const actualMinutes = Math.max(
-  0,
-  Number(
-    result?.actualMinutes ??
-    (
-      result?.actualSeconds != null
-        ? Math.round(Number(result.actualSeconds) / 60)
-        : 0
-    )
-  )
-);
-
-  const actualSeconds = Math.max(
-    0,
-    Number(result?.actualSeconds ?? actualMinutes * 60)
-  );
-
-  const plannedMinutes = Number(
-    result?.plannedMinutes ??
-      result?.task?.estimatedMinutes ??
-      0
-  );
-
-  const session = {
-    id: createId(),
-    taskId: result?.task?.id,
-    taskTitle: result?.task?.title,
-    category: result?.task?.category,
-    date: sessionDate,
-    actualMinutes,
-    actualSeconds,
-    plannedMinutes,
-    completed: result?.completed ?? false,
-    startedAt: result?.startedAt ?? null,
-    endedAt: result?.endedAt ?? Date.now(),
-    createdAt: new Date().toISOString(),
+    setTimerTask(null);
+    setScreen("today");
   };
 
-  updateAppData((current) => {
-    const nextTimerSessions = [
-      ...(current.timerSessions ?? []),
-      session,
-    ];
+  const saveTimerResultToAppData = (result) => {
+    const sessionDate = getTaskDateKey(result?.task);
 
-    const timerSessionCount = nextTimerSessions.filter(
-      (item) =>
-        item.taskId === result?.task?.id &&
-        item.date === sessionDate
-    ).length;
+    const actualMinutes = Math.max(
+      0,
+      Number(
+        result?.actualMinutes ??
+          (result?.actualSeconds != null
+            ? Math.round(Number(result.actualSeconds) / 60)
+            : 0)
+      )
+    );
 
-    const completed = result?.completed === true;
+    const actualSeconds = Math.max(
+      0,
+      Number(result?.actualSeconds ?? actualMinutes * 60)
+    );
 
-    const nextTasks = (current.tasks ?? []).map((task) => {
-      if (task.id !== result?.task?.id) return task;
+    const plannedMinutes = Number(
+      result?.plannedMinutes ?? result?.task?.estimatedMinutes ?? 0
+    );
+
+    const session = {
+      id: createId(),
+      taskId: result?.task?.id,
+      taskTitle: result?.task?.title,
+      category: result?.task?.category,
+      date: sessionDate,
+      actualMinutes,
+      actualSeconds,
+      plannedMinutes,
+      completed: result?.completed ?? false,
+      startedAt: result?.startedAt ?? null,
+      endedAt: result?.endedAt ?? Date.now(),
+      createdAt: new Date().toISOString(),
+    };
+
+    updateAppData((current) => {
+      const nextTimerSessions = [...(current.timerSessions ?? []), session];
+
+      const timerSessionCount = nextTimerSessions.filter(
+        (item) => item.taskId === result?.task?.id && item.date === sessionDate
+      ).length;
+
+      const completed = result?.completed === true;
+
+      const nextTasks = (current.tasks ?? []).map((task) => {
+        if (task.id !== result?.task?.id) return task;
+
+        return {
+          ...task,
+          actualMinutes,
+          actualSeconds,
+          workedMinutes: actualMinutes,
+          focusMinutes: actualMinutes,
+          elapsedMinutes: actualMinutes,
+          elapsedSeconds: actualSeconds,
+          completed: completed ? true : task.completed,
+          taskStatus: completed ? "completed" : task.taskStatus ?? "pending",
+          completedAt: completed ? new Date().toISOString() : task.completedAt ?? null,
+          usedTimer: true,
+          timerSessionCount,
+        };
+      });
+
+      const updatedTask =
+        nextTasks.find((task) => task.id === result?.task?.id) ?? result?.task;
+
+      const nextDailyRecords = updateDailyRecordTask(
+        current.dailyRecords ?? {},
+        sessionDate,
+        updatedTask,
+        {
+          actualMinutes,
+          actualSeconds,
+          completed,
+          taskStatus: completed ? "completed" : "pending",
+          completedAt: completed ? new Date().toISOString() : null,
+          usedTimer: true,
+          timerSessionCount,
+        }
+      );
+
+      const nextWorkLogs = [
+        ...(current.workLogs ?? []).filter((log) => log.taskId !== result?.task?.id),
+        {
+          id: Date.now(),
+          taskId: result?.task?.id,
+          taskTitle: result?.task?.title,
+          category: result?.task?.category,
+          minutes: actualMinutes,
+          seconds: actualSeconds,
+          date: sessionDate,
+        },
+      ];
 
       return {
-        ...task,
-        actualMinutes,
-        actualSeconds,
-        workedMinutes: actualMinutes,
-        focusMinutes: actualMinutes,
-        elapsedMinutes: actualMinutes,
-        elapsedSeconds: actualSeconds,
-        completed: completed ? true : task.completed,
-        taskStatus: completed
-          ? "completed"
-          : task.taskStatus ?? "pending",
-        completedAt: completed
-          ? new Date().toISOString()
-          : task.completedAt ?? null,
-        usedTimer: true,
-        timerSessionCount,
+        ...current,
+        tasks: nextTasks,
+        workLogs: nextWorkLogs,
+        timerSessions: nextTimerSessions,
+        dailyRecords: nextDailyRecords,
       };
     });
 
-    const updatedTask =
-      nextTasks.find(
-        (task) => task.id === result?.task?.id
-      ) ?? result?.task;
-
-    const nextDailyRecords = updateDailyRecordTask(
-      current.dailyRecords ?? {},
-      sessionDate,
-      updatedTask,
-      {
-        actualMinutes,
-        actualSeconds,
-        completed,
-        taskStatus: completed
-          ? "completed"
-          : "pending",
-        completedAt: completed
-          ? new Date().toISOString()
-          : null,
-        usedTimer: true,
-        timerSessionCount,
-      }
-    );
-
-    const nextWorkLogs = [
-      ...(current.workLogs ?? []).filter(
-        (log) => log.taskId !== result?.task?.id
-      ),
-      {
-        id: Date.now(),
-        taskId: result?.task?.id,
-        taskTitle: result?.task?.title,
-        category: result?.task?.category,
-        minutes: actualMinutes,
-        seconds: actualSeconds,
-        date: sessionDate,
-      },
-    ];
-
     return {
-      ...current,
-      tasks: nextTasks,
-      workLogs: nextWorkLogs,
-      timerSessions: nextTimerSessions,
-      dailyRecords: nextDailyRecords,
+      ...result,
+      actualMinutes,
+      actualSeconds,
+      plannedMinutes,
     };
-  });
-
-  return {
-    ...result,
-    actualMinutes,
-    actualSeconds,
-    plannedMinutes,
   };
-};
 
-const handleTimerResult = (result) => {
-  saveTimerResultToAppData(result);
+  const handleTimerResult = (result) => {
+    saveTimerResultToAppData(result);
+    setTimerTask(null);
+    setScreen("today");
+  };
 
-  setTimerTask(null);
-  setScreen("today");
-};
+  const handleTimerProgress = (result) => {
+    const normalizedResult = saveTimerResultToAppData(result);
 
-const handleTimerProgress = (result) => {
-  const normalizedResult = saveTimerResultToAppData(result);
-
-
-  setTimerTask((current) =>
-    current?.id === normalizedResult.task?.id
-      ? {
-          ...current,
-          actualMinutes: normalizedResult.actualMinutes,
-          actualSeconds: normalizedResult.actualSeconds,
-          workedMinutes: normalizedResult.actualMinutes,
-          focusMinutes: normalizedResult.actualMinutes,
-          elapsedMinutes: normalizedResult.actualMinutes,
-          elapsedSeconds: normalizedResult.actualSeconds,
-        }
-      : current
-  );
-};
+    setTimerTask((current) =>
+      current?.id === normalizedResult.task?.id
+        ? {
+            ...current,
+            actualMinutes: normalizedResult.actualMinutes,
+            actualSeconds: normalizedResult.actualSeconds,
+            workedMinutes: normalizedResult.actualMinutes,
+            focusMinutes: normalizedResult.actualMinutes,
+            elapsedMinutes: normalizedResult.actualMinutes,
+            elapsedSeconds: normalizedResult.actualSeconds,
+          }
+        : current
+    );
+  };
 
   const updateTaskFromTimer = (updatedTask) => {
     setTimerTask(updatedTask);
@@ -266,22 +285,34 @@ const handleTimerProgress = (result) => {
     }));
   };
 
+  const handleSaveLongTasksFromAI = (longTasks) => {
+    const normalizedLongTasks = normalizeLongTasksFromAI(longTasks);
+
+    updateAppData((current) => ({
+      ...current,
+      longTasks: [...(current.longTasks ?? []), ...normalizedLongTasks],
+      aiLongTaskDrafts: normalizedLongTasks,
+    }));
+
+    setScreen("calendar");
+  };
+
   return (
     <>
       {screen === "today" && (
         <TodayPage
-  initialDateKey={todayInitialDateKey}
-  onOpenTimer={openTimer}
-  taskUpdateRequest={taskUpdateRequest}
-  onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
-  appData={appData}
-  setAppData={updateAppData}
-  onNavigate={setScreen}
-  onOpenReview={(dateKey) => {
-    setReviewDateKey(dateKey);
-    setScreen("review");
-  }}
-/>
+          initialDateKey={todayInitialDateKey}
+          onOpenTimer={openTimer}
+          taskUpdateRequest={taskUpdateRequest}
+          onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
+          appData={appData}
+          setAppData={updateAppData}
+          onNavigate={setScreen}
+          onOpenReview={(dateKey) => {
+            setReviewDateKey(dateKey);
+            setScreen("review");
+          }}
+        />
       )}
 
       {screen === "calendar" && (
@@ -296,18 +327,28 @@ const handleTimerProgress = (result) => {
         <StatsPageDay appData={appData} onNavigate={setScreen} />
       )}
 
+      {screen === "ai" && (
+        <AIPage
+          appData={appData}
+          setAppData={updateAppData}
+          onNavigate={setScreen}
+          onBack={() => setScreen("today")}
+          onSaveLongTasks={handleSaveLongTasksFromAI}
+        />
+      )}
+
       {screen === "review" && (
         <ReviewPage
-  dateKey={reviewDateKey}
-  appData={appData}
-  setAppData={updateAppData}
-  onNavigate={(nextScreen) => {
-    if (nextScreen === "today") {
-      setTodayInitialDateKey(reviewDateKey);
-    }
-    setScreen(nextScreen);
-  }}
-/>
+          dateKey={reviewDateKey}
+          appData={appData}
+          setAppData={updateAppData}
+          onNavigate={(nextScreen) => {
+            if (nextScreen === "today") {
+              setTodayInitialDateKey(reviewDateKey);
+            }
+            setScreen(nextScreen);
+          }}
+        />
       )}
 
       {screen === "settings" && <SetPage onNavigate={setScreen} />}
