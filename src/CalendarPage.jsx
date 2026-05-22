@@ -21,8 +21,31 @@ function dateKey(date) {
 }
 
 function parseDate(dateText) {
+  if (!dateText || typeof dateText !== "string") {
+    return new Date();
+  }
+
   const [y, m, d] = dateText.split("-").map(Number);
   return new Date(y, m - 1, d);
+}
+
+function normalizeLongTaskShape(task) {
+  const start = task.start ?? task.startDate ?? task.start_date ?? "";
+  const end = task.end ?? task.endDate ?? task.end_date ?? task.deadline ?? start;
+
+  return {
+    ...task,
+    start,
+    end,
+    startDate: start,
+    endDate: end,
+  };
+}
+
+function normalizeLongTaskList(tasks) {
+  return (tasks ?? [])
+    .map(normalizeLongTaskShape)
+    .filter((task) => task.start && task.end);
 }
 
 function buildDailyPlansForTask(task, oldDailyPlans = []) {
@@ -943,12 +966,12 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
   const fromAppData = appData?.longTasks;
 
   if (Array.isArray(fromAppData) && fromAppData.length > 0) {
-    return fromAppData;
-  }
+  return normalizeLongTaskList(fromAppData);
+}
 
   try {
     const saved = localStorage.getItem(LONG_TASKS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : initialLongTasks;
+    return saved ? normalizeLongTaskList(JSON.parse(saved)) : initialLongTasks;
   } catch {
     return initialLongTasks;
   }
@@ -979,7 +1002,7 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
  useEffect(() => {
   if (!Array.isArray(appData?.longTasks)) return;
 
-  setLongTasks(appData.longTasks);
+  setLongTasks(normalizeLongTaskList(appData.longTasks));
 }, [appData?.longTasks]);
 
 useEffect(() => {
