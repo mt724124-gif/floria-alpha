@@ -1081,47 +1081,84 @@ useEffect(() => {
   };
 
   const openLongTaskDetail = (task) => {
-    setSelectedLongTaskId(task.id);
-  };
+  if (!task?.id) return;
+  setSelectedLongTaskId(task.id);
+};
 
   const closeLongTaskDetail = () => {
     setSelectedLongTaskId(null);
   };
 
   const deleteLongTask = (task) => {
-    setLongTasks((current) => current.filter((item) => item.id !== task.id));
-    setSelectedLongTaskId(null);
-  };
+  const targetId = String(task.id);
 
-  const updateDailyPlan = (task, updatedRow, nextRows) => {
-    setLongTasks((current) =>
-      current.map((item) =>
-        item.id === task.id
-          ? {
-              ...item,
-              dailyPlans: nextRows,
-            }
-          : item
-      )
-    );
+  setLongTasks((current) =>
+    current.filter((item) => String(item.id) !== targetId)
+  );
 
-    setSelectedLongTaskId(task.id);
-  };
+  setAppData?.((currentAppData) => ({
+    ...currentAppData,
+    longTasks: (currentAppData.longTasks ?? []).filter(
+      (item) => String(item.id) !== targetId
+    ),
+  }));
 
-  const updateLongTask = (updatedTask) => {
-    setLongTasks((current) =>
-      current.map((item) =>
-        item.id === updatedTask.id
-          ? {
-              ...item,
-              ...updatedTask,
-            }
-          : item
-      )
-    );
+  setSelectedLongTaskId(null);
+};
 
-    setSelectedLongTaskId(updatedTask.id);
-  };
+const updateDailyPlan = (task, updatedRow, nextRows) => {
+  setLongTasks((current) =>
+    current.map((item) =>
+      String(item.id) === String(task.id)
+        ? {
+            ...item,
+            dailyPlans: nextRows,
+          }
+        : item
+    )
+  );
+
+  setAppData?.((currentAppData) => ({
+    ...currentAppData,
+    longTasks: (currentAppData.longTasks ?? []).map((item) =>
+      String(item.id) === String(task.id)
+        ? {
+            ...item,
+            dailyPlans: nextRows,
+          }
+        : item
+    ),
+  }));
+
+  setSelectedLongTaskId(task.id);
+};
+
+const updateLongTask = (updatedTask) => {
+  setLongTasks((current) =>
+    current.map((item) =>
+      String(item.id) === String(updatedTask.id)
+        ? {
+            ...item,
+            ...updatedTask,
+          }
+        : item
+    )
+  );
+
+  setAppData?.((currentAppData) => ({
+    ...currentAppData,
+    longTasks: (currentAppData.longTasks ?? []).map((item) =>
+      String(item.id) === String(updatedTask.id)
+        ? {
+            ...item,
+            ...updatedTask,
+          }
+        : item
+    ),
+  }));
+
+  setSelectedLongTaskId(updatedTask.id);
+};
 
   const openEditLongTask = (task) => {
   const latestTask = longTasks.find((item) => item.id === task.id) ?? task;
