@@ -890,54 +890,28 @@ function PasteCard({ jsonText, setJsonText, onParse, parseStatus, onLoadSample }
       <div className="mb-2 flex items-center justify-between">
         <div>
           <h2 className="text-[14px] font-black text-slate-950">AI提案JSON</h2>
-          <p className="mt-0.5 text-[11px] font-bold text-slate-500">返答を貼り付けて読み込み</p>
+          <p className="mt-0.5 text-[11px] font-bold text-slate-500">入力欄に貼り付けて読み込み</p>
         </div>
 
-        <button
-          type="button"
-          onClick={onLoadSample}
-          className="rounded-full bg-slate-50 px-3 py-1.5 text-[11px] font-black text-slate-500 active:bg-slate-100"
-        >
+        <button type="button" onClick={onLoadSample} className="rounded-full bg-slate-50 px-3 py-1.5 text-[11px] font-black text-slate-500 active:bg-slate-100">
           例
         </button>
       </div>
 
-      <div className="flex gap-2">
-        <input
-          value={jsonText}
-          onChange={(e) => setJsonText(e.target.value)}
-          placeholder='{"longTasks":[...]}'
-          className="h-10 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-800 outline-none focus:border-emerald-400"
-        />
+      <input
+  value={jsonText}
+  onChange={(e) => setJsonText(e.target.value)}
+  placeholder='{"longTasks":[...]}'
+  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-800 outline-none focus:border-emerald-400"
+/>
 
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              const text = await navigator.clipboard.readText();
-              setJsonText(text);
-            } catch {}
-          }}
-          className="flex h-10 shrink-0 items-center gap-1 rounded-2xl border border-emerald-100 bg-white px-3 text-[12px] font-black text-emerald-600 active:bg-emerald-50"
-        >
-          <Clipboard className="h-4 w-4" />
-          貼付
-        </button>
-      </div>
-
-      <button
-        type="button"
-        onClick={onParse}
-        className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-50 text-[13px] font-black text-emerald-700 active:bg-emerald-100"
-      >
+      <button type="button" onClick={() => onParse()} className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-50 text-[13px] font-black text-emerald-700 active:bg-emerald-100">
         <RefreshCcw className="h-4 w-4" />
         読み込む
       </button>
 
       {parseStatus && (
-        <div className={`mt-2 rounded-2xl px-3 py-2 text-[12px] font-bold ${
-          parseStatus.type === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-500"
-        }`}>
+        <div className={`mt-2 rounded-2xl px-3 py-2 text-[12px] font-bold ${parseStatus.type === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-500"}`}>
           {parseStatus.message}
         </div>
       )}
@@ -1032,7 +1006,7 @@ function DayTaskItem({
   return (
     <div
       data-plan-task-id={item.id}
-      className={`rounded-2xl border border-slate-100 bg-white px-2.5 py-2 ${
+      className={`rounded-2xl border border-slate-100 bg-white px-3 py-3 ${
         dragging ? "opacity-60 ring-2 ring-emerald-100" : ""
       }`}
     >
@@ -1078,7 +1052,7 @@ function DayTaskItem({
         value={item.detail ?? ""}
         onChange={(e) => onChange({ ...item, detail: e.target.value })}
         placeholder="詳細内容"
-        className="mt-1.5 h-[52px] w-full resize-none rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
+        className="mt-2 h-[72px] w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
       />
     </div>
   );
@@ -1086,6 +1060,9 @@ function DayTaskItem({
 
 function DayRow({
   day,
+  shiftBaseDate,
+  onSelectShiftBaseDate,
+  onToggleDaySelected,
   onToggleOpen,
   onAddTask,
   onUpdateTask,
@@ -1094,75 +1071,61 @@ function DayRow({
   draggingTaskId,
 }) {
   const selectedCount = (day.tasks ?? []).filter((item) => item.selected).length;
-  const totalMinutes = (day.tasks ?? []).reduce(
-    (sum, item) => sum + (Number(item.estimatedMinutes) || 0),
-    0
-  );
+  const totalMinutes = (day.tasks ?? []).reduce((sum, item) => sum + (Number(item.estimatedMinutes) || 0), 0);
   const hasTasks = (day.tasks ?? []).length > 0;
+  const allSelected = hasTasks && selectedCount === day.tasks.length;
+  const isShiftBase = shiftBaseDate === day.date;
 
   return (
-    <section
-      data-day-date={day.date}
-      className="overflow-hidden rounded-[18px] border border-slate-100 bg-white shadow-[0_5px_14px_rgba(15,23,42,0.035)]"
-    >
-      <button
-        type="button"
-        onClick={onToggleOpen}
-        className="grid w-full grid-cols-[58px_1fr_auto] items-center gap-2 px-3 py-2.5 text-left active:bg-slate-50"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="grid h-5 w-5 place-items-center rounded-lg border border-emerald-500 bg-emerald-500 text-white">
-            <Check className="h-3.5 w-3.5" strokeWidth={3} />
-          </span>
-          <div>
-            <p className="text-[12px] font-black leading-none text-slate-900">
-              {Number(day.date.slice(5, 7))}/{Number(day.date.slice(8, 10))}
-            </p>
-            <p className="mt-0.5 text-[10px] font-bold text-slate-500">
-              ({getDayLabel(day.date)})
-            </p>
-          </div>
-        </div>
+    <section data-day-date={day.date} className={`overflow-hidden rounded-[18px] border bg-white shadow-[0_5px_14px_rgba(15,23,42,0.035)] ${isShiftBase ? "border-emerald-300 ring-2 ring-emerald-50" : "border-slate-100"}`}>
+      <div className="grid w-full grid-cols-[32px_58px_1fr_auto] items-center gap-2 px-3 py-2.5 text-left">
+        <button type="button" disabled={!hasTasks} onClick={() => onToggleDaySelected(day.date)} className={`grid h-7 w-7 place-items-center rounded-xl border ${allSelected ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"} ${!hasTasks ? "opacity-40" : ""}`}>
+          <Check className="h-4 w-4" strokeWidth={3} />
+        </button>
 
-        <div className="min-w-0">
+        <button
+  type="button"
+  onClick={(event) => {
+    onSelectShiftBaseDate(day.date);
+
+    setTimeout(() => {
+      event.currentTarget.blur();
+      document.activeElement?.blur?.();
+    }, 0);
+  }}
+  className={`rounded-xl px-1.5 py-1 text-left active:bg-emerald-50 ${isShiftBase ? "bg-emerald-50" : ""}`}
+>
+          <p className={`text-[12px] font-black leading-none ${isShiftBase ? "text-emerald-700" : "text-slate-900"}`}>
+            {Number(day.date.slice(5, 7))}/{Number(day.date.slice(8, 10))}
+          </p>
+          <p className="mt-0.5 text-[10px] font-bold text-slate-500">({getDayLabel(day.date)})</p>
+        </button>
+
+        <button type="button" onClick={onToggleOpen} className="min-w-0 text-left active:bg-slate-50">
           <p className={`truncate text-[13px] font-black ${hasTasks ? "text-slate-950" : "text-slate-300"}`}>
-            {hasTasks
-              ? `${day.tasks[0].title}${day.tasks.length > 1 ? ` ほか${day.tasks.length - 1}件` : ""}`
-              : "情報なし"}
+            {hasTasks ? `${day.tasks[0].title}${day.tasks.length > 1 ? ` ほか${day.tasks.length - 1}件` : ""}` : "情報なし"}
           </p>
           <p className="mt-0.5 text-[11px] font-bold text-slate-400">
             採用 {selectedCount}/{day.tasks.length}件 {totalMinutes > 0 ? `・${totalMinutes}分` : ""}
           </p>
-        </div>
+        </button>
 
-        <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${day.open ? "rotate-180" : ""}`} />
-      </button>
+        <button type="button" onClick={onToggleOpen} className="grid h-8 w-8 place-items-center rounded-xl active:bg-slate-50">
+          <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${day.open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
 
       {day.open && (
         <div className="space-y-2 border-t border-slate-100 bg-slate-50/50 p-2">
           {day.tasks.length === 0 ? (
-            <div className="rounded-2xl bg-white px-3 py-4 text-center text-[12px] font-bold text-slate-400">
-              情報なし
-            </div>
+            <div className="rounded-2xl bg-white px-3 py-4 text-center text-[12px] font-bold text-slate-400">情報なし</div>
           ) : (
             day.tasks.map((item) => (
-              <DayTaskItem
-                key={item.id}
-                day={day}
-                item={item}
-                dragging={draggingTaskId === item.id}
-                onChange={(next) => onUpdateTask(day.date, item.id, next)}
-                onToggle={() => onToggleTask(day.date, item.id)}
-                onDragStart={onDragStart}
-              />
+              <DayTaskItem key={item.id} day={day} item={item} dragging={draggingTaskId === item.id} onChange={(next) => onUpdateTask(day.date, item.id, next)} onToggle={() => onToggleTask(day.date, item.id)} onDragStart={onDragStart} />
             ))
           )}
 
-          <button
-            type="button"
-            onClick={() => onAddTask(day.date)}
-            className="flex h-9 w-full items-center justify-center gap-1.5 rounded-2xl border border-emerald-100 bg-white text-[12px] font-black text-emerald-600 active:bg-emerald-50"
-          >
+          <button type="button" onClick={() => onAddTask(day.date)} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-2xl border border-emerald-100 bg-white text-[12px] font-black text-emerald-600 active:bg-emerald-50">
             <Plus className="h-4 w-4" />
             この日に小タスク追加
           </button>
@@ -1184,13 +1147,23 @@ function BulkShiftPanel({ task, onShift, shiftBaseDate, setShiftBaseDate }) {
 
       <div className="grid grid-cols-[1fr_repeat(4,44px)] gap-1.5">
         <input
-          type="date"
-          value={shiftBaseDate || task.startDate}
-          min={task.startDate}
-          max={task.endDate}
-          onChange={(e) => setShiftBaseDate(e.target.value)}
-          className="h-9 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-[16px] font-bold outline-none focus:border-emerald-400"
-        />
+  type="date"
+  value={shiftBaseDate || task.startDate}
+  min={task.startDate}
+  max={task.endDate}
+  onChange={(event) => {
+    const value = event.target.value;
+    if (!value) return;
+
+    setShiftBaseDate(value);
+
+    setTimeout(() => {
+      event.target.blur();
+      document.activeElement?.blur?.();
+    }, 0);
+  }}
+  className="h-9 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-[16px] font-bold outline-none focus:border-emerald-400"
+/>
         {[-2, -1, 1, 2].map((diff) => (
           <button
             key={diff}
@@ -1332,6 +1305,22 @@ function DailyPlanEditor({ task, onChange, setToast }) {
     }));
   };
 
+  const toggleDaySelected = (date) => {
+  updateDay(date, (day) => {
+    const hasTasks = (day.tasks ?? []).length > 0;
+    if (!hasTasks) return day;
+
+    const allSelected = day.tasks.every((item) => item.selected);
+    return {
+      ...day,
+      tasks: day.tasks.map((item) => ({
+        ...item,
+        selected: !allSelected,
+      })),
+    };
+  });
+};
+
   const moveTaskToDate = (fromDate, taskId, toDate) => {
     if (!task || !toDate || fromDate === toDate) return;
 
@@ -1425,15 +1414,18 @@ function DailyPlanEditor({ task, onChange, setToast }) {
       <section className="space-y-1.5">
         {task.dailyPlans.map((day) => (
           <DayRow
-            key={day.date}
-            day={day}
-            draggingTaskId={draggingTaskId}
-            onToggleOpen={() => toggleDayOpen(day.date)}
-            onAddTask={() => addTaskToDay(day.date)}
-            onUpdateTask={updateTaskItem}
-            onToggleTask={toggleTaskItem}
-            onDragStart={handleDragStart}
-          />
+  key={day.date}
+  day={day}
+  shiftBaseDate={shiftBaseDate}
+  draggingTaskId={draggingTaskId}
+  onSelectShiftBaseDate={setShiftBaseDate}
+  onToggleDaySelected={toggleDaySelected}
+  onToggleOpen={() => toggleDayOpen(day.date)}
+  onAddTask={addTaskToDay}
+  onUpdateTask={updateTaskItem}
+  onToggleTask={toggleTaskItem}
+  onDragStart={handleDragStart}
+/>
         ))}
       </section>
 
@@ -1487,22 +1479,22 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
     [aiTasks]
   );
 
-  const parseJson = () => {
-    try {
-      const normalized = normalizeAiData(jsonText);
-      setAiTasks(normalized);
-      setActiveTaskId(normalized[0]?.id ?? null);
-      setParseStatus({
-        type: "success",
-        message: "JSONを読み込みました。",
-      });
-    } catch (error) {
-      setParseStatus({
-        type: "error",
-        message: `読み込み失敗：${error.message}`,
-      });
-    }
-  };
+  const parseJson = (overrideText) => {
+  try {
+    const normalized = normalizeAiData(overrideText ?? jsonText);
+    setAiTasks(normalized);
+    setActiveTaskId(normalized[0]?.id ?? null);
+    setParseStatus({
+      type: "success",
+      message: "JSONを読み込みました。",
+    });
+  } catch (error) {
+    setParseStatus({
+      type: "error",
+      message: `読み込み失敗：${error.message}`,
+    });
+  }
+};
 
   const updateTask = (taskId, next) => {
     setAiTasks((current) => current.map((task) => (task.id === taskId ? next : task)));
@@ -1521,15 +1513,15 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
   return (
     <main className="space-y-2.5">
       <PasteCard
-        jsonText={jsonText}
-        setJsonText={setJsonText}
-        parseStatus={parseStatus}
-        onParse={parseJson}
-        onLoadSample={() => {
-          setJsonText(JSON.stringify(sampleAiJson));
-          setParseStatus(null);
-        }}
-      />
+  jsonText={jsonText}
+  setJsonText={setJsonText}
+  parseStatus={parseStatus}
+  onParse={parseJson}
+  onLoadSample={() => {
+    setJsonText(JSON.stringify(sampleAiJson));
+    setParseStatus(null);
+  }}
+/>
 
       <section>
         <div className="mb-1.5 flex items-center justify-between px-1">
