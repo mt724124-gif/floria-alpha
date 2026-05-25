@@ -1,0 +1,24 @@
+{
+  "name": "Floria",
+  "short_name": "Floria",
+  "description": "今日やることに集中するTodoアプリ",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7bbf6a",
+  "icons": [
+    {
+      "src": "/floria-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/floria-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
