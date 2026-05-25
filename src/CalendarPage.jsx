@@ -635,6 +635,7 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
   const todayKey = dateKey(new Date());
   const selectedKey = dateKey(selectedDate);
+  const todayIndex = weekDays.findIndex((day) => dateKey(day) === todayKey);
 
   const longBars = useMemo(() => {
     return longTasks
@@ -650,39 +651,29 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
     return (shortTasks ?? []).filter((todo) => getTodoDateKey(todo) === key);
   };
 
-  const getLongTasksForDay = (day) => {
-    return getLongDailyTasksForDate(longTasks, dateKey(day));
-  };
-
-  const getTotalCountForDay = (day) => {
-    return getShortTasksForDay(day).length + getLongTasksForDay(day).length;
+  const getLongLabelsForDay = (task, day) => {
+    return getLongDailyLabels(task, dateKey(day));
   };
 
   const weekShortTasks = weekDays.flatMap((day) => getShortTasksForDay(day));
-  const weekLongDailyTasks = weekDays.flatMap((day) => getLongTasksForDay(day));
+  const weekLongDailyTasks = weekDays.flatMap((day) => getLongDailyTasksForDate(longTasks, dateKey(day)));
 
   return (
     <section className="mx-3 mt-2 min-h-0 flex-1 overflow-y-auto rounded-[24px] border border-slate-100 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
-      <div className="border-b border-slate-100 bg-white px-3 pb-3 pt-3">
+      <div className="border-b border-slate-100 bg-white px-3 pb-2 pt-3">
         <div className="flex items-center justify-between">
-          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, -7))} className="grid h-10 w-10 place-items-center rounded-2xl text-slate-500 active:bg-slate-100">
+          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, -7))} className="grid h-9 w-9 place-items-center rounded-2xl text-slate-500 active:bg-slate-100">
             <ChevronLeft className="h-5 w-5" />
           </button>
 
           <div className="text-center">
-            <p className="text-[18px] font-black tracking-[-0.04em] text-slate-950">{formatWeekRange(weekStart)}</p>
-            <p className="mt-1 text-[11px] font-black text-slate-400">1週間の長期タスクと短期Todoの流れ</p>
+            <p className="text-[17px] font-black tracking-[-0.04em] text-slate-950">{formatWeekRange(weekStart)}</p>
+            <p className="mt-0.5 text-[10px] font-black text-slate-400">長期タスクと今日のTodoを1週間で確認</p>
           </div>
 
-          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, 7))} className="grid h-10 w-10 place-items-center rounded-2xl text-slate-500 active:bg-slate-100">
+          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, 7))} className="grid h-9 w-9 place-items-center rounded-2xl text-slate-500 active:bg-slate-100">
             <ChevronRight className="h-5 w-5" />
           </button>
-        </div>
-
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <WeekSummaryCard icon={<Sprout className="h-4 w-4" />} label="長期予定" value={`${weekLongDailyTasks.length}件`} color="text-emerald-500" />
-          <WeekSummaryCard icon={<CheckCircle2 className="h-4 w-4" />} label="短期Todo" value={`${weekShortTasks.length}件`} color="text-blue-500" />
-          <WeekSummaryCard icon={<Flag className="h-4 w-4" />} label="期間タスク" value={`${longBars.length}件`} color="text-violet-500" />
         </div>
       </div>
 
@@ -693,19 +684,15 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
           const isSelected = key === selectedKey;
           const isSaturday = index === 5;
           const isSunday = index === 6;
-          const totalCount = getTotalCountForDay(day);
 
           return (
-            <button key={key} type="button" onClick={() => setSelectedDate(new Date(day))} className={`min-h-[70px] border-r border-slate-100 px-1 py-1.5 text-center last:border-r-0 active:bg-emerald-50 ${isSelected ? "bg-emerald-50/70" : "bg-white"}`}>
-              <div className={`mx-auto flex h-full min-h-[58px] flex-col items-center justify-center rounded-2xl px-1 ${isToday ? "bg-emerald-500 text-white shadow-[0_10px_20px_rgba(16,185,129,0.22)]" : isSelected ? "bg-white text-emerald-700 ring-1 ring-emerald-200" : "text-slate-950"}`}>
-                <p className={`text-[11px] font-black ${isToday ? "text-white" : isSaturday ? "text-blue-500" : isSunday ? "text-red-500" : "text-slate-700"}`}>
+            <button key={key} type="button" onClick={() => setSelectedDate(new Date(day))} className={`min-h-[64px] border-r border-slate-100 px-1 py-1.5 text-center last:border-r-0 active:bg-emerald-50 ${isSelected ? "bg-emerald-50/70" : "bg-white"}`}>
+              <div className={`mx-auto flex h-[50px] w-[48px] flex-col items-center justify-center rounded-2xl px-1 ${isToday ? "bg-emerald-500 text-white shadow-[0_10px_20px_rgba(16,185,129,0.24)]" : isSelected ? "bg-white text-emerald-700 ring-1 ring-emerald-200" : "text-slate-950"}`}>
+                <p className={`text-[10px] font-black ${isToday ? "text-white" : isSaturday ? "text-blue-500" : isSunday ? "text-red-500" : "text-slate-700"}`}>
                   {["月", "火", "水", "木", "金", "土", "日"][index]}
                 </p>
-                <p className={`mt-0.5 text-[14px] font-black leading-none ${isToday ? "text-white" : isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-slate-950"}`}>
+                <p className={`mt-0.5 text-[13px] font-black leading-none ${isToday ? "text-white" : isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-slate-950"}`}>
                   {day.getMonth() + 1}/{day.getDate()}
-                </p>
-                <p className={`mt-1.5 text-[12px] font-black leading-none ${isToday ? "text-white" : "text-slate-700"}`}>
-                  {totalCount}件
                 </p>
               </div>
             </button>
@@ -713,17 +700,20 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
         })}
       </div>
 
-      <section className="bg-white px-3 py-3">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-            <Sprout className="h-4 w-4" />
+      <section className="border-b border-slate-100 bg-white px-3 py-2.5">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+            <Sprout className="h-3.5 w-3.5" />
           </span>
-          <p className="text-[15px] font-black text-slate-950">長期タスクの流れ</p>
+          <p className="text-[14px] font-black text-emerald-700">長期タスク</p>
+          <span className="ml-auto rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-600">
+            {weekLongDailyTasks.length}件
+          </span>
         </div>
 
-        <div className="overflow-hidden rounded-[22px] border border-slate-100 bg-white">
+        <div className="relative overflow-hidden rounded-[20px] border border-slate-100 bg-white">
           {longBars.length === 0 ? (
-            <div className="px-4 py-8 text-center">
+            <div className="px-4 py-6 text-center">
               <p className="text-[13px] font-black text-slate-400">この週の長期タスクはありません</p>
             </div>
           ) : (
@@ -731,25 +721,113 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
               const remainingDays = getLongTaskRemainingDays(task, new Date());
 
               return (
-                <div key={task.id} className="relative grid min-h-[48px] grid-cols-7 border-b border-slate-100 last:border-b-0">
+                <div key={task.id} className="relative grid min-h-[82px] grid-cols-7 border-b border-slate-100 last:border-b-0">
                   {weekDays.map((day) => (
-                    <div key={`${task.id}-${dateKey(day)}-grid`} className="min-h-[48px] border-r border-dashed border-slate-100 last:border-r-0" />
+                    <div key={`${task.id}-${dateKey(day)}-grid`} className="min-h-[82px] border-r border-dashed border-slate-100 last:border-r-0" />
                   ))}
 
-                  <div className="pointer-events-none absolute left-2 right-2 top-2 grid grid-cols-7">
-                    <button type="button" onClick={() => onOpenLongTask(task)} className="pointer-events-auto flex h-[30px] items-center" style={placement}>
-                      <span className={`flex h-[30px] w-full items-center justify-between gap-2 rounded-r-full px-2 text-[11px] font-black text-white shadow-sm ${task.color ?? "bg-emerald-400"}`}>
-                        <span className="min-w-0 truncate drop-shadow-sm">{task.title}</span>
-                        <span className="shrink-0 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-black text-slate-700">
+                  <div className="pointer-events-none absolute left-2 right-2 top-3 grid grid-cols-7">
+                    <button type="button" onClick={() => onOpenLongTask(task)} className="pointer-events-auto flex h-[26px] items-center" style={placement}>
+                      <span className={`flex h-[26px] w-full items-center justify-between gap-2 rounded-r-full px-2 text-[10.5px] font-black shadow-sm ${task.color ?? "bg-emerald-400"} bg-opacity-25`}>
+                        <span className="min-w-0 truncate text-slate-900">{task.title}</span>
+                        <span className="shrink-0 rounded-full bg-white/90 px-2 py-0.5 text-[9.5px] font-black text-slate-700">
                           {remainingDays > 0 ? `残り${remainingDays}日` : "終了"}
                         </span>
                       </span>
                     </button>
                   </div>
+
+                  <div className="absolute bottom-2.5 left-2 right-2 grid grid-cols-7">
+                    {weekDays.map((day) => {
+                      const labels = getLongLabelsForDay(task, day);
+
+                      return (
+                        <div key={`${task.id}-${dateKey(day)}-labels`} className="min-w-0 px-1 text-center">
+                          {labels.length === 0 ? (
+                            <p className="text-[10px] font-black text-slate-300">−</p>
+                          ) : (
+                            labels.slice(0, 1).map((label, labelIndex) => (
+                              <p key={`${label.title}-${labelIndex}`} className={`truncate text-[9.5px] font-black leading-[12px] ${label.completed ? "text-slate-300 line-through" : "text-slate-700"}`}>
+                                {label.title}
+                              </p>
+                            ))
+                          )}
+                          {labels.length > 1 && (
+                            <p className="text-[8.5px] font-black leading-[10px] text-emerald-500">+{labels.length - 1}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })
           )}
+        </div>
+      </section>
+
+      <section className="bg-white px-3 py-2.5">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500 text-white">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          </span>
+          <p className="text-[14px] font-black text-emerald-700">短期（今日のTodo）</p>
+          <span className="ml-auto rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
+            {weekShortTasks.length}件
+          </span>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1.5">
+          {weekDays.map((day, index) => {
+            const key = dateKey(day);
+            const tasks = getShortTasksForDay(day);
+            const isToday = key === todayKey;
+            const isSelected = key === selectedKey;
+            const isSaturday = index === 5;
+            const isSunday = index === 6;
+
+            return (
+              <button
+  key={key}
+  type="button"
+  onClick={() => setSelectedDate(new Date(day))}
+  className={`min-h-[118px] flex flex-col justify-start rounded-[18px] border px-1 py-1.5 text-left transition active:bg-emerald-50 ${
+                isSelected ? "border-emerald-300 bg-emerald-50/70 shadow-[0_8px_18px_rgba(16,185,129,0.10)]" : "border-slate-100 bg-white"} ${isToday ? "ring-1 ring-emerald-200" : ""}`}>
+                <div className="mb-2 text-center">
+  <p className={`text-[10px] font-black ${isSaturday ? "text-blue-500" : isSunday ? "text-red-500" : "text-slate-700"}`}>
+    {["月", "火", "水", "木", "金", "土", "日"][index]}
+  </p>
+
+  <p className={`text-[13px] font-black ${isToday ? "text-emerald-600" : isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-slate-950"}`}>
+    {day.getMonth() + 1}/{day.getDate()}
+  </p>
+
+  <p className="mt-0.5 text-[9px] font-black text-slate-400">
+    {tasks.length}件
+  </p>
+</div>
+
+                <div className="space-y-1">
+                  {tasks.length === 0 ? (
+                    <p className="pt-1 text-center text-[11px] font-black text-slate-300">−</p>
+                  ) : (
+                    tasks.slice(0, 5).map((todo) => (
+                      <div key={todo.id} className="flex min-w-0 items-start gap-1">
+                        <span className={`mt-[4px] h-1.5 w-1.5 shrink-0 rounded-full ${isCompleted(todo) ? "bg-slate-300" : getTodoColor(todo)}`} />
+                        <p className={`truncate text-[8.5px] font-black leading-[11px] ${isCompleted(todo) ? "text-slate-300 line-through" : "text-slate-800"}`}>
+                          {todo.title || "タスク名なし"}
+                        </p>
+                      </div>
+                    ))
+                  )}
+
+                  {tasks.length > 5 && (
+                    <p className="text-center text-[9px] font-black text-emerald-600">+{tasks.length - 5}</p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
     </section>
