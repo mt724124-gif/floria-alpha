@@ -134,7 +134,53 @@ function getRank(todo, fallback = 9999) {
 }
 
 function isCompleted(todo) {
-  return todo?.completed === true || todo?.taskStatus === "completed";
+  if (todo?.taskStatus === "pending") return false;
+  if (todo?.taskStatus === "postponed") return false;
+  if (todo?.taskStatus === "deleted") return false;
+  return todo?.taskStatus === "completed" || todo?.completed === true;
+}
+
+function isLongDailyReviewTodo(todo) {
+  return todo?.type === "longDailyReview" || todo?.isLongTask === true;
+}
+
+function updateLongTasksForDailyTodo(longTasks, targetTodo, updater, fallbackDateKey) {
+  if (!targetTodo?.parentId) return longTasks ?? [];
+
+  const targetDateKey =
+    targetTodo.targetDate ?? targetTodo.date ?? targetTodo.createdDate ?? fallbackDateKey;
+
+  return (longTasks ?? []).map((longTask) => {
+    if (String(longTask.id) !== String(targetTodo.parentId)) return longTask;
+
+    return {
+      ...longTask,
+      dailyPlans: (longTask.dailyPlans ?? []).map((plan) => {
+        if (plan.date !== targetDateKey) return plan;
+
+        if (Array.isArray(plan.tasks)) {
+          return {
+            ...plan,
+            tasks: plan.tasks.map((item, index) => {
+              const itemId = item.id ?? `${longTask.id}-${targetDateKey}-${index}`;
+
+              if (String(itemId) !== String(targetTodo.longDailyTaskId)) {
+                return item;
+              }
+
+              return updater(item);
+            }),
+          };
+        }
+
+        if (String(plan.id ?? `${longTask.id}-${targetDateKey}`) !== String(targetTodo.longDailyTaskId)) {
+          return plan;
+        }
+
+        return updater(plan);
+      }),
+    };
+  });
 }
 
 function getInitialActualMinutes(todo, workLog) {
@@ -1328,98 +1374,188 @@ function TodoListCard({
 
 function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSelect, onToggle }) {
   const [openDetailId, setOpenDetailId] = useState(null);
+  const [openGroupKeys, setOpenGroupKeys] = useState([]);
 
-  if (todos.length === 0) return null;
+  const groups = useMemo(() => {
+    return (todos ?? []).reduce((acc, todo) => {
+      const key = String(todo.parentId ?? todo.parentTitle ?? "unknown");
+      if (!acc[key]) {
+        acc[key] = {
+          label: todo.parentTitle ?? "長期タスク",
+          todos: [],
+        };
+      }
+      acc[key].todos.push(todo);
+      return acc;
+    }, {});
+  }, [todos]);
 
-  const groups = todos.reduce((acc, todo) => {
-    const key = String(todo.parentId ?? todo.parentTitle ?? "unknown");
-    if (!acc[key]) acc[key] = { label: todo.parentTitle ?? "長期タスク", todos: [] };
-    acc[key].todos.push(todo);
-    return acc;
-  }, {});
+  const groupEntries = useMemo(() => Object.entries(groups), [groups]);
+  const totalCount = todos.length;
+  const incompleteCount = todos.filter((todo) => !isCompleted(todo)).length;
+  const completedCount = totalCount - incompleteCount;
+
+  useEffect(() => {
+    const keys = groupEntries.map(([key]) => key);
+
+    setOpenGroupKeys((current) => {
+      if (keys.length === 0) return [];
+      if (current.length === 0) return keys;
+
+      const currentSet = new Set(current);
+      const nextKeys = keys.filter((key) => currentSet.has(key));
+      const addedKeys = keys.filter((key) => !currentSet.has(key));
+
+      return [...nextKeys, ...addedKeys];
+    });
+  }, [groupEntries]);
+
+  const toggleGroup = (key) => {
+    setOpenGroupKeys((current) =>
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key]
+    );
+  };
 
   return (
     <section className="relative z-20 overflow-hidden rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="mb-2 flex items-center gap-2 px-1">
-        <p className="text-[14px] font-black text-emerald-600">長期タスク</p>
-        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-black text-white">{todos.length}</span>
+        <p className="text-[14px] font-black text-emerald-600">今日の長期タスク</p>
+        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-black text-white">
+          {totalCount}
+        </span>
+        {totalCount > 0 && completedCount === totalCount && (
+          <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">
+            完了
+          </span>
+        )}
       </div>
 
-      <div className="space-y-2">
-        {Object.entries(groups).map(([key, group]) => (
-          <div key={key} className="overflow-hidden rounded-[18px] border border-emerald-100 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-2">
-              <p className="min-w-0 truncate text-[13px] font-black text-slate-800">{group.label}</p>
-              <span className="ml-2 shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">{group.todos.length}件</span>
-            </div>
+      {totalCount === 0 ? (
+        <div className="rounded-[18px] bg-slate-50/80 px-4 py-5 text-center">
+          <p className="text-[13px] font-black text-slate-500">
+            今日の長期タスクはありません
+          </p>
+        </div>
+      ) : completedCount === totalCount ? (
+        <div className="rounded-[18px] bg-emerald-50/70 px-4 py-5 text-center">
+          <p className="text-[13px] font-black text-emerald-700">
+            今日の長期タスクは完了しました
+          </p>
+          <p className="mt-1 text-[11px] font-bold text-emerald-600/80">
+            ReviewPageで記録を確認できます。
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {groupEntries.map(([key, group]) => {
+            const isOpen = openGroupKeys.includes(key);
+            const groupIncompleteCount = group.todos.filter((todo) => !isCompleted(todo)).length;
+            const groupCompletedCount = group.todos.length - groupIncompleteCount;
 
-            <div className="bg-white">
-              {group.todos.map((todo) => {
-                const completed = isCompleted(todo);
-                const selected = selectedTaskId === todo.id;
-
-                return (
-                  <div key={todo.id} className={`border-b border-slate-100 last:border-b-0 ${selected ? "bg-emerald-50/70" : "bg-white"}`}>
-                    <div
-                      onClick={() => {
-  setOpenDetailId((current) => (current === todo.id ? null : todo.id));
-  if (!canSelect || completed) return;
-  onSelect(todo);
-}}
-                      className={`relative z-10 px-3 py-2 ${canSelect && !completed ? "cursor-pointer" : "cursor-default"}`}
-                    >
-                      <div className="flex min-h-[48px] items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={!canComplete}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (!canComplete) return;
-                            onToggle(todo.id);
-                          }}
-                          className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
-                            completed ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"
-                          } ${!canComplete ? "cursor-not-allowed opacity-45" : ""}`}
-                        >
-                          <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                        </button>
-
-                        <div className="min-w-0 flex-1 touch-manipulation select-none">
-                          <p className={`text-[13px] font-bold leading-tight tracking-[-0.01em] ${completed ? "text-slate-400 line-through" : "text-slate-950"}`}>
-                            <span className="line-clamp-2 break-words">{todo.title}</span>
-                          </p>
-
-                          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-  <div className="flex items-center gap-1 text-emerald-600">
-    <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.2} />
-    <span className="text-[11px] font-black">長期タスク</span>
-  </div>
-
-  {Number(todo.estimatedMinutes) > 0 && (
-    <div className="flex items-center gap-1 text-slate-400">
-      <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
-      <span className="text-[11px] font-bold">{formatMinutes(todo.estimatedMinutes)}</span>
-    </div>
-  )}
-</div>
-
-{openDetailId === todo.id && String(todo.detail ?? "").trim() && (
-  <div className="mt-2 rounded-2xl bg-slate-50 px-3 py-2">
-    <p className="whitespace-pre-wrap text-[12px] font-bold leading-5 text-slate-600">
-      {todo.detail}
-    </p>
-  </div>
-)}
-                        </div>
-                      </div>
-                    </div>
+            return (
+              <div key={key} className="overflow-hidden rounded-[18px] border border-emerald-100 bg-white">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(key)}
+                  className="flex w-full items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-left active:bg-slate-100"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-black text-slate-800">
+                      {group.label}
+                    </p>
+                    <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+                      未完了 {groupIncompleteCount}件 / 完了 {groupCompletedCount}件
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+
+                  <span className="shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">
+                    {group.todos.length}件
+                  </span>
+
+                  <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-black text-slate-400">
+                    {isOpen ? "閉じる" : "開く"}
+                    <ChevronRight
+                      className={`h-4 w-4 transition-transform ${
+                        isOpen ? "rotate-90" : "rotate-0"
+                      }`}
+                      strokeWidth={2.8}
+                    />
+                  </span>
+                </button>
+
+                {isOpen && (
+                  <div className="bg-white">
+                    {group.todos.map((todo) => {
+                      const completed = isCompleted(todo);
+                      const selected = selectedTaskId === todo.id;
+
+                      return (
+                        <div key={todo.id} className={`border-b border-slate-100 last:border-b-0 ${selected ? "bg-emerald-50/70" : "bg-white"}`}>
+                          <div
+                            onClick={() => {
+                              setOpenDetailId((current) => (current === todo.id ? null : todo.id));
+                              if (!canSelect || completed) return;
+                              onSelect(todo);
+                            }}
+                            className={`relative z-10 px-3 py-2 ${canSelect && !completed ? "cursor-pointer" : "cursor-default"}`}
+                          >
+                            <div className="flex min-h-[48px] items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={!canComplete || completed}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (!canComplete || completed) return;
+                                  onToggle(todo.id);
+                                }}
+                                className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
+                                  completed ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"
+                                } ${!canComplete || completed ? "cursor-not-allowed opacity-60" : ""}`}
+                              >
+                                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                              </button>
+
+                              <div className="min-w-0 flex-1 touch-manipulation select-none">
+                                <p className={`text-[13px] font-bold leading-tight tracking-[-0.01em] ${completed ? "text-slate-400" : "text-slate-950"}`}>
+                                  <span className="line-clamp-2 break-words">{todo.title}</span>
+                                </p>
+
+                                <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                  <div className="flex items-center gap-1 text-emerald-600">
+                                    <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                    <span className="text-[11px] font-black">長期タスク</span>
+                                  </div>
+
+                                  {Number(todo.estimatedMinutes) > 0 && (
+                                    <div className="flex items-center gap-1 text-slate-400">
+                                      <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                      <span className="text-[11px] font-bold">{formatMinutes(todo.estimatedMinutes)}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {openDetailId === todo.id && String(todo.detail ?? "").trim() && (
+                                  <div className="mt-2 rounded-2xl bg-slate-50 px-3 py-2">
+                                    <p className="whitespace-pre-wrap text-[12px] font-bold leading-5 text-slate-600">
+                                      {todo.detail}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
@@ -1682,49 +1818,52 @@ const normalTodosForDate = useMemo(() => {
   );
 }, [todos, selectedDateKey]);
 
-const longDailyReviewTodosForDate = useMemo(() => {
-  return todos.filter(
-    (todo) =>
-      getTodoDateKey(todo) === selectedDateKey &&
-      todo.type === "longDailyReview"
-  );
-}, [todos, selectedDateKey]);
-
 const longDailyTodosForDate = useMemo(() => {
-  const baseLongTodos = buildLongDailyReviewTodosForDate(longTasks, selectedDateKey);
-  const savedMap = new Map(
-    longDailyReviewTodosForDate.map((todo) => [String(todo.id), todo])
-  );
-
-  return baseLongTodos.map((todo) => ({
-    ...todo,
-    ...(savedMap.get(String(todo.id)) ?? {}),
-  }));
-}, [longTasks, selectedDateKey, longDailyReviewTodosForDate]);
+  return buildLongDailyReviewTodosForDate(longTasks, selectedDateKey);
+}, [longTasks, selectedDateKey]);
 
 const filteredTodos = useMemo(() => {
   return [...normalTodosForDate, ...longDailyTodosForDate];
 }, [normalTodosForDate, longDailyTodosForDate]);
 
 useEffect(() => {
-  if (longDailyTodosForDate.length === 0) return;
-
   setAppData((current) => {
     const currentTasks = current.tasks ?? [];
-    const existingIds = new Set(currentTasks.map((task) => String(task.id)));
 
-    const missingLongTodos = longDailyTodosForDate.filter(
-      (todo) => !existingIds.has(String(todo.id))
+    const withoutThisDateLongTasks = currentTasks.filter(
+      (task) =>
+        !(
+          getTodoDateKey(task) === selectedDateKey &&
+          task.type === "longDailyReview"
+        )
     );
 
-    if (missingLongTodos.length === 0) return current;
+    const nextTasks = [...withoutThisDateLongTasks, ...longDailyTodosForDate];
+
+    const currentLongJson = JSON.stringify(
+      currentTasks
+        .filter(
+          (task) =>
+            getTodoDateKey(task) === selectedDateKey &&
+            task.type === "longDailyReview"
+        )
+        .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+    );
+
+    const nextLongJson = JSON.stringify(
+      longDailyTodosForDate
+        .slice()
+        .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+    );
+
+    if (currentLongJson === nextLongJson) return current;
 
     return {
       ...current,
-      tasks: [...currentTasks, ...missingLongTodos],
+      tasks: nextTasks,
     };
   });
-}, [longDailyTodosForDate, setAppData]);
+}, [longDailyTodosForDate, selectedDateKey, setAppData]);
 
   const filteredWorkLogs = useMemo(() => {
     return workLogs.filter((log) => (log.date ?? todayDateKey) === selectedDateKey);
@@ -1841,6 +1980,92 @@ const undoTimerRef = useRef(null);
   useEffect(() => {
     if (!taskUpdateRequest?.id) return;
 
+    if (isLongDailyReviewTodo(taskUpdateRequest)) {
+      setAppData((current) => {
+        const target = {
+          ...taskUpdateRequest,
+          targetDate: taskUpdateRequest.targetDate ?? selectedDateKey,
+          date: taskUpdateRequest.date ?? taskUpdateRequest.targetDate ?? selectedDateKey,
+          createdDate:
+            taskUpdateRequest.createdDate ??
+            taskUpdateRequest.targetDate ??
+            selectedDateKey,
+        };
+
+        const nextLongTasks = updateLongTasksForDailyTodo(
+          current.longTasks ?? [],
+          target,
+          (item) => ({
+            ...item,
+            completed:
+              taskUpdateRequest.completed ??
+              (taskUpdateRequest.taskStatus === "completed"
+                ? true
+                : item.completed ?? false),
+            taskStatus:
+              taskUpdateRequest.taskStatus ??
+              (taskUpdateRequest.completed ? "completed" : item.taskStatus ?? "pending"),
+            completedAt:
+              taskUpdateRequest.completedAt ??
+              (taskUpdateRequest.taskStatus === "completed"
+                ? new Date().toISOString()
+                : item.completedAt ?? null),
+            actualMinutes:
+              taskUpdateRequest.actualMinutes ??
+              taskUpdateRequest.elapsedMinutes ??
+              item.actualMinutes ??
+              null,
+            actualSeconds:
+              taskUpdateRequest.actualSeconds ??
+              taskUpdateRequest.elapsedSeconds ??
+              item.actualSeconds ??
+              null,
+            workedMinutes:
+              taskUpdateRequest.workedMinutes ??
+              taskUpdateRequest.actualMinutes ??
+              item.workedMinutes ??
+              null,
+            focusMinutes:
+              taskUpdateRequest.focusMinutes ??
+              taskUpdateRequest.actualMinutes ??
+              item.focusMinutes ??
+              null,
+            elapsedMinutes:
+              taskUpdateRequest.elapsedMinutes ??
+              taskUpdateRequest.actualMinutes ??
+              item.elapsedMinutes ??
+              null,
+            elapsedSeconds:
+              taskUpdateRequest.elapsedSeconds ??
+              taskUpdateRequest.actualSeconds ??
+              item.elapsedSeconds ??
+              null,
+          }),
+          selectedDateKey
+        );
+
+        const nextTasks = (current.tasks ?? []).map((todo) =>
+          String(todo.id) === String(taskUpdateRequest.id)
+            ? {
+                ...todo,
+                ...target,
+                priority: getPriority(target),
+                rank: target.rank ?? todo.rank,
+              }
+            : todo
+        );
+
+        return {
+          ...current,
+          longTasks: nextLongTasks,
+          tasks: nextTasks,
+        };
+      });
+
+      onTaskUpdateHandled?.();
+      return;
+    }
+
     setTodos((current) =>
       current.map((todo) =>
         todo.id === taskUpdateRequest.id
@@ -1856,7 +2081,7 @@ const undoTimerRef = useRef(null);
     );
 
     onTaskUpdateHandled?.();
-  }, [taskUpdateRequest, onTaskUpdateHandled]);
+  }, [taskUpdateRequest, onTaskUpdateHandled, selectedDateKey, setAppData]);
 
 
   const addCategory = (category) => {
@@ -2026,31 +2251,56 @@ createdDate:
   const nextCompleted = !isCompleted(target);
 
   if (target.isLongTask) {
-    setTodos((current) => {
-      const exists = current.some((todo) => String(todo.id) === String(target.id));
+    const savedWorkLog = workLogs.find((log) => log.taskId === id);
+    const hasActualTime =
+      getActualMinutesFromTask(target, savedWorkLog) > 0 ||
+      getActualSecondsFromTask(target, savedWorkLog) > 0;
 
-      if (exists) {
-        return current.map((todo) =>
-          String(todo.id) === String(target.id)
-            ? {
-                ...todo,
-                completed: nextCompleted,
-                taskStatus: nextCompleted ? "completed" : "pending",
-                completedAt: nextCompleted ? new Date().toISOString() : null,
-              }
-            : todo
-        );
-      }
+    if (nextCompleted && Number(target.estimatedMinutes) > 0 && !hasActualTime) {
+      setWorkLogModal({
+        open: true,
+        todo: target,
+        completeAfterSave: true,
+      });
+      return;
+    }
 
-      return [
-        ...current,
-        {
-          ...target,
+    setAppData((current) => {
+      const updatedTarget = {
+        ...target,
+        completed: nextCompleted,
+        taskStatus: nextCompleted ? "completed" : "pending",
+        completedAt: nextCompleted ? new Date().toISOString() : null,
+      };
+
+      const nextLongTasks = updateLongTasksForDailyTodo(
+        current.longTasks ?? [],
+        updatedTarget,
+        (item) => ({
+          ...item,
           completed: nextCompleted,
           taskStatus: nextCompleted ? "completed" : "pending",
           completedAt: nextCompleted ? new Date().toISOString() : null,
-        },
-      ];
+        }),
+        selectedDateKey
+      );
+
+      const currentTasks = current.tasks ?? [];
+      const exists = currentTasks.some(
+        (todo) => String(todo.id) === String(target.id)
+      );
+
+      const nextTasks = exists
+        ? currentTasks.map((todo) =>
+            String(todo.id) === String(target.id) ? updatedTarget : todo
+          )
+        : [...currentTasks, updatedTarget];
+
+      return {
+        ...current,
+        longTasks: nextLongTasks,
+        tasks: nextTasks,
+      };
     });
 
     setSelectedTaskId((current) =>
@@ -2306,38 +2556,110 @@ createdDate:
     if (isPastDate) return;
 
     const seconds = log.seconds ?? log.minutes * 60;
+    const targetTodo = filteredTodos.find(
+      (todo) => String(todo.id) === String(log.taskId)
+    );
 
-    setWorkLogs((current) => [
-      ...current.filter((item) => item.taskId !== log.taskId),
-      {
-        ...log,
-        seconds,
-        id: Date.now(),
-        date: selectedDateKey,
-      },
-    ]);
+    setAppData((current) => {
+      const nextWorkLogs = [
+        ...(current.workLogs ?? []).filter((item) => item.taskId !== log.taskId),
+        {
+          ...log,
+          seconds,
+          id: Date.now(),
+          date: selectedDateKey,
+        },
+      ];
 
-    setTodos((current) =>
-      current.map((todo) =>
+      if (targetTodo?.isLongTask) {
+        const updatedTarget = {
+          ...targetTodo,
+          actualMinutes: log.minutes,
+          actualSeconds: seconds,
+          workedMinutes: log.minutes,
+          focusMinutes: log.minutes,
+          elapsedMinutes: log.minutes,
+          elapsedSeconds: seconds,
+          completed: log.completeAfterSave ? true : targetTodo.completed,
+          taskStatus: log.completeAfterSave
+            ? "completed"
+            : targetTodo.taskStatus ?? "pending",
+          completedAt: log.completeAfterSave
+            ? new Date().toISOString()
+            : targetTodo.completedAt ?? null,
+        };
+
+        const nextLongTasks = updateLongTasksForDailyTodo(
+          current.longTasks ?? [],
+          updatedTarget,
+          (item) => ({
+            ...item,
+            actualMinutes: log.minutes,
+            actualSeconds: seconds,
+            workedMinutes: log.minutes,
+            focusMinutes: log.minutes,
+            elapsedMinutes: log.minutes,
+            elapsedSeconds: seconds,
+            completed: log.completeAfterSave ? true : item.completed ?? false,
+            taskStatus: log.completeAfterSave
+              ? "completed"
+              : item.taskStatus ?? "pending",
+            completedAt: log.completeAfterSave
+              ? new Date().toISOString()
+              : item.completedAt ?? null,
+          }),
+          selectedDateKey
+        );
+
+        const currentTasks = current.tasks ?? [];
+        const exists = currentTasks.some(
+          (todo) => String(todo.id) === String(log.taskId)
+        );
+
+        const nextTasks = exists
+          ? currentTasks.map((todo) =>
+              String(todo.id) === String(log.taskId) ? updatedTarget : todo
+            )
+          : [...currentTasks, updatedTarget];
+
+        return {
+          ...current,
+          longTasks: nextLongTasks,
+          tasks: nextTasks,
+          workLogs: nextWorkLogs,
+        };
+      }
+
+      const nextTasks = (current.tasks ?? []).map((todo) =>
         todo.id === log.taskId
           ? {
               ...todo,
               actualMinutes: log.minutes,
               actualSeconds: seconds,
               workedMinutes: log.minutes,
-focusMinutes: log.minutes,
-elapsedMinutes: log.minutes,
-elapsedSeconds: seconds,
-completed: log.completeAfterSave ? true : todo.completed,
-              taskStatus: log.completeAfterSave ? "completed" : todo.taskStatus ?? "pending",
-              completedAt: log.completeAfterSave ? new Date().toISOString() : todo.completedAt ?? null,
+              focusMinutes: log.minutes,
+              elapsedMinutes: log.minutes,
+              elapsedSeconds: seconds,
+              completed: log.completeAfterSave ? true : todo.completed,
+              taskStatus: log.completeAfterSave
+                ? "completed"
+                : todo.taskStatus ?? "pending",
+              completedAt: log.completeAfterSave
+                ? new Date().toISOString()
+                : todo.completedAt ?? null,
               priority: getPriority(todo),
               rank: todo.rank,
               targetDate: getTodoDateKey(todo),
             }
           : todo
-      )
-    );
+      );
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        workLogs: nextWorkLogs,
+      };
+    });
 
     if (log.completeAfterSave) {
       setSelectedTaskId(null);
@@ -2457,7 +2779,7 @@ return (
 />
 
           <LongTaskListCard
-            todos={incompleteLongTodos}
+            todos={longDailyTodosForDate}
             selectedTaskId={selectedTaskId}
             canSelect={canSelectTask}
             canComplete={canCompleteTask}

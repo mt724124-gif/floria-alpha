@@ -55,6 +55,82 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function isLongDailyReviewTask(task) {
+  return task?.isLongTask === true || task?.type === "longDailyReview";
+}
+
+function getLongDailyTaskKey(task) {
+  return task?.longDailyTaskId ?? task?.sourceLongDailyTaskId ?? task?.id ?? null;
+}
+
+function normalizeTaskStatus(item) {
+  if (item?.taskStatus === "completed" || item?.completed === true) return "completed";
+  if (item?.taskStatus === "postponed") return "postponed";
+  return "pending";
+}
+
+function normalizeLongSubTask(item = {}, date = "", index = 0, longTaskId = "") {
+  const completed = item.taskStatus === "completed" || item.completed === true;
+  const id = item.id ?? `${longTaskId || "long"}-${date || "date"}-${index}-${createId()}`;
+
+  return {
+    ...item,
+    id,
+    title: item.title ?? "",
+    detail: item.detail ?? item.memo ?? "",
+    memo: item.memo ?? item.detail ?? "",
+    estimatedMinutes:
+      item.estimatedMinutes === "" || item.estimatedMinutes == null
+        ? null
+        : Number(item.estimatedMinutes),
+    actualMinutes: item.actualMinutes ?? null,
+    actualSeconds: item.actualSeconds ?? null,
+    completed,
+    taskStatus: completed ? "completed" : normalizeTaskStatus(item),
+    completedAt: completed ? item.completedAt ?? null : null,
+    selected: item.selected ?? true,
+    status: item.status ?? normalizeTaskStatus(item),
+  };
+}
+
+function normalizeDailyPlan(plan = {}, longTaskId = "") {
+  const date = plan.date ?? "";
+
+  if (Array.isArray(plan.tasks)) {
+    return {
+      ...plan,
+      id: plan.id ?? `${longTaskId}-${date}`,
+      date,
+      selected: plan.selected ?? true,
+      tasks: plan.tasks.map((item, index) =>
+        normalizeLongSubTask(item, date, index, longTaskId)
+      ),
+    };
+  }
+
+  const hasOldSingleTask =
+    String(plan.title ?? "").trim() ||
+    String(plan.detail ?? plan.memo ?? "").trim() ||
+    plan.estimatedMinutes != null;
+
+  if (hasOldSingleTask) {
+    return {
+      id: plan.id ?? `${longTaskId}-${date}`,
+      date,
+      selected: plan.selected ?? true,
+      tasks: [normalizeLongSubTask(plan, date, 0, longTaskId)],
+    };
+  }
+
+  return {
+    ...plan,
+    id: plan.id ?? `${longTaskId}-${date}`,
+    date,
+    selected: plan.selected ?? true,
+    tasks: [],
+  };
+}
+
 function createInitialAppData() {
   return {
     tasks: [],
@@ -100,21 +176,86 @@ function normalizeLongTasksFromAI(tasks) {
       status: task.status ?? "進行前",
       createdAt: task.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      dailyPlans: (task.dailyPlans ?? []).map((plan) => ({
+      dailyPlans: (task.dailyPlans ?? []).map((plan) => normalizeDailyPlan(plan, id)),
+    };
+  });
+}
+
+function updateLongDailyTaskInLongTasks(longTasks, sourceTask, patchOrUpdater) {
+  if (!isLongDailyReviewTask(sourceTask)) return longTasks ?? [];
+
+  const parentId = sourceTask.parentId;
+  const targetDateKey = getTaskDateKey(sourceTask);
+  const longDailyTaskKey = getLongDailyTaskKey(sourceTask);
+
+  if (!parentId || !targetDateKey || !longDailyTaskKey) return longTasks ?? [];
+
+  return (longTasks ?? []).map((longTask) => {
+    if (String(longTask.id) !== String(parentId)) return longTask;
+
+    const nextDailyPlans = (longTask.dailyPlans ?? []).map((rawPlan) => {
+      const plan = normalizeDailyPlan(rawPlan, longTask.id);
+
+      if (plan.date !== targetDateKey) return plan;
+
+      return {
         ...plan,
-        id: plan.id ?? createId(),
-        selected: plan.selected ?? true,
-        date: plan.date ?? "",
-        title: plan.title ?? "",
-        completed: plan.completed ?? false,
-        actualMinutes: plan.actualMinutes ?? null,
-        memo: plan.memo ?? "",
-        estimatedMinutes:
-          plan.estimatedMinutes === "" || plan.estimatedMinutes == null
-            ? ""
-            : Number(plan.estimatedMinutes),
-        status: plan.status ?? "pending",
-      })),
+        tasks: (plan.tasks ?? []).map((item, index) => {
+          const itemId = item.id ?? `${longTask.id}-${targetDateKey}-${index}`;
+
+          if (String(itemId) !== String(longDailyTaskKey)) return item;
+
+          const patch =
+            typeof patchOrUpdater === "function"
+              ? patchOrUpdater(item)
+              : patchOrUpdater;
+
+          const nextItem = {
+            ...item,
+            ...patch,
+          };
+
+          const completed =
+            nextItem.taskStatus === "completed" || nextItem.completed === true;
+
+          return {
+            ...nextItem,
+            completed,
+            taskStatus: completed ? "completed" : "pending",
+            completedAt: completed ? nextItem.completedAt ?? new Date().toISOString() : null,
+          };
+        }),
+      };
+    });
+
+    return {
+      ...longTask,
+      dailyPlans: nextDailyPlans,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+}
+
+function syncLongPatchToTaskList(tasks, sourceTask, patch) {
+  const sourceId = sourceTask?.id;
+  if (!sourceId) return tasks ?? [];
+
+  return (tasks ?? []).map((task) => {
+    if (String(task.id) !== String(sourceId)) return task;
+
+    const nextTask = {
+      ...task,
+      ...patch,
+    };
+
+    const completed =
+      nextTask.taskStatus === "completed" || nextTask.completed === true;
+
+    return {
+      ...nextTask,
+      completed,
+      taskStatus: completed ? "completed" : nextTask.taskStatus ?? "pending",
+      completedAt: completed ? nextTask.completedAt ?? new Date().toISOString() : null,
     };
   });
 }
@@ -155,7 +296,8 @@ export default function App() {
   };
 
   const saveTimerResultToAppData = (result) => {
-    const sessionDate = getTaskDateKey(result?.task);
+    const sourceTask = result?.task;
+    const sessionDate = getTaskDateKey(sourceTask);
 
     const actualMinutes = Math.max(
       0,
@@ -173,19 +315,34 @@ export default function App() {
     );
 
     const plannedMinutes = Number(
-      result?.plannedMinutes ?? result?.task?.estimatedMinutes ?? 0
+      result?.plannedMinutes ?? sourceTask?.estimatedMinutes ?? 0
     );
+
+    const completed = result?.completed === true;
+
+    const patch = {
+      actualMinutes,
+      actualSeconds,
+      workedMinutes: actualMinutes,
+      focusMinutes: actualMinutes,
+      elapsedMinutes: actualMinutes,
+      elapsedSeconds: actualSeconds,
+      completed: completed ? true : sourceTask?.completed ?? false,
+      taskStatus: completed ? "completed" : sourceTask?.taskStatus ?? "pending",
+      completedAt: completed ? new Date().toISOString() : sourceTask?.completedAt ?? null,
+      usedTimer: true,
+    };
 
     const session = {
       id: createId(),
-      taskId: result?.task?.id,
-      taskTitle: result?.task?.title,
-      category: result?.task?.category,
+      taskId: sourceTask?.id,
+      taskTitle: sourceTask?.title,
+      category: sourceTask?.category,
       date: sessionDate,
       actualMinutes,
       actualSeconds,
       plannedMinutes,
-      completed: result?.completed ?? false,
+      completed,
       startedAt: result?.startedAt ?? null,
       endedAt: result?.endedAt ?? Date.now(),
       createdAt: new Date().toISOString(),
@@ -195,32 +352,47 @@ export default function App() {
       const nextTimerSessions = [...(current.timerSessions ?? []), session];
 
       const timerSessionCount = nextTimerSessions.filter(
-        (item) => item.taskId === result?.task?.id && item.date === sessionDate
+        (item) => item.taskId === sourceTask?.id && item.date === sessionDate
       ).length;
 
-      const completed = result?.completed === true;
+      const patchWithSession = {
+        ...patch,
+        timerSessionCount,
+      };
 
-      const nextTasks = (current.tasks ?? []).map((task) => {
-        if (task.id !== result?.task?.id) return task;
+      const nextTasks = syncLongPatchToTaskList(
+        (current.tasks ?? []).map((task) => {
+          if (String(task.id) !== String(sourceTask?.id)) return task;
 
-        return {
-          ...task,
-          actualMinutes,
-          actualSeconds,
-          workedMinutes: actualMinutes,
-          focusMinutes: actualMinutes,
-          elapsedMinutes: actualMinutes,
-          elapsedSeconds: actualSeconds,
-          completed: completed ? true : task.completed,
-          taskStatus: completed ? "completed" : task.taskStatus ?? "pending",
-          completedAt: completed ? new Date().toISOString() : task.completedAt ?? null,
-          usedTimer: true,
-          timerSessionCount,
-        };
-      });
+          const nextTask = {
+            ...task,
+            ...patchWithSession,
+          };
 
-      const updatedTask =
-        nextTasks.find((task) => task.id === result?.task?.id) ?? result?.task;
+          const taskCompleted =
+            nextTask.taskStatus === "completed" || nextTask.completed === true;
+
+          return {
+            ...nextTask,
+            completed: taskCompleted,
+            taskStatus: taskCompleted ? "completed" : "pending",
+            completedAt: taskCompleted ? nextTask.completedAt ?? new Date().toISOString() : null,
+          };
+        }),
+        sourceTask,
+        patchWithSession
+      );
+
+      const nextLongTasks = updateLongDailyTaskInLongTasks(
+        current.longTasks ?? [],
+        sourceTask,
+        patchWithSession
+      );
+
+      const updatedTask = {
+        ...sourceTask,
+        ...patchWithSession,
+      };
 
       const nextDailyRecords = updateDailyRecordTask(
         current.dailyRecords ?? {},
@@ -231,19 +403,19 @@ export default function App() {
           actualSeconds,
           completed,
           taskStatus: completed ? "completed" : "pending",
-          completedAt: completed ? new Date().toISOString() : null,
+          completedAt: completed ? patchWithSession.completedAt : null,
           usedTimer: true,
           timerSessionCount,
         }
       );
 
       const nextWorkLogs = [
-        ...(current.workLogs ?? []).filter((log) => log.taskId !== result?.task?.id),
+        ...(current.workLogs ?? []).filter((log) => log.taskId !== sourceTask?.id),
         {
           id: Date.now(),
-          taskId: result?.task?.id,
-          taskTitle: result?.task?.title,
-          category: result?.task?.category,
+          taskId: sourceTask?.id,
+          taskTitle: sourceTask?.title,
+          category: sourceTask?.category,
           minutes: actualMinutes,
           seconds: actualSeconds,
           date: sessionDate,
@@ -253,6 +425,7 @@ export default function App() {
       return {
         ...current,
         tasks: nextTasks,
+        longTasks: nextLongTasks,
         workLogs: nextWorkLogs,
         timerSessions: nextTimerSessions,
         dailyRecords: nextDailyRecords,
@@ -277,7 +450,7 @@ export default function App() {
     const normalizedResult = saveTimerResultToAppData(result);
 
     setTimerTask((current) =>
-      current?.id === normalizedResult.task?.id
+      String(current?.id) === String(normalizedResult.task?.id)
         ? {
             ...current,
             actualMinutes: normalizedResult.actualMinutes,
@@ -295,12 +468,27 @@ export default function App() {
     setTimerTask(updatedTask);
     setTaskUpdateRequest(updatedTask);
 
-    updateAppData((current) => ({
-      ...current,
-      tasks: (current.tasks ?? []).map((task) =>
-        task.id === updatedTask?.id ? { ...task, ...updatedTask } : task
-      ),
-    }));
+    updateAppData((current) => {
+      const patch = {
+        ...updatedTask,
+        completed:
+          updatedTask?.taskStatus === "completed" || updatedTask?.completed === true,
+        taskStatus:
+          updatedTask?.taskStatus === "completed" || updatedTask?.completed === true
+            ? "completed"
+            : updatedTask?.taskStatus ?? "pending",
+        completedAt:
+          updatedTask?.taskStatus === "completed" || updatedTask?.completed === true
+            ? updatedTask?.completedAt ?? new Date().toISOString()
+            : null,
+      };
+
+      return {
+        ...current,
+        tasks: syncLongPatchToTaskList(current.tasks ?? [], updatedTask, patch),
+        longTasks: updateLongDailyTaskInLongTasks(current.longTasks ?? [], updatedTask, patch),
+      };
+    });
   };
 
   const handleSaveLongTasksFromAI = (longTasks) => {
