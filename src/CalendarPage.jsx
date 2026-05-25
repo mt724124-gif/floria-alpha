@@ -648,20 +648,20 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
   const weekLongDailyTasks = weekDays.flatMap((day) => getLongDailyTasksForDate(longTasks, dateKey(day)));
 
   return (
-    <section className="mx-3 mt-2 min-h-0 flex-1 overflow-hidden rounded-[26px] border border-slate-100 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-      <div className="border-b border-slate-100 bg-white px-3 pb-2 pt-3">
+    <section className="mx-3 mt-2 min-h-0 flex-1 overflow-y-auto rounded-[26px] border border-slate-100 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+      <div className="sticky top-0 z-20 border-b border-slate-100 bg-white/95 px-3 pb-2 pt-3 backdrop-blur">
         <div className="flex items-center justify-between">
-          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, -7))} className="grid h-9 w-9 place-items-center rounded-2xl text-slate-400 active:bg-slate-100">
-            <ChevronLeft className="h-5 w-5" />
+          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, -7))} className="grid h-10 w-10 place-items-center rounded-2xl text-slate-400 active:bg-slate-100">
+            <ChevronLeft className="h-6 w-6" />
           </button>
 
           <div className="text-center">
-            <p className="text-[16px] font-black tracking-[-0.04em] text-slate-950">{formatWeekRange(weekStart)}</p>
-            <p className="mt-0.5 text-[9.5px] font-black text-slate-400">長期タスクと今日のTodoを週間で確認</p>
+            <p className="text-[17px] font-black tracking-[-0.04em] text-slate-950">{formatWeekRange(weekStart)}</p>
+            <p className="mt-0.5 text-[10px] font-black text-slate-400">週間ロードマップ</p>
           </div>
 
-          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, 7))} className="grid h-9 w-9 place-items-center rounded-2xl text-slate-400 active:bg-slate-100">
-            <ChevronRight className="h-5 w-5" />
+          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, 7))} className="grid h-10 w-10 place-items-center rounded-2xl text-slate-400 active:bg-slate-100">
+            <ChevronRight className="h-6 w-6" />
           </button>
         </div>
       </div>
@@ -677,30 +677,15 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
           const shortCount = getShortTasksForDay(day).length;
 
           return (
-            <button
-  key={key}
-  type="button"
-  onClick={() => setSelectedDate(new Date(day))}
-  className={`min-h-[72px] border-r border-slate-100 px-1 py-2 text-center last:border-r-0 active:bg-emerald-50 ${
-    isSelected ? "bg-emerald-50/70" : "bg-white"
-  }`}
->
-  <div
-    className={`mx-auto flex h-[62px] w-[52px] flex-col items-center justify-center rounded-[20px] ${
-      isToday
-        ? "bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.25)]"
-        : isSelected
-        ? "bg-white text-emerald-700 ring-1 ring-emerald-200"
-        : "text-slate-950"
-    }`}
-  >
-                <p className={`text-[10px] font-black leading-none ${isToday ? "text-white" : isSaturday ? "text-blue-500" : isSunday ? "text-red-500" : "text-slate-600"}`}>
+            <button key={key} type="button" onClick={() => setSelectedDate(new Date(day))} className={`min-h-[78px] border-r border-slate-100 px-0.5 py-2 text-center last:border-r-0 active:bg-emerald-50 ${isSelected ? "bg-emerald-50/70" : "bg-white"}`}>
+              <div className={`mx-auto flex h-[66px] w-[50px] flex-col items-center justify-center rounded-[20px] ${isToday ? "bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.25)]" : isSelected ? "bg-white text-emerald-700 ring-1 ring-emerald-200" : "text-slate-950"}`}>
+                <p className={`text-[11px] font-black leading-[13px] ${isToday ? "text-white" : isSaturday ? "text-blue-500" : isSunday ? "text-red-500" : "text-slate-600"}`}>
                   {["月", "火", "水", "木", "金", "土", "日"][index]}
                 </p>
-                <p className={`mt-0.5 text-[12.5px] font-black leading-none ${isToday ? "text-white" : isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-slate-950"}`}>
-                  {day.getMonth() + 1}/{day.getDate()}
+                <p className={`mt-0.5 text-[16px] font-black leading-[18px] ${isToday ? "text-white" : isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : "text-slate-950"}`}>
+                  {day.getDate()}
                 </p>
-                <div className={`mt-1 space-y-[1px] text-[8.5px] font-black leading-none ${isToday ? "text-white/95" : "text-slate-400"}`}>
+                <div className={`mt-1.5 space-y-[2px] text-[9.5px] font-black leading-[12px] ${isToday ? "text-white/95" : "text-slate-400"}`}>
                   <p>長期 {longCount}件</p>
                   <p>短期 {shortCount}件</p>
                 </div>
@@ -710,37 +695,37 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
         })}
       </div>
 
-      <section className="bg-white px-3 py-2.5">
-        <div className="mb-2 flex items-center gap-2">
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-            <Sprout className="h-3.5 w-3.5" />
+      <section className="bg-white px-3 py-3">
+        <div className="mb-2.5 flex items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+            <Sprout className="h-4 w-4" />
           </span>
-          <p className="text-[14px] font-black text-emerald-700">長期タスク</p>
-          <span className="ml-auto rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-600">
+          <p className="text-[17px] font-black text-emerald-700">長期タスク</p>
+          <span className="ml-auto rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-black text-emerald-600">
             {weekLongDailyTasks.length}件
           </span>
         </div>
 
-        <div className="relative overflow-hidden rounded-[20px] border border-slate-100 bg-white">
+        <div className="relative overflow-hidden rounded-[22px] border border-slate-100 bg-white">
           {longBars.length === 0 ? (
-            <div className="px-4 py-8 text-center">
-              <p className="text-[13px] font-black text-slate-400">この週の長期タスクはありません</p>
+            <div className="px-4 py-10 text-center">
+              <p className="text-[14px] font-black text-slate-400">この週の長期タスクはありません</p>
             </div>
           ) : (
             longBars.map(({ task, placement }) => {
               const remainingDays = getLongTaskRemainingDays(task, new Date());
 
               return (
-                <div key={task.id} className="relative grid min-h-[72px] grid-cols-7 border-b border-slate-100 last:border-b-0">
+                <div key={task.id} className="relative grid min-h-[86px] grid-cols-7 border-b border-slate-100 last:border-b-0">
                   {weekDays.map((day) => (
-                    <div key={`${task.id}-${dateKey(day)}-grid`} className="min-h-[72px] border-r border-dashed border-slate-100 last:border-r-0" />
+                    <div key={`${task.id}-${dateKey(day)}-grid`} className="min-h-[86px] border-r border-dashed border-slate-100 last:border-r-0" />
                   ))}
 
-                  <div className="pointer-events-none absolute left-2 right-2 top-2.5 grid grid-cols-7">
-                    <button type="button" onClick={() => onOpenLongTask(task)} className="pointer-events-auto flex h-[25px] items-center" style={placement}>
-                      <span className={`flex h-[25px] w-full items-center justify-between gap-1.5 rounded-r-full px-2 text-[10px] font-black shadow-sm ${task.color ?? "bg-emerald-400"} text-white`}>
+                  <div className="pointer-events-none absolute left-2 right-2 top-3 grid grid-cols-7">
+                    <button type="button" onClick={() => onOpenLongTask(task)} className="pointer-events-auto flex h-[30px] items-center" style={placement}>
+                      <span className={`flex h-[30px] w-full items-center justify-between gap-2 rounded-r-full px-2.5 text-[11px] font-black text-white shadow-sm ${task.color ?? "bg-emerald-400"}`}>
                         <span className="min-w-0 truncate">{task.title}</span>
-                        <span className="shrink-0 rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-black text-slate-700">
+                        <span className="shrink-0 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-black text-slate-700">
                           {remainingDays > 0 ? `残り${remainingDays}日` : "終了"}
                         </span>
                       </span>
@@ -754,14 +739,11 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
                       return (
                         <div key={`${task.id}-${dateKey(day)}-labels`} className="flex min-w-0 items-center justify-center px-0.5 text-center">
                           {labels.length === 0 ? (
-                            <p className="text-[9px] font-black leading-[11px] text-slate-300">−</p>
+                            <p className="text-[10px] font-black leading-[12px] text-slate-300">−</p>
                           ) : (
-                            <p className={`truncate text-[9px] font-black leading-[11px] ${labels[0].completed ? "text-slate-300 line-through" : "text-slate-700"}`}>
+                            <p className={`max-w-full truncate text-[10.5px] font-black leading-[13px] ${labels[0].completed ? "text-slate-300 line-through" : "text-slate-700"}`}>
                               {labels[0].title}
                             </p>
-                          )}
-                          {labels.length > 1 && (
-                            <p className="text-[8px] font-black leading-[9px] text-emerald-500">+{labels.length - 1}</p>
                           )}
                         </div>
                       );
