@@ -32,6 +32,7 @@ const categoryStyles = {
   学習: { icon: BookOpen, bg: "bg-emerald-50", text: "text-emerald-600", badge: "bg-emerald-50 text-emerald-600" },
   仕事: { icon: Briefcase, bg: "bg-blue-50", text: "text-blue-600", badge: "bg-blue-50 text-blue-600" },
   健康: { icon: Dumbbell, bg: "bg-violet-50", text: "text-violet-600", badge: "bg-violet-50 text-violet-600" },
+  長期タスク: { icon: CalendarDays, bg: "bg-emerald-50", text: "text-emerald-600", badge: "bg-emerald-50 text-emerald-600" },
   その他: { icon: FileText, bg: "bg-slate-50", text: "text-slate-500", badge: "bg-slate-100 text-slate-500" },
 };
 
@@ -925,25 +926,104 @@ onDelete={onDeleteTask}
   );
 }
 
-function LongTaskSection() {
+function LongTaskSection({ tasks = [] }) {
+  const completedLongTasks = tasks.filter(
+    (task) => task.type === "longDailyReview" && getReviewStatus(task) === "completed"
+  );
+
+  const groups = completedLongTasks.reduce((acc, task) => {
+    const key = String(task.parentId ?? task.parentTitle ?? "unknown");
+    if (!acc[key]) {
+      acc[key] = {
+        label: task.parentTitle ?? "長期タスク",
+        tasks: [],
+      };
+    }
+    acc[key].tasks.push(task);
+    return acc;
+  }, {});
+
   return (
     <section className="mb-3 rounded-[22px] border border-emerald-100 bg-emerald-50/40 p-3.5">
       <div className="mb-3 flex items-center gap-2.5">
         <Flag className="h-5 w-5 text-emerald-500" fill="currentColor" />
-        <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">長期タスク・メモ</h2>
+        <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">
+          完了した長期タスク
+        </h2>
+        <span className="ml-auto rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-black text-white">
+          {completedLongTasks.length}
+        </span>
       </div>
-      <div className="rounded-[18px] bg-white p-3.5 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="truncate text-[13px] font-black text-slate-950">長期タスクは後で接続予定</p>
-              <span className="rounded-md bg-pink-50 px-2 py-1 text-[10px] font-black text-pink-500">準備中</span>
-            </div>
-            <p className="mt-1.5 text-[12px] font-bold leading-5 text-slate-400">今日進めた長期タスクをここに表示する予定です。</p>
-          </div>
-          <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+
+      {completedLongTasks.length === 0 ? (
+        <div className="rounded-[18px] bg-white p-3.5 shadow-sm">
+          <p className="text-[13px] font-black text-slate-500">
+            完了した長期タスクはまだありません
+          </p>
+          <p className="mt-1.5 text-[12px] font-bold leading-5 text-slate-400">
+            今日のタスクで長期タスクを達成にすると、ここに表示されます。
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          {Object.entries(groups).map(([key, group]) => (
+            <div key={key} className="overflow-hidden rounded-[18px] bg-white shadow-sm">
+              <div className="flex items-center justify-between gap-2 bg-emerald-50 px-3 py-2">
+                <p className="min-w-0 truncate text-[13px] font-black text-emerald-700">
+                  {group.label}
+                </p>
+                <span className="shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">
+                  {group.tasks.length}件
+                </span>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {group.tasks.map((task) => (
+                  <div key={task.id} className="px-3 py-2.5">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full bg-emerald-500 text-white">
+                        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-[13px] font-black leading-tight text-slate-950">
+                          {task.title || "無題の小タスク"}
+                        </p>
+
+                        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                          <span className="flex items-center gap-1 text-[11px] font-black text-emerald-600">
+                            <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.2} />
+                            長期タスク
+                          </span>
+
+                          {Number(task.estimatedMinutes) > 0 && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
+                              <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
+                              予定 {formatMinutes(task.estimatedMinutes)}
+                            </span>
+                          )}
+
+                          {Number(task.actualMinutes) > 0 && (
+                            <span className="text-[11px] font-bold text-slate-400">
+                              実測 {formatMinutes(task.actualMinutes)}
+                            </span>
+                          )}
+                        </div>
+
+                        {String(task.detail ?? "").trim() && (
+                          <p className="mt-2 whitespace-pre-wrap rounded-2xl bg-slate-50 px-3 py-2 text-[12px] font-bold leading-5 text-slate-600">
+                            {task.detail}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -1087,34 +1167,35 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
   };
 
   const completeTask = (task, forcedMinutes = null) => {
-    const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
-    const minutes = forcedMinutes != null ? Number(forcedMinutes) : getActualMinutes(task, workLog);
-    const seconds = minutes * 60;
+  const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
+  const minutes = forcedMinutes != null ? Number(forcedMinutes) : getActualMinutes(task, workLog);
+  const seconds = minutes * 60;
 
-    setAppData((current) => {
-      const sourceTasks = task.postponedCloneId
-        ? (current.tasks ?? []).filter((item) => item.id !== task.postponedCloneId)
-        : (current.tasks ?? []);
-      const nextTasks = sourceTasks.map((item) =>
-        item.id === task.id
-          ? {
-              ...item,
-              completed: true,
-              taskStatus: "completed",
-              completedAt: new Date().toISOString(),
-              actualMinutes: minutes,
-              actualSeconds: seconds,
-              workedMinutes: minutes,
-              focusMinutes: minutes,
-              elapsedMinutes: minutes,
-              elapsedSeconds: seconds,
-              postponedToDate: null,
-              type: "todo",
-              reminder: null,
-              schedule: null,
-            }
-          : item
-      );
+  setAppData((current) => {
+    const sourceTasks = task.postponedCloneId
+      ? (current.tasks ?? []).filter((item) => item.id !== task.postponedCloneId)
+      : (current.tasks ?? []);
+
+    const nextTasks = sourceTasks.map((item) =>
+      item.id === task.id
+        ? {
+            ...item,
+            completed: true,
+            taskStatus: "completed",
+            completedAt: new Date().toISOString(),
+            actualMinutes: minutes,
+            actualSeconds: seconds,
+            workedMinutes: minutes,
+            focusMinutes: minutes,
+            elapsedMinutes: minutes,
+            elapsedSeconds: seconds,
+            postponedToDate: null,
+            type: item.type === "longDailyReview" ? "longDailyReview" : "todo",
+            reminder: item.type === "longDailyReview" ? item.reminder : null,
+            schedule: item.type === "longDailyReview" ? item.schedule : null,
+          }
+        : item
+    );
 
       const nextWorkLogs = minutes > 0
         ? [
@@ -1186,9 +1267,9 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
               elapsedSeconds: seconds,
               postponedToDate: postponeDateKey,
               postponedCloneId: null,
-              type: "todo",
-              reminder: null,
-              schedule: null,
+              type: item.type === "longDailyReview" ? "longDailyReview" : "todo",
+reminder: item.type === "longDailyReview" ? item.reminder : null,
+schedule: item.type === "longDailyReview" ? item.schedule : null,
             }
           : item
       );
@@ -1223,9 +1304,9 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
               completedAt: null,
               postponedToDate: null,
               postponedCloneId: null,
-              type: "todo",
-              reminder: null,
-              schedule: null,
+              type: item.type === "longDailyReview" ? "longDailyReview" : "todo",
+reminder: item.type === "longDailyReview" ? item.reminder : null,
+schedule: item.type === "longDailyReview" ? item.schedule : null,
             }
           : item
       );
@@ -1438,9 +1519,9 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
               completedAt: log.completeAfterSave ? new Date().toISOString() : task.completedAt ?? null,
               postponedToDate: log.completeAfterSave ? null : task.postponedToDate ?? null,
               postponedCloneId: log.completeAfterSave ? null : task.postponedCloneId ?? null,
-              type: "todo",
-              reminder: null,
-              schedule: null,
+              type: task.type === "longDailyReview" ? "longDailyReview" : "todo",
+reminder: task.type === "longDailyReview" ? task.reminder : null,
+schedule: task.type === "longDailyReview" ? task.schedule : null,
             }
           : task
       );
@@ -1471,9 +1552,9 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
           ? {
               ...item,
               ...updatedTask,
-              type: "todo",
-              reminder: null,
-              schedule: null,
+              type: task.type === "longDailyReview" ? "longDailyReview" : "todo",
+reminder: task.type === "longDailyReview" ? task.reminder : null,
+schedule: task.type === "longDailyReview" ? task.schedule : null,
               targetDate: updatedTask.targetDate ?? getTaskDateKey(item, dateKey),
               createdDate: updatedTask.createdDate ?? item.createdDate ?? getTaskDateKey(item, dateKey),
               actualSeconds: updatedTask.actualSeconds ?? (Number(updatedTask.actualMinutes) || 0) * 60,
@@ -1668,7 +1749,7 @@ requestCompleteTask={requestCompleteTask}
   baseDateKey={dateKey}
 />
 
-          {!isAutoCompletedEmptyDay && <LongTaskSection />}
+          {!isAutoCompletedEmptyDay && <LongTaskSection tasks={activeTasks} />}
 
           {!isAutoCompletedEmptyDay && (
             <ReflectionSection

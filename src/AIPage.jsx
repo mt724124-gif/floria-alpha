@@ -299,7 +299,7 @@ function buildAiPrompt(tasks) {
       instruction:
         "以下の長期タスクを、日別の小タスクに分解してください。必ず純粋なJSONのみで返してください。",
       strictOutputRules: [
-        "返答はJSONのみ。説明文、前置き、補足、Markdown、コードブロックは禁止。",
+        "返答はJSONのみ。説明文、前置き、補足、Markdown、必ずコードブロックを用いて。",
         "最初の文字は {、最後の文字は } にしてください。",
         "キー名は指定されたoutputFormatから変更しないでください。",
         "dailyPlansはstartDateからendDateまでの全日付を必ず1日1行で出力してください。",
