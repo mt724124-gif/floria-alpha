@@ -145,6 +145,75 @@ function getReviewStatus(task) {
   return "pending";
 }
 
+
+function isLongDailyReviewTask(task) {
+  return task?.type === "longDailyReview";
+}
+
+function preserveReviewTaskType(source) {
+  return {
+    type: isLongDailyReviewTask(source) ? "longDailyReview" : "todo",
+    reminder: isLongDailyReviewTask(source) ? source.reminder : null,
+    schedule: isLongDailyReviewTask(source) ? source.schedule : null,
+  };
+}
+
+function applyLongTaskReviewToCalendar(longTasks, reviewTasks, targetDateKey) {
+  const longReviewTasks = (reviewTasks ?? []).filter(isLongDailyReviewTask);
+  if (longReviewTasks.length === 0) return longTasks ?? [];
+
+  const reviewMap = new Map(
+    longReviewTasks.map((task) => [
+      `${String(task.parentId)}__${String(task.longDailyTaskId)}`,
+      task,
+    ])
+  );
+
+  return (longTasks ?? []).map((longTask) => ({
+    ...longTask,
+    dailyPlans: (longTask.dailyPlans ?? []).map((plan) => {
+      if (plan.date !== targetDateKey) return plan;
+
+      if (Array.isArray(plan.tasks)) {
+        return {
+          ...plan,
+          tasks: plan.tasks.map((item, index) => {
+            const longDailyTaskId = item.id ?? `${longTask.id}-${targetDateKey}-${index}`;
+            const reviewTask = reviewMap.get(`${String(longTask.id)}__${String(longDailyTaskId)}`);
+            if (!reviewTask) return item;
+
+            const completed = getReviewStatus(reviewTask) === "completed";
+
+            return {
+              ...item,
+              completed,
+              taskStatus: completed ? "completed" : "pending",
+              completedAt: completed ? reviewTask.completedAt ?? new Date().toISOString() : null,
+              actualMinutes: reviewTask.actualMinutes ?? item.actualMinutes ?? null,
+              actualSeconds: reviewTask.actualSeconds ?? item.actualSeconds ?? null,
+            };
+          }),
+        };
+      }
+
+      const longDailyTaskId = plan.id ?? `${longTask.id}-${targetDateKey}`;
+      const reviewTask = reviewMap.get(`${String(longTask.id)}__${String(longDailyTaskId)}`);
+      if (!reviewTask) return plan;
+
+      const completed = getReviewStatus(reviewTask) === "completed";
+
+      return {
+        ...plan,
+        completed,
+        taskStatus: completed ? "completed" : "pending",
+        completedAt: completed ? reviewTask.completedAt ?? new Date().toISOString() : null,
+        actualMinutes: reviewTask.actualMinutes ?? plan.actualMinutes ?? null,
+        actualSeconds: reviewTask.actualSeconds ?? plan.actualSeconds ?? null,
+      };
+    }),
+  }));
+}
+
 function StatItem({ icon: Icon, label, value }) {
   return (
     <div className="min-w-0">
@@ -372,7 +441,7 @@ const Icon = style.icon;
         dragging ? "z-[999]" : "z-0"
       } ${dropTarget && !dragging ? "bg-slate-50" : "bg-white"}`}
     >
-      {!dragging && !disabled && (
+      {!dragging && !disabled && !isLongDailyReviewTask(task) && (
         <div className="absolute inset-y-0 right-0 z-0 flex w-28 items-center justify-end bg-red-50 px-4 text-red-500">
           <span className="mr-1.5 text-xs font-black">削除</span>
           <Trash2 className="h-5 w-5" />
@@ -401,14 +470,14 @@ const Icon = style.icon;
           <button
   type="button"
   aria-label="分類を移動"
-  disabled={disabled}
+  disabled={disabled || isLongDailyReviewTask(task)}
   onClick={(event) => event.stopPropagation()}
   onPointerDown={(event) => {
-    if (disabled) return;
+    if (disabled || isLongDailyReviewTask(task)) return;
     onDragHandlePointerDown(event, task.id);
   }}
   className={`relative flex h-10 w-9 shrink-0 touch-none select-none flex-col items-center justify-center rounded-2xl border transition-all ${
-  disabled
+  disabled || isLongDailyReviewTask(task)
     ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-200"
     : dragging
       ? `${dragHandleOuterClass} border-2 shadow-[0_6px_14px_rgba(15,23,42,0.16)]`
@@ -517,14 +586,14 @@ const Icon = style.icon;
 ) : (
             <button
               type="button"
-              disabled={disabled}
+              disabled={disabled || isLongDailyReviewTask(task)}
              onClick={(event) => {
   event.stopPropagation();
-  if (disabled) return;
+  if (disabled || isLongDailyReviewTask(task)) return;
   onEdit(task);
 }}
               className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
-                disabled ? "cursor-not-allowed text-slate-200" : "text-emerald-500 active:bg-emerald-50"
+                disabled || isLongDailyReviewTask(task) ? "cursor-not-allowed text-slate-200" : "text-emerald-500 active:bg-emerald-50"
               }`}
             >
               <Pencil className="h-[17px] w-[17px]" />
@@ -683,7 +752,7 @@ requestCompleteTask,
       const element = document.elementFromPoint(event.clientX, event.clientY);
       const targetElement = element?.closest?.("[data-review-task-id]");
       const sectionElement = element?.closest?.("[data-drop-status]");
-      const targetId = Number(targetElement?.dataset?.reviewTaskId);
+      const targetId = targetElement?.dataset?.reviewTaskId ?? null;
       let targetStatus = sectionElement?.dataset?.dropStatus ?? null;
 
       if (!targetStatus) {
@@ -738,7 +807,7 @@ requestCompleteTask,
       const { targetStatus } = pendingDropRef.current;
 
       if (targetStatus) {
-        const sourceTask = tasks.find((task) => task.id === id);
+        const sourceTask = tasks.find((task) => String(task.id) === String(id));
         const sourceStatus = sourceTask ? getReviewStatus(sourceTask) : null;
 
         onMoveTaskToStatus(id, targetStatus);
@@ -897,13 +966,13 @@ requestCompleteTask,
                           task={task}
                           status={status}
                           disabled={disabled}
-                          dragging={draggingId === task.id}
-                          dragOffsetY={draggingId === task.id ? dragOffsetY : 0}
-                          dropTarget={dropTargetId === task.id}
+                          dragging={String(draggingId) === String(task.id)}
+                          dragOffsetY={String(draggingId) === String(task.id) ? dragOffsetY : 0}
+                          dropTarget={String(dropTargetId) === String(task.id)}
                           dragOriginStatus={status}
-                          dragTargetStatus={recentMovedTaskId === task.id ? recentMovedStatus : dropTargetStatus}
-                          recentlyMoved={recentMovedTaskId === task.id}
-                          recentMovedOriginStatus={recentMovedTaskId === task.id ? recentMovedOriginStatus : null}
+                          dragTargetStatus={String(recentMovedTaskId) === String(task.id) ? recentMovedStatus : dropTargetStatus}
+                          recentlyMoved={String(recentMovedTaskId) === String(task.id)}
+                          recentMovedOriginStatus={String(recentMovedTaskId) === String(task.id) ? recentMovedOriginStatus : null}
                           onMoveToCompleted={requestCompleteTask}
 onMoveToPending={moveTaskToPending}
 onEdit={onEditTask}
@@ -1190,9 +1259,7 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
             elapsedMinutes: minutes,
             elapsedSeconds: seconds,
             postponedToDate: null,
-            type: item.type === "longDailyReview" ? "longDailyReview" : "todo",
-            reminder: item.type === "longDailyReview" ? item.reminder : null,
-            schedule: item.type === "longDailyReview" ? item.schedule : null,
+            ...preserveReviewTaskType(item),
           }
         : item
     );
@@ -1267,9 +1334,7 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
               elapsedSeconds: seconds,
               postponedToDate: postponeDateKey,
               postponedCloneId: null,
-              type: item.type === "longDailyReview" ? "longDailyReview" : "todo",
-reminder: item.type === "longDailyReview" ? item.reminder : null,
-schedule: item.type === "longDailyReview" ? item.schedule : null,
+              ...preserveReviewTaskType(item),
             }
           : item
       );
@@ -1304,9 +1369,7 @@ schedule: item.type === "longDailyReview" ? item.schedule : null,
               completedAt: null,
               postponedToDate: null,
               postponedCloneId: null,
-              type: item.type === "longDailyReview" ? "longDailyReview" : "todo",
-reminder: item.type === "longDailyReview" ? item.reminder : null,
-schedule: item.type === "longDailyReview" ? item.schedule : null,
+              ...preserveReviewTaskType(item),
             }
           : item
       );
@@ -1343,7 +1406,7 @@ schedule: item.type === "longDailyReview" ? item.schedule : null,
     );
 
     const pendingTasks = currentDateTasks.filter(
-      (task) => getReviewStatus(task) === "pending"
+      (task) => getReviewStatus(task) === "pending" && !isLongDailyReviewTask(task)
     );
 
     const pendingIds = new Set(pendingTasks.map((task) => task.id));
@@ -1380,9 +1443,7 @@ schedule: item.type === "longDailyReview" ? item.schedule : null,
         elapsedSeconds: seconds,
         postponedToDate: nextDateKey,
         postponedCloneId: null,
-        type: "todo",
-        reminder: null,
-        schedule: null,
+        ...preserveReviewTaskType(task),
       };
     });
 
@@ -1427,6 +1488,7 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
   }
 
   if (nextStatus === "postponed") {
+    if (isLongDailyReviewTask(task)) return;
     const nextDateKey = task.postponedToDate ?? defaultPostponeDateKey;
 
     setPostponeDateOverrides((current) => ({
@@ -1439,12 +1501,12 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
 };
 
   const handleEditTask = (task) => {
-    if (isConfirmed || isPostponed(task)) return;
+    if (isConfirmed || isPostponed(task) || isLongDailyReviewTask(task)) return;
     setTodoModal({ open: true, mode: "edit", todo: task });
   };
 
   const handleDeleteTask = (task) => {
-    if (isConfirmed) return;
+    if (isConfirmed || isLongDailyReviewTask(task)) return;
 
     const deletedLogs = (appData?.workLogs ?? []).filter((log) => log.taskId === task.id);
 
@@ -1519,9 +1581,7 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
               completedAt: log.completeAfterSave ? new Date().toISOString() : task.completedAt ?? null,
               postponedToDate: log.completeAfterSave ? null : task.postponedToDate ?? null,
               postponedCloneId: log.completeAfterSave ? null : task.postponedCloneId ?? null,
-              type: task.type === "longDailyReview" ? "longDailyReview" : "todo",
-reminder: task.type === "longDailyReview" ? task.reminder : null,
-schedule: task.type === "longDailyReview" ? task.schedule : null,
+              ...preserveReviewTaskType(task),
             }
           : task
       );
@@ -1552,9 +1612,7 @@ schedule: task.type === "longDailyReview" ? task.schedule : null,
           ? {
               ...item,
               ...updatedTask,
-              type: task.type === "longDailyReview" ? "longDailyReview" : "todo",
-reminder: task.type === "longDailyReview" ? task.reminder : null,
-schedule: task.type === "longDailyReview" ? task.schedule : null,
+              ...preserveReviewTaskType(task),
               targetDate: updatedTask.targetDate ?? getTaskDateKey(item, dateKey),
               createdDate: updatedTask.createdDate ?? item.createdDate ?? getTaskDateKey(item, dateKey),
               actualSeconds: updatedTask.actualSeconds ?? (Number(updatedTask.actualMinutes) || 0) * 60,
@@ -1639,9 +1697,16 @@ schedule: task.type === "longDailyReview" ? task.schedule : null,
   if (!canConfirm) return;
 
   setAppData((current) => {
-    const currentDateTasks = (current.tasks ?? []).filter((task) => getTaskDateKey(task, dateKey) === dateKey);
-    const postponedTasks = currentDateTasks.filter((task) => isPostponed(task));
+    const currentDateTasks = (current.tasks ?? []).filter(
+      (task) => getTaskDateKey(task, dateKey) === dateKey
+    );
+
+    const postponedTasks = currentDateTasks.filter(
+      (task) => isPostponed(task) && !isLongDailyReviewTask(task)
+    );
+
     const cloneSourceIds = new Set(postponedTasks.map((task) => String(task.id)));
+
     const withoutOldClones = (current.tasks ?? []).filter(
       (task) => !(task.postponedFromDate === dateKey && cloneSourceIds.has(String(task.originalTaskId)))
     );
@@ -1658,6 +1723,12 @@ schedule: task.type === "longDailyReview" ? task.schedule : null,
     });
 
     const nextTasks = [...tasksWithCloneIds, ...clones];
+    const nextLongTasks = applyLongTaskReviewToCalendar(
+      current.longTasks ?? [],
+      currentDateTasks,
+      dateKey
+    );
+
     const nextDailyRecords = syncDailyRecordFromTasks(
       current.dailyRecords ?? {},
       dateKey,
@@ -1667,6 +1738,7 @@ schedule: task.type === "longDailyReview" ? task.schedule : null,
     return {
       ...current,
       tasks: nextTasks,
+      longTasks: nextLongTasks,
       dailyRecords: confirmDailyRecord(nextDailyRecords, dateKey, { reflectionText }),
     };
   });
