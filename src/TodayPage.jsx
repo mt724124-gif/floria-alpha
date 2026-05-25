@@ -1339,7 +1339,7 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSel
   }, {});
 
   return (
-    <section className="relative z-20 overflow-hidden rounded-[22px] border border-emerald-100 bg-emerald-50/60 p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
+    <section className="relative z-20 overflow-hidden rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="mb-2 flex items-center gap-2 px-1">
         <p className="text-[14px] font-black text-emerald-600">長期タスク</p>
         <span className="grid h-5 min-w-5 place-items-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-black text-white">{todos.length}</span>
@@ -1348,8 +1348,8 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSel
       <div className="space-y-2">
         {Object.entries(groups).map(([key, group]) => (
           <div key={key} className="overflow-hidden rounded-[18px] border border-emerald-100 bg-white">
-            <div className="flex items-center justify-between bg-emerald-50/80 px-3 py-2">
-              <p className="min-w-0 truncate text-[13px] font-black text-emerald-700">{group.label}</p>
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-2">
+              <p className="min-w-0 truncate text-[13px] font-black text-slate-800">{group.label}</p>
               <span className="ml-2 shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">{group.todos.length}件</span>
             </div>
 

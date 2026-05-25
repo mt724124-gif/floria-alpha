@@ -162,6 +162,8 @@ function applyLongTaskReviewToCalendar(longTasks, reviewTasks, targetDateKey) {
   const longReviewTasks = (reviewTasks ?? []).filter(isLongDailyReviewTask);
   if (longReviewTasks.length === 0) return longTasks ?? [];
 
+  const nextDateKey = getTomorrowKey(targetDateKey);
+
   const reviewMap = new Map(
     longReviewTasks.map((task) => [
       `${String(task.parentId)}__${String(task.longDailyTaskId)}`,
@@ -169,49 +171,98 @@ function applyLongTaskReviewToCalendar(longTasks, reviewTasks, targetDateKey) {
     ])
   );
 
-  return (longTasks ?? []).map((longTask) => ({
-    ...longTask,
-    dailyPlans: (longTask.dailyPlans ?? []).map((plan) => {
+  const carryMap = new Map();
+
+  const updatedLongTasks = (longTasks ?? []).map((longTask) => {
+    const nextDailyPlans = (longTask.dailyPlans ?? []).map((plan) => {
       if (plan.date !== targetDateKey) return plan;
 
-      if (Array.isArray(plan.tasks)) {
-        return {
-          ...plan,
-          tasks: plan.tasks.map((item, index) => {
-            const longDailyTaskId = item.id ?? `${longTask.id}-${targetDateKey}-${index}`;
-            const reviewTask = reviewMap.get(`${String(longTask.id)}__${String(longDailyTaskId)}`);
-            if (!reviewTask) return item;
-
-            const completed = getReviewStatus(reviewTask) === "completed";
-
-            return {
-              ...item,
-              completed,
-              taskStatus: completed ? "completed" : "pending",
-              completedAt: completed ? reviewTask.completedAt ?? new Date().toISOString() : null,
-              actualMinutes: reviewTask.actualMinutes ?? item.actualMinutes ?? null,
-              actualSeconds: reviewTask.actualSeconds ?? item.actualSeconds ?? null,
-            };
-          }),
-        };
-      }
-
-      const longDailyTaskId = plan.id ?? `${longTask.id}-${targetDateKey}`;
-      const reviewTask = reviewMap.get(`${String(longTask.id)}__${String(longDailyTaskId)}`);
-      if (!reviewTask) return plan;
-
-      const completed = getReviewStatus(reviewTask) === "completed";
+      if (!Array.isArray(plan.tasks)) return plan;
 
       return {
         ...plan,
-        completed,
-        taskStatus: completed ? "completed" : "pending",
-        completedAt: completed ? reviewTask.completedAt ?? new Date().toISOString() : null,
-        actualMinutes: reviewTask.actualMinutes ?? plan.actualMinutes ?? null,
-        actualSeconds: reviewTask.actualSeconds ?? plan.actualSeconds ?? null,
+        tasks: plan.tasks.map((item, index) => {
+          const longDailyTaskId = item.id ?? `${longTask.id}-${targetDateKey}-${index}`;
+          const reviewTask = reviewMap.get(`${String(longTask.id)}__${String(longDailyTaskId)}`);
+          if (!reviewTask) return item;
+
+          const completed = getReviewStatus(reviewTask) === "completed";
+
+          if (!completed) {
+            const carryKey = String(longTask.id);
+            const currentCarry = carryMap.get(carryKey) ?? [];
+
+            currentCarry.push({
+              ...item,
+              id: `${longDailyTaskId}-carry-${nextDateKey}`,
+              completed: false,
+              taskStatus: "pending",
+              completedAt: null,
+              actualMinutes: null,
+              actualSeconds: null,
+              selected: true,
+              status: "pending",
+              carriedFromDate: targetDateKey,
+              originalLongDailyTaskId: longDailyTaskId,
+            });
+
+            carryMap.set(carryKey, currentCarry);
+          }
+
+          return {
+            ...item,
+            completed,
+            taskStatus: completed ? "completed" : "pending",
+            completedAt: completed ? reviewTask.completedAt ?? new Date().toISOString() : null,
+            actualMinutes: reviewTask.actualMinutes ?? item.actualMinutes ?? null,
+            actualSeconds: reviewTask.actualSeconds ?? item.actualSeconds ?? null,
+          };
+        }),
       };
-    }),
-  }));
+    });
+
+    return {
+      ...longTask,
+      dailyPlans: nextDailyPlans,
+    };
+  });
+
+  return updatedLongTasks.map((longTask) => {
+    const carryTasks = carryMap.get(String(longTask.id)) ?? [];
+    if (carryTasks.length === 0) return longTask;
+
+    const dailyPlans = longTask.dailyPlans ?? [];
+    const nextPlanExists = dailyPlans.some((plan) => plan.date === nextDateKey);
+
+    if (nextPlanExists) {
+      return {
+        ...longTask,
+        dailyPlans: dailyPlans.map((plan) => {
+          if (plan.date !== nextDateKey) return plan;
+
+          const existingIds = new Set((plan.tasks ?? []).map((task) => String(task.id)));
+          const newCarryTasks = carryTasks.filter((task) => !existingIds.has(String(task.id)));
+
+          return {
+            ...plan,
+            tasks: [...(plan.tasks ?? []), ...newCarryTasks],
+          };
+        }),
+      };
+    }
+
+    return {
+      ...longTask,
+      dailyPlans: [
+        ...dailyPlans,
+        {
+          id: `${longTask.id}-${nextDateKey}`,
+          date: nextDateKey,
+          tasks: carryTasks,
+        },
+      ],
+    };
+  });
 }
 
 function StatItem({ icon: Icon, label, value }) {
@@ -618,7 +669,9 @@ requestCompleteTask,
   postponeDateOverrides = {},
   baseDateKey,
 }) {
-  const tasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
+  const tasks = (record.tasks ?? []).filter(
+  (task) => task.taskStatus !== "deleted" && !isLongDailyReviewTask(task)
+);
   const [openStatusKeys, setOpenStatusKeys] = useState(statusOrder);
   const [showAllStatuses, setShowAllStatuses] = useState(false);
   const [draggingId, setDraggingId] = useState(null);
@@ -995,99 +1048,129 @@ onDelete={onDeleteTask}
   );
 }
 
-function LongTaskSection({ tasks = [] }) {
-  const completedLongTasks = tasks.filter(
-    (task) => task.type === "longDailyReview" && getReviewStatus(task) === "completed"
+function LongTaskSection({
+  tasks = [],
+  disabled = false,
+  onToggleLongTask,
+}) {
+  const longReviewTasks = tasks.filter(
+    (task) => task.type === "longDailyReview"
   );
 
-  const groups = completedLongTasks.reduce((acc, task) => {
+  const groups = longReviewTasks.reduce((acc, task) => {
     const key = String(task.parentId ?? task.parentTitle ?? "unknown");
+
     if (!acc[key]) {
       acc[key] = {
         label: task.parentTitle ?? "長期タスク",
         tasks: [],
       };
     }
+
     acc[key].tasks.push(task);
+
     return acc;
   }, {});
 
   return (
-    <section className="mb-3 rounded-[22px] border border-emerald-100 bg-emerald-50/40 p-3.5">
-      <div className="mb-3 flex items-center gap-2.5">
-        <Flag className="h-5 w-5 text-emerald-500" fill="currentColor" />
+    <section className="mb-3 rounded-[22px] border border-slate-100 bg-white p-3 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
+      <div className="mb-2.5 flex items-center gap-2.5">
+        <Flag
+          className="h-5 w-5 text-emerald-500"
+          fill="currentColor"
+        />
+
         <h2 className="text-[16px] font-black tracking-[-0.03em] text-slate-950">
-          完了した長期タスク
+          今日の長期タスク
         </h2>
+
         <span className="ml-auto rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-black text-white">
-          {completedLongTasks.length}
+          {longReviewTasks.length}
         </span>
       </div>
 
-      {completedLongTasks.length === 0 ? (
+      {longReviewTasks.length === 0 ? (
         <div className="rounded-[18px] bg-white p-3.5 shadow-sm">
           <p className="text-[13px] font-black text-slate-500">
-            完了した長期タスクはまだありません
-          </p>
-          <p className="mt-1.5 text-[12px] font-bold leading-5 text-slate-400">
-            今日のタスクで長期タスクを達成にすると、ここに表示されます。
+            今日の長期タスクはありません
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           {Object.entries(groups).map(([key, group]) => (
-            <div key={key} className="overflow-hidden rounded-[18px] bg-white shadow-sm">
+            <div
+              key={key}
+              className="overflow-hidden rounded-[18px] bg-white shadow-sm"
+            >
               <div className="flex items-center justify-between gap-2 bg-emerald-50 px-3 py-2">
-                <p className="min-w-0 truncate text-[13px] font-black text-emerald-700">
+                <p className="min-w-0 truncate text-[13px] font-black text-slate-800">
                   {group.label}
                 </p>
+
                 <span className="shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">
                   {group.tasks.length}件
                 </span>
               </div>
 
               <div className="divide-y divide-slate-100">
-                {group.tasks.map((task) => (
-                  <div key={task.id} className="px-3 py-2.5">
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full bg-emerald-500 text-white">
-                        <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                      </span>
+                {group.tasks.map((task) => {
+                  const completed =
+                    getReviewStatus(task) === "completed";
 
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-[13px] font-black leading-tight text-slate-950">
-                          {task.title || "無題の小タスク"}
-                        </p>
+                  return (
+                    <div
+                      key={task.id}
+                      className="px-3 py-2.5"
+                    >
+                      <div className="flex items-start gap-2">
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
 
-                        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                          <span className="flex items-center gap-1 text-[11px] font-black text-emerald-600">
-                            <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.2} />
-                            長期タスク
-                          </span>
+                            if (disabled) return;
 
-                          {Number(task.estimatedMinutes) > 0 && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
-                              <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
-                              予定 {formatMinutes(task.estimatedMinutes)}
-                            </span>
-                          )}
+                            onToggleLongTask?.(task);
+                          }}
+                          className={`mt-0.5 grid h-[24px] w-[24px] shrink-0 place-items-center rounded-full border-[1.6px] transition-all active:scale-[0.96] ${
+                            completed
+                              ? "border-emerald-500 bg-emerald-500 text-white"
+                              : "border-slate-300 bg-white text-transparent"
+                          } ${
+                            disabled
+                              ? "cursor-not-allowed opacity-45"
+                              : ""
+                          }`}
+                        >
+                          <Check
+                            className="h-3.5 w-3.5"
+                            strokeWidth={3}
+                          />
+                        </button>
 
-                          {Number(task.actualMinutes) > 0 && (
-                            <span className="text-[11px] font-bold text-slate-400">
-                              実測 {formatMinutes(task.actualMinutes)}
-                            </span>
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`line-clamp-2 text-[13px] font-black leading-tight ${
+                              completed
+                                ? "text-slate-400 line-through"
+                                : "text-slate-950"
+                            }`}
+                          >
+                            {task.title || "無題の小タスク"}
+                          </p>
+
+                          {String(task.detail ?? "").trim() && (
+                            <p className="mt-2 whitespace-pre-wrap rounded-2xl bg-slate-50 px-3 py-2 text-[12px] font-bold leading-5 text-slate-600">
+                              {task.detail}
+                            </p>
                           )}
                         </div>
-
-                        {String(task.detail ?? "").trim() && (
-                          <p className="mt-2 whitespace-pre-wrap rounded-2xl bg-slate-50 px-3 py-2 text-[12px] font-bold leading-5 text-slate-600">
-                            {task.detail}
-                          </p>
-                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -1165,7 +1248,9 @@ const displayRecord = {
 };
 
 const activeTasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
-const incompleteTasks = activeTasks.filter((task) => getReviewStatus(task) === "pending");
+const incompleteTasks = activeTasks.filter(
+  (task) => !isLongDailyReviewTask(task) && getReviewStatus(task) === "pending"
+);
 const taskCount = activeTasks.length;
 const isAutoCompletedEmptyDay = taskCount === 0;
 const isConfirmed = rawRecord.status === "confirmed" || rawRecord.reviewCompleted === true;
@@ -1382,6 +1467,81 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
     });
 
   };
+
+  const toggleLongTaskCompletion = (task) => {
+  if (isConfirmed) return;
+
+  const wasCompleted = getReviewStatus(task) === "completed";
+  const nextCompleted = !wasCompleted;
+
+  setAppData((current) => {
+    const currentTasks = current.tasks ?? [];
+    const existsInTasks = currentTasks.some(
+      (item) => String(item.id) === String(task.id)
+    );
+
+    const nextTaskState = {
+      ...task,
+      completed: nextCompleted,
+      taskStatus: nextCompleted ? "completed" : "pending",
+      completedAt: nextCompleted ? new Date().toISOString() : null,
+      type: "longDailyReview",
+      isLongTask: true,
+      targetDate: dateKey,
+      date: dateKey,
+      createdDate: task.createdDate ?? dateKey,
+    };
+
+    const nextTasks = existsInTasks
+      ? currentTasks.map((item) =>
+          String(item.id) === String(task.id) ? { ...item, ...nextTaskState } : item
+        )
+      : [...currentTasks, nextTaskState];
+
+    const nextLongTasks = (current.longTasks ?? []).map((longTask) => {
+      if (String(longTask.id) !== String(task.parentId)) return longTask;
+
+      return {
+        ...longTask,
+        dailyPlans: (longTask.dailyPlans ?? []).map((plan) => {
+          if (plan.date !== dateKey) return plan;
+
+          if (Array.isArray(plan.tasks)) {
+            return {
+              ...plan,
+              tasks: plan.tasks.map((item, index) => {
+                const itemId = item.id ?? `${longTask.id}-${dateKey}-${index}`;
+
+                if (String(itemId) !== String(task.longDailyTaskId)) return item;
+
+                return {
+                  ...item,
+                  completed: nextCompleted,
+                  taskStatus: nextCompleted ? "completed" : "pending",
+                  completedAt: nextCompleted ? new Date().toISOString() : null,
+                };
+              }),
+            };
+          }
+
+          return {
+            ...plan,
+            completed: nextCompleted,
+            taskStatus: nextCompleted ? "completed" : "pending",
+            completedAt: nextCompleted ? new Date().toISOString() : null,
+          };
+        }),
+      };
+    });
+
+    return {
+      ...current,
+      tasks: nextTasks,
+      longTasks: nextLongTasks,
+      dailyRecords: syncCurrentDateRecords(current, nextTasks),
+    };
+  });
+};
 
   const requestCompleteTask = (task) => {
     if (isConfirmed) return;
@@ -1612,7 +1772,7 @@ const handleMoveTaskToStatus = (taskId, nextStatus) => {
           ? {
               ...item,
               ...updatedTask,
-              ...preserveReviewTaskType(task),
+              ...preserveReviewTaskType(item),
               targetDate: updatedTask.targetDate ?? getTaskDateKey(item, dateKey),
               createdDate: updatedTask.createdDate ?? item.createdDate ?? getTaskDateKey(item, dateKey),
               actualSeconds: updatedTask.actualSeconds ?? (Number(updatedTask.actualMinutes) || 0) * 60,
@@ -1821,7 +1981,11 @@ requestCompleteTask={requestCompleteTask}
   baseDateKey={dateKey}
 />
 
-          {!isAutoCompletedEmptyDay && <LongTaskSection tasks={activeTasks} />}
+          {!isAutoCompletedEmptyDay && <LongTaskSection
+  tasks={activeTasks}
+  disabled={isConfirmed}
+  onToggleLongTask={toggleLongTaskCompletion}
+/>}
 
           {!isAutoCompletedEmptyDay && (
             <ReflectionSection
