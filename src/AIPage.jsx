@@ -71,7 +71,7 @@ const defaultFixedInstructions = [
   },
   {
     id: "max-2h-day",
-    text: "最大作業時間は1日120分までにしてください。",
+    text: "最大作業時間は1日2時間までにしてください。",
     enabled: false,
   },
 ];
@@ -88,24 +88,24 @@ const sampleAiJson = {
   version: "long_task_plan_v1",
   longTasks: [
     {
-      title: "国家試験対策：薬理総復習",
+      title: "会議プレゼン資料作成",
       startDate: "2026-05-26",
       endDate: "2026-06-01",
-      estimatedMinutes: 720,
+      estimatedMinutes: 540,
       dailyPlans: [
         {
           date: "2026-05-26",
           tasks: [
             {
-              title: "交感神経薬",
-              estimatedMinutes: 60,
-              detail: "α/β受容体、作動薬・遮断薬、代表薬の副作用を表で整理する。",
+              title: "構成を決める",
+              estimatedMinutes: 45,
+              detail: "プレゼン全体の流れと必要な章立てを整理する。",
               selected: true,
             },
             {
-              title: "確認問題",
+              title: "必要資料確認",
               estimatedMinutes: 30,
-              detail: "交感神経薬の過去問を解き、間違えた選択肢の理由をメモする。",
+              detail: "参考データや画像素材を洗い出す。",
               selected: true,
             },
           ],
@@ -114,9 +114,9 @@ const sampleAiJson = {
           date: "2026-05-27",
           tasks: [
             {
-              title: "副交感神経",
-              estimatedMinutes: 60,
-              detail: "コリン作動薬、抗コリン薬、重症筋無力症治療薬を整理する。",
+              title: "スライド作成",
+              estimatedMinutes: 90,
+              detail: "導入部分と概要スライドを作成する。",
               selected: true,
             },
           ],
@@ -125,9 +125,9 @@ const sampleAiJson = {
           date: "2026-05-28",
           tasks: [
             {
-              title: "循環器薬",
-              estimatedMinutes: 90,
-              detail: "降圧薬、抗不整脈薬、心不全治療薬を作用機序ごとに復習する。",
+              title: "グラフ整理",
+              estimatedMinutes: 60,
+              detail: "使用する図表を整理し、見やすく調整する。",
               selected: true,
             },
           ],
@@ -140,15 +140,9 @@ const sampleAiJson = {
           date: "2026-05-30",
           tasks: [
             {
-              title: "抗菌薬分類",
+              title: "原稿作成",
               estimatedMinutes: 75,
-              detail: "βラクタム系、キノロン系、アミノグリコシド系の作用機序と副作用を整理する。",
-              selected: true,
-            },
-            {
-              title: "苦手メモ",
-              estimatedMinutes: 30,
-              detail: "覚えにくい薬剤名と副作用をObsidian用にメモする。",
+              detail: "説明用メモと話す内容をまとめる。",
               selected: true,
             },
           ],
@@ -157,9 +151,9 @@ const sampleAiJson = {
           date: "2026-05-31",
           tasks: [
             {
-              title: "総復習",
-              estimatedMinutes: 120,
-              detail: "今週解いた問題の誤答だけを再確認し、弱点分野を洗い出す。",
+              title: "通し確認",
+              estimatedMinutes: 90,
+              detail: "最初から最後まで発表練習を行う。",
               selected: true,
             },
           ],
@@ -168,9 +162,9 @@ const sampleAiJson = {
           date: "2026-06-01",
           tasks: [
             {
-              title: "翌週計画",
-              estimatedMinutes: 45,
-              detail: "残った苦手分野をもとに、翌週の復習タスクを作成する。",
+              title: "最終修正",
+              estimatedMinutes: 60,
+              detail: "誤字やデザインを最終確認して完成させる。",
               selected: true,
             },
           ],
@@ -648,7 +642,7 @@ function AiDestinationSelector({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Settings className="h-4 w-4 text-emerald-500" />
-            <p className="text-[13px] font-black text-slate-950">AI遷移先</p>
+            <p className="text-[13px] font-black text-slate-950">使用AI</p>
           </div>
           <p className="mt-0.5 truncate text-[12px] font-bold text-slate-500">
             {selectedDestination.name}
@@ -683,7 +677,7 @@ function AiDestinationSelector({
                     }}
                     className="min-w-0 flex-1 text-left"
                   >
-                    <p className={`truncate text-[13px] font-black ${active ? "text-emerald-700" : "text-slate-800"}`}>
+                    <p className={`truncate text-[16px] font-black ${active ? "text-emerald-700" : "text-slate-800"}`}>
                       {item.name}
                     </p>
                     <p className="truncate text-[11px] font-bold text-slate-400">{item.url}</p>
@@ -709,14 +703,14 @@ function AiDestinationSelector({
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="例）Todoプロジェクト"
+              placeholder="例）Claude"
               className="mb-1.5 h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400"
             />
 
             <input
               value={newUrl}
               onChange={(e) => setNewUrl(e.target.value)}
-              placeholder="例）https://chatgpt.com/..."
+              placeholder="例）https://claude.ai/new..."
               inputMode="url"
               className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400"
             />
@@ -1056,7 +1050,7 @@ function IncludeHistoryToggle() {
           過去の達成履歴もAIに渡す
         </span>
         <span className="mt-0.5 block text-[11px] font-bold leading-relaxed text-slate-400">
-          履歴データは保存済みですが、AI連携は後で実装します。
+          これまでの記録を元にユーザーの傾向に合わせた計画を提案します。
         </span>
       </span>
     </div>
@@ -1140,10 +1134,17 @@ function RequestPage({
   };
 
   const copyAndOpen = async () => {
-    const prompt = buildAiPrompt(requestTasks, fixedInstructions);
-    const url = selectedAiDestination?.url || DEFAULT_AI_URL;
+  const hasTitle = requestTasks.some((task) => String(task.title ?? "").trim());
 
-    const copied = await copyTextToClipboard(prompt);
+  if (!hasTitle) {
+    setToast("タスク名を入力してください");
+    return;
+  }
+
+  const prompt = buildAiPrompt(requestTasks, fixedInstructions);
+  const url = selectedAiDestination?.url || DEFAULT_AI_URL;
+
+  const copied = await copyTextToClipboard(prompt);
 
     if (!copied) {
       setToast("コピーできませんでした。手動でコピーしてください");
@@ -1163,10 +1164,10 @@ function RequestPage({
     <main className="space-y-2.5">
       <section className="px-1">
         <h2 className="text-[18px] font-black tracking-[-0.04em] text-slate-950">
-          長期タスクをAIに分解
+          AIによる長期タスクの自動作成
         </h2>
         <p className="mt-0.5 text-[12px] font-bold text-slate-500">
-          要望と固定条件をコピーしてAIを開きます
+          要望を元にAIによる長期タスクの自動作成を可能にします。
         </p>
       </section>
 
@@ -1179,7 +1180,7 @@ function RequestPage({
       />
 
       <section className="flex items-center justify-between px-1">
-        <h3 className="text-[14px] font-black text-slate-950">依頼タスク</h3>
+        <h3 className="text-[14px] font-black text-slate-950">依頼内容</h3>
 
         <button
           type="button"
@@ -1227,7 +1228,7 @@ function RequestPage({
       </button>
 
       <p className="pb-1 text-center text-[11px] font-bold text-slate-400">
-        {selectedAiDestination.name}を開きます
+        依頼内容をコピーし、{selectedAiDestination.name}を開きます
       </p>
     </main>
   );
@@ -1254,12 +1255,12 @@ function PasteCard({ jsonText, setJsonText, onParse, parseStatus, onLoadSample }
       </div>
 
       <textarea
-        value={jsonText}
-        onChange={(e) => setJsonText(e.target.value)}
-        placeholder={"```json\n{\"longTasks\":[...]}\n```"}
-        rows={3}
-        className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
-      />
+  value={jsonText}
+  onChange={(e) => setJsonText(e.target.value)}
+  placeholder={"```json {\"longTasks\":[...]} ```"}
+  rows={1}
+  className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold text-slate-800 outline-none focus:border-emerald-400"
+/>
 
       <button
         type="button"
@@ -1482,14 +1483,14 @@ function DayRow({
           }}
           className={`rounded-xl px-1.5 py-1 text-left active:bg-emerald-50 ${isShiftBase ? "bg-emerald-50" : ""}`}
         >
-          <p className={`text-[12px] font-black leading-none ${isShiftBase ? "text-emerald-700" : "text-slate-900"}`}>
+          <p className={`text-[16px] font-black leading-none ${isShiftBase ? "text-emerald-700" : "text-slate-900"}`}>
             {Number(day.date.slice(5, 7))}/{Number(day.date.slice(8, 10))}
           </p>
-          <p className="mt-0.5 text-[10px] font-bold text-slate-500">({getDayLabel(day.date)})</p>
+          <p className="mt-0.5 text-[12px] font-bold text-slate-500">({getDayLabel(day.date)})</p>
         </button>
 
         <button type="button" onClick={onToggleOpen} className="min-w-0 text-left active:bg-slate-50">
-          <p className={`truncate text-[13px] font-black ${hasTasks ? "text-slate-950" : "text-slate-300"}`}>
+          <p className={`truncate text-[16px] font-black ${hasTasks ? "text-slate-950" : "text-slate-300"}`}>
             {hasTasks ? `${day.tasks[0].title}${day.tasks.length > 1 ? ` ほか${day.tasks.length - 1}件` : ""}` : "情報なし"}
           </p>
           <p className="mt-0.5 text-[11px] font-bold text-slate-400">
@@ -1570,7 +1571,7 @@ function BulkShiftPanel({ task, onShift, shiftBaseDate, setShiftBaseDate }) {
             key={diff}
             type="button"
             onClick={() => onShift(diff)}
-            className="h-9 rounded-xl border border-emerald-100 bg-emerald-50 text-[12px] font-black text-emerald-700 active:bg-emerald-100"
+            className="h-9 rounded-xl border border-emerald-100 bg-emerald-50 text-[16px] font-black text-emerald-700 active:bg-emerald-100"
           >
             {diff > 0 ? `+${diff}` : diff}日
           </button>

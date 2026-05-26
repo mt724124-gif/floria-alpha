@@ -684,7 +684,7 @@ setShiftBaseDate(addDaysToDateKey(shiftBaseDate, diffDays));
                       key={diff}
                       type="button"
                       onClick={() => shiftRowsFromBaseDate(diff)}
-                      className="h-9 rounded-xl border border-emerald-100 bg-emerald-50 text-[12px] font-black text-emerald-700 active:bg-emerald-100"
+                      className="h-9 rounded-xl border border-emerald-100 bg-emerald-50 text-[16px] font-black text-emerald-700 active:bg-emerald-100"
                     >
                       {diff > 0 ? `+${diff}` : diff}日
                     </button>
