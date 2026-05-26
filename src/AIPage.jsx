@@ -272,14 +272,11 @@ function loadFixedInstructions() {
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed)) return defaultFixedInstructions;
 
-    const customRules = parsed.filter(
-      (item) =>
-        item?.id &&
-        !defaultFixedInstructionIds.has(item.id) &&
-        !legacyDefaultFixedInstructionIds.has(item.id)
-    );
-
-    return [...defaultFixedInstructions, ...customRules];
+    return parsed.filter(
+  (item) =>
+    item?.id &&
+    !legacyDefaultFixedInstructionIds.has(item.id)
+);
   } catch {
     return defaultFixedInstructions;
   }
@@ -739,6 +736,7 @@ function RequestTaskCard({
   onToggleOpen,
 }) {
   const endDateInputRef = useRef(null);
+const [detailExpanded, setDetailExpanded] = useState(false);
 
   const handleStartDateChange = (event) => {
     const nextStartDate = event.target.value;
@@ -849,12 +847,23 @@ function RequestTaskCard({
           </div>
 
           <textarea
-            value={task.detail}
-            onChange={(e) => onChange({ ...task, detail: e.target.value })}
-            placeholder={"例）締切、優先したいこと、忙しい日など"}
-            maxLength={500}
-            className="mt-2 h-[82px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
-          />
+  value={task.detail}
+  onChange={(e) => onChange({ ...task, detail: e.target.value })}
+  placeholder={"例）締切、優先したいこと、忙しい日など"}
+  maxLength={500}
+  rows={detailExpanded ? 10 : 3}
+  className={`mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400 ${
+    detailExpanded ? "min-h-[240px]" : "h-[82px]"
+  }`}
+/>
+
+<button
+  type="button"
+  onClick={() => setDetailExpanded((current) => !current)}
+  className="mt-1 text-[11px] font-black text-emerald-600"
+>
+  {detailExpanded ? "全文表示を閉じる" : "全文を表示"}
+</button>
         </>
       )}
     </section>
@@ -863,7 +872,8 @@ function RequestTaskCard({
 
 function FixedInstructionPanel({ fixedInstructions, setFixedInstructions, setToast }) {
   const [open, setOpen] = useState(false);
-  const [newRule, setNewRule] = useState("");
+const [newRule, setNewRule] = useState("");
+const [newRuleExpanded, setNewRuleExpanded] = useState(false);
 
   const toggleRule = (id) => {
     setFixedInstructions((current) =>
@@ -967,13 +977,15 @@ function FixedInstructionPanel({ fixedInstructions, setFixedInstructions, setToa
 
           <div className="rounded-2xl bg-slate-50 p-2.5">
             <p className="mb-1.5 text-[12px] font-black text-slate-700">固定要望を追加</p>
+
             <textarea
-              value={newRule}
-              onChange={(e) => setNewRule(e.target.value)}
-              rows={2}
-              placeholder="例）午前中は軽め、午後に重いタスクを置いてください"
-              className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
-            />
+  value={newRule}
+  onChange={(e) => setNewRule(e.target.value)}
+  rows={2}
+  placeholder="例）午前中は軽め、午後に重いタスクを置いてください"
+  className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
+/>
+
             <button
               type="button"
               onClick={addRule}
