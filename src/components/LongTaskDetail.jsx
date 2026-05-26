@@ -133,7 +133,9 @@ function buildDailyRows(task) {
     if (Array.isArray(plan.tasks)) {
       row.tasks = [
         ...row.tasks,
-        ...plan.tasks.map((item, index) => normalizeSubTask(item, date, index)),
+        ...plan.tasks
+  .filter((item) => item?.reviewOnly !== true)
+  .map((item, index) => normalizeSubTask(item, date, index)),
       ];
       return;
     }

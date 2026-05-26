@@ -235,8 +235,14 @@ function buildLongDailyReviewTodosForDate(longTasks, targetDateKey) {
 
     if (Array.isArray(plan.tasks)) {
       return plan.tasks
-        .filter((item) => item?.selected !== false && String(item?.title ?? "").trim())
-        .map((item, index) => {
+  .filter(
+    (item) =>
+      item?.selected !== false &&
+      item?.reviewOnly !== true &&
+      item?.taskStatus !== "postponed" &&
+      String(item?.title ?? "").trim()
+  )
+  .map((item, index) => {
           const longDailyTaskId = item.id ?? `${longTask.id}-${targetDateKey}-${index}`;
 
           return {
@@ -1814,7 +1820,9 @@ const normalTodosForDate = useMemo(() => {
     (todo) =>
       getTodoDateKey(todo) === selectedDateKey &&
       todo.type !== "longDailyReview" &&
-      todo.type !== "longDaily"
+      todo.type !== "longDaily" &&
+      todo.taskStatus !== "postponed" &&
+      todo.taskStatus !== "deleted"
   );
 }, [todos, selectedDateKey]);
 
