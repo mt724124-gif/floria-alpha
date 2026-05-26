@@ -407,7 +407,7 @@ function buildLongDailyReviewTasksForDate(longTasks, targetDateKey) {
 
     if (Array.isArray(plan.tasks)) {
       return plan.tasks
-        .filter((item) => item?.selected !== false && item?.reviewOnly !== true && String(item?.title ?? "").trim())
+        .filter((item) => item?.selected !== false && String(item?.title ?? "").trim())
         .map((item, index) => {
           const longDailyTaskId = item.id ?? `${longTask.id}-${targetDateKey}-${index}`;
           const completed = item.taskStatus === "completed" || item.completed === true;

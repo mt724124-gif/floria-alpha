@@ -230,23 +230,58 @@ function getActualSecondsFromTask(todo, workLog) {
 
 function buildLongDailyReviewTodosForDate(longTasks, targetDateKey) {
   return (longTasks ?? []).flatMap((longTask) => {
-    const plan = (longTask.dailyPlans ?? []).find((row) => row.date === targetDateKey);
-    if (!plan) return [];
+    const plans = (longTask.dailyPlans ?? []).filter(
+      (row) => row.date === targetDateKey
+    );
 
-    if (Array.isArray(plan.tasks)) {
-      return plan.tasks
-  .filter(
-    (item) =>
-      item?.selected !== false &&
-      item?.reviewOnly !== true &&
-      item?.taskStatus !== "postponed" &&
-      String(item?.title ?? "").trim()
-  )
-  .map((item, index) => {
-          const longDailyTaskId = item.id ?? `${longTask.id}-${targetDateKey}-${index}`;
+    if (plans.length === 0) return [];
 
-          return {
-            ...item,
+    return plans.flatMap((plan, planIndex) => {
+      if (Array.isArray(plan.tasks)) {
+        return plan.tasks
+          .filter(
+            (item) =>
+              item?.selected !== false &&
+              item?.reviewOnly !== true &&
+              item?.taskStatus !== "postponed" &&
+              String(item?.title ?? "").trim()
+          )
+          .map((item, index) => {
+            const longDailyTaskId =
+              item.id ?? `${longTask.id}-${targetDateKey}-${planIndex}-${index}`;
+
+            return {
+              ...item,
+              id: `long-review-${longTask.id}-${targetDateKey}-${longDailyTaskId}`,
+              type: "longDailyReview",
+              isLongTask: true,
+              parentId: longTask.id,
+              parentTitle: longTask.title,
+              longDailyTaskId,
+              date: targetDateKey,
+              targetDate: targetDateKey,
+              createdDate: targetDateKey,
+              title: item.title || "小タスク名なし",
+              category: "長期タスク",
+              priority: "medium",
+              rank: 9990 + planIndex * 100 + index,
+              estimatedMinutes: item.estimatedMinutes ?? null,
+              actualMinutes: item.actualMinutes ?? 0,
+              actualSeconds: item.actualSeconds ?? 0,
+              completed: Boolean(item.completed),
+              taskStatus: item.completed ? "completed" : item.taskStatus ?? "pending",
+              completedAt: item.completedAt ?? null,
+            };
+          });
+      }
+
+      if (String(plan.title ?? "").trim()) {
+        const longDailyTaskId =
+          plan.id ?? `${longTask.id}-${targetDateKey}-${planIndex}`;
+
+        return [
+          {
+            ...plan,
             id: `long-review-${longTask.id}-${targetDateKey}-${longDailyTaskId}`,
             type: "longDailyReview",
             isLongTask: true,
@@ -256,50 +291,22 @@ function buildLongDailyReviewTodosForDate(longTasks, targetDateKey) {
             date: targetDateKey,
             targetDate: targetDateKey,
             createdDate: targetDateKey,
-            title: item.title || "小タスク名なし",
+            title: plan.title,
             category: "長期タスク",
             priority: "medium",
-            rank: 9990 + index,
-            estimatedMinutes: item.estimatedMinutes ?? null,
-            actualMinutes: item.actualMinutes ?? 0,
-            actualSeconds: item.actualSeconds ?? 0,
-            completed: Boolean(item.completed),
-            taskStatus: item.completed ? "completed" : "pending",
-            completedAt: item.completedAt ?? null,
-          };
-        });
-    }
+            rank: 9990 + planIndex * 100,
+            estimatedMinutes: plan.estimatedMinutes ?? null,
+            actualMinutes: plan.actualMinutes ?? 0,
+            actualSeconds: plan.actualSeconds ?? 0,
+            completed: Boolean(plan.completed),
+            taskStatus: plan.completed ? "completed" : plan.taskStatus ?? "pending",
+            completedAt: plan.completedAt ?? null,
+          },
+        ];
+      }
 
-    if (String(plan.title ?? "").trim()) {
-      const longDailyTaskId = plan.id ?? `${longTask.id}-${targetDateKey}`;
-
-      return [
-        {
-          ...plan,
-          id: `long-review-${longTask.id}-${targetDateKey}-${longDailyTaskId}`,
-          type: "longDailyReview",
-          isLongTask: true,
-          parentId: longTask.id,
-          parentTitle: longTask.title,
-          longDailyTaskId,
-          date: targetDateKey,
-          targetDate: targetDateKey,
-          createdDate: targetDateKey,
-          title: plan.title,
-          category: "長期タスク",
-          priority: "medium",
-          rank: 9990,
-          estimatedMinutes: plan.estimatedMinutes ?? null,
-          actualMinutes: plan.actualMinutes ?? 0,
-          actualSeconds: plan.actualSeconds ?? 0,
-          completed: Boolean(plan.completed),
-          taskStatus: plan.completed ? "completed" : "pending",
-          completedAt: plan.completedAt ?? null,
-        },
-      ];
-    }
-
-    return [];
+      return [];
+    });
   });
 }
 
@@ -1427,7 +1434,7 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSel
   return (
     <section className="relative z-20 overflow-hidden rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <div className="mb-2 flex items-center gap-2 px-1">
-        <p className="text-[14px] font-black text-emerald-600">今日の長期タスク</p>
+        <p className="text-[14px] font-black text-emerald-600">長期タスク</p>
         <span className="grid h-5 min-w-5 place-items-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-black text-white">
           {totalCount}
         </span>
@@ -2739,64 +2746,83 @@ return (
             }}
           />
 
-          <TodoListCard
-  todos={incompleteTodos.filter((todo) => !todo.isLongTask)}
-  showAllTasks={showAllTasks}
-  onSetShowAllTasks={setShowAllTasks}
-  showAllTasksResetKey={showAllTasksResetKey}
-  categories={categories}
-  sortMode={sortMode}
+          <section className="relative z-20 overflow-hidden rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
+  <div className="mb-2 flex items-center gap-2 px-1">
+    <p className="text-[14px] font-black text-orange-500">
+  短期タスク
+</p>
+
+    <span className="grid h-5 min-w-5 place-items-center rounded-full bg-orange-500 px-1.5 text-[11px] font-black text-white">
+  {incompleteNormalTodos.length}
+</span>
+  </div>
+
+  {incompleteNormalTodos.length === 0 ? (
+    <div className="rounded-[18px] bg-slate-50/80 px-4 py-5 text-center">
+      <p className="text-[13px] font-black text-slate-500">
+        今日の短期タスクはありません
+      </p>
+    </div>
+  ) : (
+    <TodoListCard
+      todos={incompleteNormalTodos}
+      showAllTasks={showAllTasks}
+      onSetShowAllTasks={setShowAllTasks}
+      showAllTasksResetKey={showAllTasksResetKey}
+      categories={categories}
+      sortMode={sortMode}
+      selectedTaskId={selectedTaskId}
+      canSelect={canSelectTask}
+      canComplete={canCompleteTask}
+      canEdit={canEditTask}
+      canDelete={canDeleteTask}
+      canMoveTomorrow={canMoveTomorrow}
+      canReorder={canReorderTask}
+      onSelect={(todo) => {
+        if (!canSelectTask) return;
+        if (!isCompleted(todo)) setSelectedTaskId(todo.id);
+      }}
+      onToggle={toggleTodo}
+      onEdit={(todo) => {
+        if (!canEditTask) return;
+
+        const savedWorkLog = workLogs.find((log) => log.taskId === todo.id);
+        const actualMinutes = getActualMinutesFromTask(todo, savedWorkLog);
+        const actualSeconds = getActualSecondsFromTask(todo, savedWorkLog);
+
+        setTodoModal({
+          open: true,
+          mode: "edit",
+          todo: {
+            ...todo,
+            actualMinutes,
+            actualSeconds,
+            workedMinutes: actualMinutes,
+            focusMinutes: actualMinutes,
+            elapsedMinutes: actualMinutes,
+            elapsedSeconds: actualSeconds,
+          },
+        });
+      }}
+      onDelete={deleteTodo}
+      onMoveTomorrow={moveTodoTomorrow}
+      onWorkLogEdit={openWorkLogModal}
+      onReorder={reorderTodos}
+    />
+  )}
+</section>
+
+<LongTaskListCard
+  todos={incompleteLongTodos}
   selectedTaskId={selectedTaskId}
   canSelect={canSelectTask}
   canComplete={canCompleteTask}
-  canEdit={canEditTask}
-  canDelete={canDeleteTask}
-  canMoveTomorrow={canMoveTomorrow}
-  canReorder={canReorderTask}
   onSelect={(todo) => {
     if (!canSelectTask) return;
     if (!isCompleted(todo)) setSelectedTaskId(todo.id);
   }}
   onToggle={toggleTodo}
-  onEdit={(todo) => {
-  if (!canEditTask) return;
-
-  const savedWorkLog = workLogs.find((log) => log.taskId === todo.id);
-  const actualMinutes = getActualMinutesFromTask(todo, savedWorkLog);
-  const actualSeconds = getActualSecondsFromTask(todo, savedWorkLog);
-
-  setTodoModal({
-    open: true,
-    mode: "edit",
-    todo: {
-      ...todo,
-      actualMinutes,
-      actualSeconds,
-      workedMinutes: actualMinutes,
-      focusMinutes: actualMinutes,
-      elapsedMinutes: actualMinutes,
-      elapsedSeconds: actualSeconds,
-    },
-  });
-}}
-
-  onDelete={deleteTodo}
-  onMoveTomorrow={moveTodoTomorrow}
-  onWorkLogEdit={openWorkLogModal}
-  onReorder={reorderTodos}
 />
-
-          <LongTaskListCard
-            todos={longDailyTodosForDate}
-            selectedTaskId={selectedTaskId}
-            canSelect={canSelectTask}
-            canComplete={canCompleteTask}
-            onSelect={(todo) => {
-              if (!canSelectTask) return;
-              if (!isCompleted(todo)) setSelectedTaskId(todo.id);
-            }}
-            onToggle={toggleTodo}
-          />
 
           <TodayRecordCard
   totalPlannedMinutes={filteredTodos.reduce(

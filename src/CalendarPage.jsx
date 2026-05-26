@@ -121,6 +121,19 @@ function applyLongTaskPeriodFromDailyPlans(task) {
 }
 
 function normalizeLongTaskShape(task) {
+  const explicitStart = task.start ?? task.startDate ?? task.start_date ?? "";
+  const explicitEnd = task.end ?? task.endDate ?? task.end_date ?? task.deadline ?? explicitStart;
+
+  if (explicitStart && explicitEnd) {
+    return {
+      ...task,
+      start: explicitStart,
+      end: explicitEnd,
+      startDate: explicitStart,
+      endDate: explicitEnd,
+    };
+  }
+
   return applyLongTaskPeriodFromDailyPlans(task);
 }
 
@@ -151,6 +164,37 @@ function buildDailyPlansForTask(task, oldDailyPlans = []) {
   }
 
   return rows;
+}
+
+function hasTasksInDailyPlan(row) {
+  if (!row) return false;
+
+  if (Array.isArray(row.tasks)) {
+    return row.tasks.some(
+      (item) =>
+        item?.taskStatus !== "deleted" &&
+        String(item?.title ?? "").trim()
+    );
+  }
+
+  return (
+    String(row.title ?? "").trim() ||
+    String(row.memo ?? row.detail ?? "").trim() ||
+    Number(row.estimatedMinutes) > 0
+  );
+}
+
+function getRemovedRowsByPeriod(oldTask, nextTask) {
+  const nextStart = nextTask.start ?? nextTask.startDate;
+  const nextEnd = nextTask.end ?? nextTask.endDate;
+
+  if (!oldTask || !nextStart || !nextEnd) return [];
+
+  return (oldTask.dailyPlans ?? []).filter((row) => {
+    if (!row?.date) return false;
+    if (!hasTasksInDailyPlan(row)) return false;
+    return row.date < nextStart || row.date > nextEnd;
+  });
 }
 
 function buildCalendarDays(year, monthIndex) {
@@ -719,26 +763,47 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
   return (
     <section className="mx-3 mt-2 min-h-0 flex-1 overflow-y-auto rounded-[26px] border border-slate-100 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
       <div className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 px-3 pb-2 pt-3 backdrop-blur">
-        <div className="flex items-center justify-between">
-          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, -7))} className="grid h-10 w-10 place-items-center rounded-2xl text-slate-400 active:bg-slate-100">
-            <ChevronLeft className="h-6 w-6" />
-          </button>
+        <div>
+  <div className="flex items-center justify-between">
+    <button
+      type="button"
+      onClick={() => setCurrentDate(addDays(weekStart, -7))}
+      className="grid h-10 w-10 place-items-center rounded-2xl text-slate-400 active:bg-slate-100"
+    >
+      <ChevronLeft className="h-6 w-6" />
+    </button>
 
-                    <div className="text-center">
-            <p className="text-[17px] font-black tracking-[-0.04em] text-slate-950">{formatWeekRange(weekStart)}</p>
-            <p className="mt-0.5 text-[10px] font-black text-slate-400">週間ロードマップ</p>
-          </div>
+    <div className="min-w-0 flex-1 px-2 text-center">
+      <p className="truncate text-[17px] font-black tracking-[-0.04em] text-slate-950">
+        {formatWeekRange(weekStart)}
+      </p>
+    </div>
 
-          {!isThisWeek && (
-            <button type="button" onClick={() => { const now = new Date(); setCurrentDate(now); setSelectedDate(now); }} className="absolute right-12 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-600 active:scale-[0.97]">
-              今週に戻る
-            </button>
-          )}
+    <button
+      type="button"
+      onClick={() => setCurrentDate(addDays(weekStart, 7))}
+      className="grid h-10 w-10 place-items-center rounded-2xl text-slate-400 active:bg-slate-100"
+    >
+      <ChevronRight className="h-6 w-6" />
+    </button>
+  </div>
 
-          <button type="button" onClick={() => setCurrentDate(addDays(weekStart, 7))} className="grid h-10 w-10 place-items-center rounded-2xl text-slate-400 active:bg-slate-100">
-            <ChevronRight className="h-6 w-6" />
-          </button>
-        </div>
+  {!isThisWeek && (
+    <div className="mt-2 flex justify-center">
+      <button
+        type="button"
+        onClick={() => {
+          const now = new Date();
+          setCurrentDate(now);
+          setSelectedDate(now);
+        }}
+        className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-600 active:scale-[0.97]"
+      >
+        今週に戻る
+      </button>
+    </div>
+  )}
+</div>
       </div>
 
       <div className="grid grid-cols-7 border-b border-slate-100 bg-white">
@@ -1030,8 +1095,9 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
   });
 
   const [isLongTaskModalOpen, setIsLongTaskModalOpen] = useState(false);
-  const [selectedLongTaskId, setSelectedLongTaskId] = useState(null);
-  const [editingLongTask, setEditingLongTask] = useState(null);
+const [selectedLongTaskId, setSelectedLongTaskId] = useState(null);
+const [editingLongTask, setEditingLongTask] = useState(null);
+const [periodWarning, setPeriodWarning] = useState(null);
 
   const selectedLongTask = useMemo(() => {
     if (!selectedLongTaskId) return null;
@@ -1080,44 +1146,67 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
     });
   }, [longTasks]);
 
-  const saveLongTask = (task) => {
-    const normalizedTask = normalizeLongTaskShape(task);
-    const oldTask = longTasks.find((item) => String(item.id) === String(normalizedTask.id));
+  const commitLongTaskSave = (task) => {
+  const normalizedTask = normalizeLongTaskShape(task);
+  const oldTask = longTasks.find((item) => String(item.id) === String(normalizedTask.id));
 
-    const savedTask = applyLongTaskPeriodFromDailyPlans({
-      ...normalizedTask,
-      dailyPlans: buildDailyPlansForTask(normalizedTask, oldTask?.dailyPlans ?? normalizedTask.dailyPlans ?? []),
-      updatedAt: new Date().toISOString(),
-    });
-
-    setLongTasks((current) => {
-      const exists = current.some((item) => String(item.id) === String(savedTask.id));
-
-      if (exists) {
-        return current.map((item) => (String(item.id) === String(savedTask.id) ? savedTask : item));
-      }
-
-      return [...current, savedTask];
-    });
-
-    setAppData?.((currentAppData) => {
-      const currentLongTasks = currentAppData.longTasks ?? [];
-      const exists = currentLongTasks.some((item) => String(item.id) === String(savedTask.id));
-
-      return {
-        ...currentAppData,
-        longTasks: exists
-          ? currentLongTasks.map((item) => (String(item.id) === String(savedTask.id) ? savedTask : item))
-          : [...currentLongTasks, savedTask],
-      };
-    });
-
-    setCurrentDate(new Date(savedTask.start));
-    setSelectedDate(new Date(savedTask.start));
-    setEditingLongTask(null);
-    setIsLongTaskModalOpen(false);
-    setSelectedLongTaskId(savedTask.id);
+  const savedTask = {
+    ...normalizedTask,
+    dailyPlans: buildDailyPlansForTask(
+      normalizedTask,
+      oldTask?.dailyPlans ?? normalizedTask.dailyPlans ?? []
+    ),
+    updatedAt: new Date().toISOString(),
   };
+
+  setLongTasks((current) => {
+    const exists = current.some((item) => String(item.id) === String(savedTask.id));
+
+    if (exists) {
+      return current.map((item) =>
+        String(item.id) === String(savedTask.id) ? savedTask : item
+      );
+    }
+
+    return [...current, savedTask];
+  });
+
+  setAppData?.((currentAppData) => {
+    const currentLongTasks = currentAppData.longTasks ?? [];
+    const exists = currentLongTasks.some((item) => String(item.id) === String(savedTask.id));
+
+    return {
+      ...currentAppData,
+      longTasks: exists
+        ? currentLongTasks.map((item) =>
+            String(item.id) === String(savedTask.id) ? savedTask : item
+          )
+        : [...currentLongTasks, savedTask],
+    };
+  });
+
+  setCurrentDate(new Date(savedTask.start));
+  setSelectedDate(new Date(savedTask.start));
+  setEditingLongTask(null);
+  setIsLongTaskModalOpen(false);
+  setSelectedLongTaskId(savedTask.id);
+};
+
+const saveLongTask = (task) => {
+  const normalizedTask = normalizeLongTaskShape(task);
+  const oldTask = longTasks.find((item) => String(item.id) === String(normalizedTask.id));
+  const removedRows = getRemovedRowsByPeriod(oldTask, normalizedTask);
+
+  if (removedRows.length > 0) {
+    setPeriodWarning({
+      task: normalizedTask,
+      removedRows,
+    });
+    return;
+  }
+
+  commitLongTaskSave(normalizedTask);
+};
 
   const openLongTaskDetail = (task) => {
     if (!task?.id) return;
@@ -1170,11 +1259,11 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
     const applyUpdate = (item) => {
       if (String(item.id) !== String(updatedTask.id)) return item;
 
-      return applyLongTaskPeriodFromDailyPlans({
-        ...item,
-        ...updatedTask,
-        updatedAt: updatedTask.updatedAt ?? updatedAt,
-      });
+      return normalizeLongTaskShape({
+  ...item,
+  ...updatedTask,
+  updatedAt: updatedTask.updatedAt ?? updatedAt,
+});
     };
 
     setLongTasks((current) => current.map(applyUpdate));
@@ -1260,6 +1349,51 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
           }}
         />
       )}
+
+      {periodWarning && (
+  <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/35 px-5 backdrop-blur-sm">
+    <div className="w-full max-w-[360px] rounded-[26px] bg-white p-5 shadow-2xl">
+      <h2 className="text-[18px] font-black text-slate-950">
+        小タスクが削除されます
+      </h2>
+
+      <p className="mt-2 text-[13px] font-bold leading-6 text-slate-500">
+        変更後の期間外になる日付に小タスクがあります。期間を変更すると、その日の小タスクは削除されます。
+      </p>
+
+      <div className="mt-3 rounded-2xl bg-amber-50 px-3 py-2">
+        <p className="text-[12px] font-black text-amber-700">
+          削除対象：{periodWarning.removedRows.length}日分
+        </p>
+        <p className="mt-1 text-[11px] font-bold text-amber-600">
+          {periodWarning.removedRows.map((row) => row.date).join("、")}
+        </p>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setPeriodWarning(null)}
+          className="h-12 rounded-2xl bg-slate-100 text-[14px] font-black text-slate-600 active:scale-[0.98]"
+        >
+          キャンセル
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const targetTask = periodWarning.task;
+            setPeriodWarning(null);
+            commitLongTaskSave(targetTask);
+          }}
+          className="h-12 rounded-2xl bg-red-500 text-[14px] font-black text-white active:scale-[0.98]"
+        >
+          変更する
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       <LongTaskModal open={isLongTaskModalOpen} editingTask={editingLongTask} categories={longTaskCategories} setCategories={setLongTaskCategories} onClose={() => setIsLongTaskModalOpen(false)} onSave={saveLongTask} />
     </div>
