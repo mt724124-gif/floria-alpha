@@ -186,6 +186,7 @@ function updateLongDailyTaskInCalendar(longTasks, reviewTask, updater) {
   });
 }
 
+
 function applyLongTaskReviewToCalendar(longTasks, reviewTasks, targetDateKey) {
   const longReviewTasks = (reviewTasks ?? []).filter(isLongDailyReviewTask);
   if (longReviewTasks.length === 0) return longTasks ?? [];
@@ -220,37 +221,47 @@ function applyLongTaskReviewToCalendar(longTasks, reviewTasks, targetDateKey) {
           const postponeDateKey = reviewTask.postponedToDate ?? defaultNextDateKey;
 
           if (postponed) {
-            const carryKey = `${String(longTask.id)}__${postponeDateKey}`;
-            const currentCarry = carryMap.get(carryKey) ?? [];
+  const carryKey = `${String(longTask.id)}__${postponeDateKey}`;
+  const currentCarry = carryMap.get(carryKey) ?? [];
 
-            currentCarry.push({
-              ...item,
-              id: `${longDailyTaskId}-carry-${postponeDateKey}`,
-              completed: false,
-              taskStatus: "pending",
-              completedAt: null,
-              actualMinutes: null,
-              actualSeconds: null,
-              selected: true,
-              status: "pending",
-              postponedToDate: null,
-              carriedFromDate: targetDateKey,
-              originalLongDailyTaskId: longDailyTaskId,
-            });
+  currentCarry.push({
+    ...item,
+    id: `${longDailyTaskId}-carry-${postponeDateKey}`,
+    completed: false,
+    taskStatus: "pending",
+    completedAt: null,
+    actualMinutes: null,
+    actualSeconds: null,
+    selected: true,
+    status: "pending",
+    postponedToDate: null,
+    carriedFromDate: targetDateKey,
+    originalLongDailyTaskId: longDailyTaskId,
+  });
 
-            carryMap.set(carryKey, currentCarry);
-          }
+  carryMap.set(carryKey, currentCarry);
 
-          return {
-            ...item,
-            completed,
-            taskStatus: completed ? "completed" : postponed ? "postponed" : "pending",
-            completedAt: completed ? reviewTask.completedAt ?? new Date().toISOString() : null,
-            postponedToDate: postponed ? postponeDateKey : null,
-            actualMinutes: reviewTask.actualMinutes ?? item.actualMinutes ?? null,
-            actualSeconds: reviewTask.actualSeconds ?? item.actualSeconds ?? null,
-          };
-        }),
+  return {
+    ...item,
+    completed: false,
+    taskStatus: "postponed",
+    completedAt: null,
+    postponedToDate: postponeDateKey,
+    actualMinutes: reviewTask.actualMinutes ?? item.actualMinutes ?? null,
+    actualSeconds: reviewTask.actualSeconds ?? item.actualSeconds ?? null,
+  };
+}
+
+return {
+  ...item,
+  completed,
+  taskStatus: completed ? "completed" : "pending",
+  completedAt: completed ? reviewTask.completedAt ?? new Date().toISOString() : null,
+  postponedToDate: null,
+  actualMinutes: reviewTask.actualMinutes ?? item.actualMinutes ?? null,
+  actualSeconds: reviewTask.actualSeconds ?? item.actualSeconds ?? null,
+};
+                }),
       };
     });
 
@@ -314,13 +325,33 @@ function revertLongTaskReviewFromCalendar(longTasks, targetDateKey) {
         if (plan.date === targetDateKey && Array.isArray(plan.tasks)) {
           return {
             ...plan,
-            tasks: plan.tasks.map((item) => ({
-              ...item,
-              completed: false,
-              taskStatus: "pending",
-              completedAt: null,
-              postponedToDate: null,
-            })),
+            tasks: plan.tasks.map((item) => {
+              if (item.taskStatus === "completed") {
+                return {
+                  ...item,
+                  completed: true,
+                  taskStatus: "completed",
+                  postponedToDate: null,
+                };
+              }
+
+              if (item.taskStatus === "postponed") {
+                return {
+                  ...item,
+                  completed: false,
+                  taskStatus: "postponed",
+                  completedAt: null,
+                };
+              }
+
+              return {
+                ...item,
+                completed: false,
+                taskStatus: "pending",
+                completedAt: null,
+                postponedToDate: null,
+              };
+            }),
           };
         }
 
@@ -328,7 +359,7 @@ function revertLongTaskReviewFromCalendar(longTasks, targetDateKey) {
 
         return {
           ...plan,
-          tasks: plan.tasks.filter((item) => item.carriedFromDate !== targetDateKey),
+          tasks: plan.tasks,
         };
       })
       .filter((plan) => !Array.isArray(plan.tasks) || plan.tasks.length > 0 || plan.date === targetDateKey),
@@ -747,25 +778,27 @@ const Icon = style.icon;
           <div className="min-w-0 flex-1 touch-manipulation select-none">
             <div className={`${isLongDailyReviewTask(task) ? "border-l-[3px] border-emerald-400 pl-2" : ""}`}>
               {isLongDailyReviewTask(task) && (
-                <p className="mb-0.5 truncate text-[10px] font-black text-emerald-600">
-                  {task.parentTitle ?? "長期タスク"}
-                </p>
-              )}
+  <p className="mb-0.5 truncate text-[9px] font-bold text-emerald-600">
+    {task.parentTitle ?? "長期タスク"}
+  </p>
+)}
 
-              <p className={`flex items-start gap-1 text-[13px] font-bold leading-tight tracking-[-0.01em] ${
-                completed ? "text-slate-400" : postponed ? "text-slate-700" : "text-slate-950"
-              }`}>
-                <span className="line-clamp-2 break-words">{task.title || "無題のタスク"}</span>
-              </p>
+<p className={`flex items-start gap-1 text-[12px] font-semibold leading-tight tracking-[-0.01em] ${
+  completed ? "text-slate-400" : postponed ? "text-slate-700" : "text-slate-950"
+}`}>
+  <span className="line-clamp-2 break-words">{task.title || "無題のタスク"}</span>
+</p>
             </div>
 
             <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-              <div className={`flex items-center gap-1 ${style.text}`}>
-                <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
-                <span className="max-w-[52px] truncate text-[11px] font-black">
-                  {task.category ?? "その他"}
-                </span>
-              </div>
+              {!isLongDailyReviewTask(task) && (
+  <div className={`flex items-center gap-1 ${style.text}`}>
+    <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
+    <span className="max-w-[52px] truncate text-[11px] font-black">
+      {task.category ?? "その他"}
+    </span>
+  </div>
+)}
 
               <div className="flex items-center gap-1 text-slate-400">
                 <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
@@ -773,12 +806,6 @@ const Icon = style.icon;
                   {formatMinutes(task.actualMinutes ?? task.workedMinutes ?? task.focusMinutes ?? task.elapsedMinutes ?? 0)}
                 </span>
               </div>
-
-              {Number(task.estimatedMinutes) > 0 && (
-                <span className="text-[11px] font-bold text-slate-400">
-                  予定 {formatMinutes(task.estimatedMinutes)}
-                </span>
-              )}
             </div>
           </div>
 
@@ -1297,7 +1324,7 @@ const displayRecord = {
     rawRecord.status === "confirmed" || rawRecord.reviewCompleted === true,
 };
 
-const activeTasks = (record.tasks ?? []).filter((task) => task.taskStatus !== "deleted");
+const activeTasks = reviewTasks.filter((task) => task.taskStatus !== "deleted");
 const incompleteTasks = activeTasks.filter((task) => getReviewStatus(task) === "pending");
 const taskCount = activeTasks.length;
 const isAutoCompletedEmptyDay = taskCount === 0;
@@ -1378,7 +1405,7 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
     const postponedToDate = nextPostponed ? options.postponedToDate ?? defaultPostponeDateKey : null;
 
     setAppData((current) => {
-      const nextLongTasks = updateLongDailyTaskInCalendar(current.longTasks ?? [], task, (item) => ({
+  const nextLongTasks = updateLongDailyTaskInCalendar(current.longTasks ?? [], task, (item) => ({
         ...item,
         completed: nextCompleted,
         taskStatus: nextCompleted ? "completed" : nextPostponed ? "postponed" : "pending",
@@ -1392,14 +1419,14 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
         elapsedSeconds: task.elapsedSeconds ?? task.actualSeconds ?? item.elapsedSeconds ?? 0,
       }));
 
-      const syncedRecords = syncCurrentDateRecords(current, current.tasks ?? [], nextLongTasks);
+  const syncedRecords = syncCurrentDateRecords(current, current.tasks ?? [], nextLongTasks);
 
-      return {
-        ...current,
-        longTasks: nextLongTasks,
-        dailyRecords: nextCompleted ? syncedRecords : unconfirmDailyRecord(syncedRecords, dateKey),
-      };
-    });
+  return {
+    ...current,
+    longTasks: nextLongTasks,
+    dailyRecords: nextCompleted ? syncedRecords : unconfirmDailyRecord(syncedRecords, dateKey),
+  };
+});
   };
 
   const completeTask = (task, forcedMinutes = null) => {
@@ -2033,7 +2060,10 @@ const handleMoveTaskToStatus = (taskOrId, nextStatus) => {
           )}
 
           <TaskSection
-  record={displayRecord}
+  record={{
+    ...displayRecord,
+    tasks: reviewTasks,
+  }}
   disabled={isConfirmed}
   onEditTask={handleEditTask}
   onDeleteTask={handleDeleteTask}

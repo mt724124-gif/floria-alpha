@@ -203,6 +203,25 @@ export default function LongTaskDetail({
   const todayKey = dateKey(new Date());
   const todayRow = dailyRows.find((row) => row.date === todayKey) ?? dailyRows[0];
   const listScrollRef = useRef(null);
+  const startScrollTopRef = useRef(0);
+
+const autoScrollWhileDragging = (clientY) => {
+  const container = listScrollRef.current;
+  if (!container) return;
+
+  const rect = container.getBoundingClientRect();
+  const edge = 72;
+  const speed = 16;
+
+  if (clientY < rect.top + edge) {
+    container.scrollTop -= speed;
+    return;
+  }
+
+  if (clientY > rect.bottom - edge) {
+    container.scrollTop += speed;
+  }
+};
 
   const start = getTaskStart(task);
   const end = getTaskEnd(task);
@@ -373,11 +392,14 @@ export default function LongTaskDetail({
     document.body.style.userSelect = "none";
 
     dragInfoRef.current = {
-      rowId,
-      taskId,
-      startY: event.clientY,
-      targetRowId: rowId,
-    };
+  rowId,
+  taskId,
+  startY: event.clientY,
+  startScrollTop: listScrollRef.current?.scrollTop ?? 0,
+  targetRowId: rowId,
+};
+
+startScrollTopRef.current = listScrollRef.current?.scrollTop ?? 0;
 
     setDraggingSubTaskId(taskId);
     setDragOffsetY(0);
@@ -388,19 +410,38 @@ export default function LongTaskDetail({
       if (!dragInfoRef.current) return;
       event.preventDefault();
 
-      const nextOffsetY = event.clientY - dragInfoRef.current.startY;
-      setDragOffsetY(nextOffsetY);
+      autoScrollWhileDragging(event.clientY);
 
-      const element = document.elementFromPoint(event.clientX, event.clientY);
-      const rowElement = element?.closest?.("[data-date]");
-      const targetDate = rowElement?.dataset?.date ?? null;
-      const targetRow = targetDate
-        ? dailyRows.find((row) => row.date === targetDate)
-        : null;
+const currentScrollTop = listScrollRef.current?.scrollTop ?? 0;
+const nextOffsetY =
+  event.clientY -
+  dragInfoRef.current.startY +
+  (currentScrollTop - startScrollTopRef.current);
 
-      if (targetRow) {
-        dragInfoRef.current.targetRowId = targetRow.id;
-      }
+setDragOffsetY(nextOffsetY);
+
+      const rows = Array.from(
+  listScrollRef.current?.querySelectorAll("[data-date]") ?? []
+);
+
+const targetElement = rows.find((rowElement) => {
+  const rect = rowElement.getBoundingClientRect();
+  return (
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom &&
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right
+  );
+});
+
+const targetDate = targetElement?.dataset?.date ?? null;
+const targetRow = targetDate
+  ? dailyRows.find((row) => row.date === targetDate)
+  : null;
+
+if (targetRow) {
+  dragInfoRef.current.targetRowId = targetRow.id;
+}
     };
 
     const handlePointerUp = () => {
@@ -454,49 +495,56 @@ export default function LongTaskDetail({
   }, [dailyRows]);
 
   const shiftRowsFromBaseDate = (diffDays) => {
-    if (!shiftBaseDate || diffDays === 0) return;
+  if (!shiftBaseDate || diffDays === 0) return;
 
-    const fixedRows = dailyRows.filter((row) => row.date < shiftBaseDate);
-    const movingRows = dailyRows.filter((row) => row.date >= shiftBaseDate);
+  const rowMap = new Map();
 
-    if (movingRows.length === 0) return;
+  dailyRows.forEach((row) => {
+    const nextDate = row.date >= shiftBaseDate ? addDaysToDateKey(row.date, diffDays) : row.date;
+    const current = rowMap.get(nextDate);
 
-    const movedRows = movingRows.map((row) => ({
-      ...row,
-      id: `${task.id}-${addDaysToDateKey(row.date, diffDays)}`,
-      date: addDaysToDateKey(row.date, diffDays),
-    }));
-
-    const merged = new Map();
-
-    [...fixedRows, ...movedRows].forEach((row) => {
-      const current = merged.get(row.date);
-      if (!current) {
-        merged.set(row.date, row);
-        return;
-      }
-
-      merged.set(row.date, {
-        ...current,
-        tasks: [...(current.tasks ?? []), ...(row.tasks ?? [])],
+    if (!current) {
+      rowMap.set(nextDate, {
+        ...row,
+        id: `${task.id}-${nextDate}`,
+        date: nextDate,
+        tasks: [...(row.tasks ?? [])],
       });
-    });
+      return;
+    }
 
-    const nextRows = [...merged.values()].sort((a, b) => a.date.localeCompare(b.date));
-    const nextStart = nextRows[0]?.date ?? start;
-    const nextEnd = nextRows[nextRows.length - 1]?.date ?? end;
-
-    commitRows(nextRows);
-    onUpdateTask?.({
-      ...task,
-      start: nextStart,
-      startDate: nextStart,
-      end: nextEnd,
-      endDate: nextEnd,
-      updatedAt: new Date().toISOString(),
+    rowMap.set(nextDate, {
+      ...current,
+      tasks: [...(current.tasks ?? []), ...(row.tasks ?? [])],
     });
-    setShiftBaseDate(addDaysToDateKey(shiftBaseDate, diffDays));
-  };
+  });
+
+  const nextRows = [...rowMap.values()]
+    .filter((row) => (row.tasks ?? []).length > 0 || row.date >= (start ?? row.date) && row.date <= (end ?? row.date))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const taskDates = nextRows
+    .filter((row) => (row.tasks ?? []).length > 0)
+    .map((row) => row.date);
+
+  const nextStart = taskDates[0] ?? start;
+  const nextEnd = taskDates[taskDates.length - 1] ?? end;
+  const nextDailyPlans = serializeDailyRows(nextRows);
+
+  onUpdateDailyPlan?.(task, null, nextDailyPlans);
+
+  onUpdateTask?.({
+    ...task,
+    start: nextStart,
+    startDate: nextStart,
+    end: nextEnd,
+    endDate: nextEnd,
+    dailyPlans: nextDailyPlans,
+    updatedAt: new Date().toISOString(),
+  });
+
+  setShiftBaseDate(addDaysToDateKey(shiftBaseDate, diffDays));
+};
 
   const updateOverviewMemo = (value) => {
     setOverviewMemo(value);
@@ -756,7 +804,7 @@ export default function LongTaskDetail({
                               <div
                                 key={item.id}
                                 style={String(draggingSubTaskId) === String(item.id) ? { transform: `translate3d(0, ${dragOffsetY}px, 0) scale(1.015)` } : undefined}
-                                className={`rounded-2xl bg-emerald-50/40 p-3 transition-transform ${String(draggingSubTaskId) === String(item.id) ? "relative z-[999] bg-white opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.20)] ring-1 ring-slate-200" : ""}`}
+                                className={`rounded-2xl bg-emerald-50/40 p-3 transition-transform ${String(draggingSubTaskId) === String(item.id) ? "pointer-events-none relative z-[999] bg-white opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.20)] ring-1 ring-slate-200" : ""}`}
                               >
                                 {isEditing ? (
                                   <div className="rounded-2xl bg-white p-3 shadow-sm">
@@ -865,13 +913,15 @@ export default function LongTaskDetail({
                                       </button>
                                     </div>
 
-                                    <div className="mt-2 min-h-[58px] rounded-xl bg-white/60 px-3 py-2.5 text-[13px] font-medium leading-relaxed text-slate-700">
-                                      {item.memo || item.detail ? (
-                                        <p>{item.memo || item.detail}</p>
-                                      ) : (
-                                        <p className="text-slate-400">詳細はまだありません</p>
-                                      )}
-                                    </div>
+                                    {!draggingSubTaskId && (
+  <div className="mt-2 min-h-[58px] rounded-xl bg-white/60 px-3 py-2.5 text-[13px] font-medium leading-relaxed text-slate-700">
+    {item.memo || item.detail ? (
+      <p>{item.memo || item.detail}</p>
+    ) : (
+      <p className="text-slate-400">詳細はまだありません</p>
+    )}
+  </div>
+)}
                                   </>
                                 )}
                               </div>
