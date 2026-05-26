@@ -873,7 +873,7 @@ const [detailExpanded, setDetailExpanded] = useState(false);
 function FixedInstructionPanel({ fixedInstructions, setFixedInstructions, setToast }) {
   const [open, setOpen] = useState(false);
 const [newRule, setNewRule] = useState("");
-const [newRuleExpanded, setNewRuleExpanded] = useState(false);
+
 
   const toggleRule = (id) => {
     setFixedInstructions((current) =>
@@ -1059,10 +1059,10 @@ function IncludeHistoryToggle() {
 
       <span className="min-w-0">
         <span className="block text-[12px] font-black text-slate-500 line-through">
-          過去の達成履歴もAIに渡す
+          過去の達成履歴を追加する。
         </span>
         <span className="mt-0.5 block text-[11px] font-bold leading-relaxed text-slate-400">
-          これまでの記録を元にユーザーの傾向に合わせた計画を提案します。
+          これまでの記録を元にあなたの傾向に合わせた計画を立案します。
         </span>
       </span>
     </div>
