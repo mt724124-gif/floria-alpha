@@ -374,13 +374,23 @@ function TodayGoalCard({
   </label>
 </div>
 
-        {isPastDate && isReviewConfirmed && totalCount === 0 ? (
-          <>
-            <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
-              この日は記録されたTodoがありません
-            </h1>
-          </>
-        ) : isPastDate && isReviewConfirmed ? (
+        {isEmptyPastDate ? (
+  <>
+    <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+      この日はTodoの記録がありません
+    </h1>
+  </>
+) : isClearedPastDate ? (
+  <>
+    <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
+      この日のタスク整理は完了しました
+    </h1>
+
+    <p className="text-[12px] font-bold leading-relaxed text-slate-400">
+      延期・達成したタスクは記録に保存されています。
+    </p>
+  </>
+) : isPastDate && isReviewConfirmed ? (
           <>
             <h1 className="mb-2 text-[21px] font-black leading-[1.15] tracking-[-0.045em] text-slate-950 min-[390px]:text-[23px]">
               この日の振り返りは完了しました
@@ -1894,7 +1904,20 @@ useEffect(() => {
 
   const dailyRecord = getOrCreateDailyRecord(syncedDailyRecords, selectedDateKey);
   const totalCount = filteredTodos.length;
-  const isEmptyPastDate = isPastDate && totalCount === 0;
+  const hadAnyRecordedTodos =
+  (dailyRecord?.todos?.length ?? 0) > 0 ||
+  (dailyRecord?.completedTodos?.length ?? 0) > 0 ||
+  (dailyRecord?.postponedTodos?.length ?? 0) > 0;
+
+const isEmptyPastDate =
+  isPastDate &&
+  totalCount === 0 &&
+  !hadAnyRecordedTodos;
+
+const isClearedPastDate =
+  isPastDate &&
+  totalCount === 0 &&
+  hadAnyRecordedTodos;
 
   const isReviewConfirmed =
     isEmptyPastDate ||
