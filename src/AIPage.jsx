@@ -2,14 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import BottomNav from "./components/BottomNav";
 import {
   AlertTriangle,
-  ArrowLeft,
   CalendarDays,
   Check,
   ChevronDown,
-  Clipboard,
   Clock,
   GripVertical,
-  HelpCircle,
   Plus,
   RefreshCcw,
   Settings,
@@ -20,6 +17,8 @@ import {
 const DEFAULT_AI_URL = "https://chatgpt.com/";
 const AI_DESTINATIONS_STORAGE_KEY = "todo-app-ai-destinations-v1";
 const SELECTED_AI_DESTINATION_ID_STORAGE_KEY = "todo-app-selected-ai-destination-id-v1";
+const AI_REQUEST_HISTORY_STORAGE_KEY = "todo-app-ai-request-history-v1";
+const AI_FIXED_INSTRUCTIONS_STORAGE_KEY = "todo-app-ai-fixed-instructions-v1";
 
 const today = new Date();
 
@@ -42,7 +41,6 @@ const parseDateKey = (dateKey) => {
 };
 
 const addDaysToDateKey = (dateKey, days) => formatDateKey(addDays(parseDateKey(dateKey), days));
-
 const getNextDateKey = (dateKey, days = 7) => addDaysToDateKey(dateKey, days);
 
 const defaultAiDestinations = [
@@ -65,43 +63,114 @@ const initialRequestTasks = [
   },
 ];
 
+const defaultFixedInstructions = [
+  {
+    id: "no-weekend",
+    text: "土日にタスクを入れないでください。",
+    enabled: false,
+  },
+  {
+    id: "max-2h-day",
+    text: "最大作業時間は1日120分までにしてください。",
+    enabled: false,
+  },
+];
+
+const defaultFixedInstructionIds = new Set(defaultFixedInstructions.map((item) => item.id));
+const legacyDefaultFixedInstructionIds = new Set([
+  "weekday-8h",
+  "one-task-60min",
+  "max-4tasks-day",
+  "detail-specific",
+]);
+
 const sampleAiJson = {
   version: "long_task_plan_v1",
   longTasks: [
     {
-      title: "学会ポスター作成",
-      startDate: "2026-05-22",
-      endDate: "2026-05-29",
-      estimatedMinutes: 360,
+      title: "国家試験対策：薬理総復習",
+      startDate: "2026-05-26",
+      endDate: "2026-06-01",
+      estimatedMinutes: 720,
       dailyPlans: [
         {
-          date: "2026-05-22",
+          date: "2026-05-26",
           tasks: [
             {
-              title: "構成を決める",
+              title: "交感神経薬",
               estimatedMinutes: 60,
-              detail: "ポスター全体の構成、見出し、図表の配置を決める。",
+              detail: "α/β受容体、作動薬・遮断薬、代表薬の副作用を表で整理する。",
               selected: true,
             },
             {
-              title: "文献を確認",
-              estimatedMinutes: 45,
-              detail: "背景に使う文献を確認し、引用候補を整理する。",
+              title: "確認問題",
+              estimatedMinutes: 30,
+              detail: "交感神経薬の過去問を解き、間違えた選択肢の理由をメモする。",
               selected: true,
             },
           ],
         },
         {
-          date: "2026-05-23",
+          date: "2026-05-27",
+          tasks: [
+            {
+              title: "副交感神経",
+              estimatedMinutes: 60,
+              detail: "コリン作動薬、抗コリン薬、重症筋無力症治療薬を整理する。",
+              selected: true,
+            },
+          ],
+        },
+        {
+          date: "2026-05-28",
+          tasks: [
+            {
+              title: "循環器薬",
+              estimatedMinutes: 90,
+              detail: "降圧薬、抗不整脈薬、心不全治療薬を作用機序ごとに復習する。",
+              selected: true,
+            },
+          ],
+        },
+        {
+          date: "2026-05-29",
           tasks: [],
         },
         {
-          date: "2026-05-24",
+          date: "2026-05-30",
           tasks: [
             {
-              title: "図表を整理",
-              estimatedMinutes: 60,
-              detail: "使う図表候補を整理し、必要な修正点をメモする。",
+              title: "抗菌薬分類",
+              estimatedMinutes: 75,
+              detail: "βラクタム系、キノロン系、アミノグリコシド系の作用機序と副作用を整理する。",
+              selected: true,
+            },
+            {
+              title: "苦手メモ",
+              estimatedMinutes: 30,
+              detail: "覚えにくい薬剤名と副作用をObsidian用にメモする。",
+              selected: true,
+            },
+          ],
+        },
+        {
+          date: "2026-05-31",
+          tasks: [
+            {
+              title: "総復習",
+              estimatedMinutes: 120,
+              detail: "今週解いた問題の誤答だけを再確認し、弱点分野を洗い出す。",
+              selected: true,
+            },
+          ],
+        },
+        {
+          date: "2026-06-01",
+          tasks: [
+            {
+              title: "翌週計画",
+              estimatedMinutes: 45,
+              detail: "残った苦手分野をもとに、翌週の復習タスクを作成する。",
               selected: true,
             },
           ],
@@ -120,13 +189,6 @@ function getDayLabel(dateKey) {
   if (!dateKey) return "";
   const date = parseDateKey(dateKey);
   return ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
-}
-
-function daysBetween(start, end) {
-  if (!start || !end) return 0;
-  const s = parseDateKey(start);
-  const e = parseDateKey(end);
-  return Math.max(1, Math.round((e - s) / 86400000) + 1);
 }
 
 function shortHoursLabel(minutes) {
@@ -194,6 +256,38 @@ function loadSelectedAiDestinationId(destinations) {
     return destinations[0]?.id ?? "default-chatgpt";
   } catch {
     return destinations[0]?.id ?? "default-chatgpt";
+  }
+}
+
+function loadRequestHistory() {
+  try {
+    const saved = localStorage.getItem(AI_REQUEST_HISTORY_STORAGE_KEY);
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+function loadFixedInstructions() {
+  try {
+    const saved = localStorage.getItem(AI_FIXED_INSTRUCTIONS_STORAGE_KEY);
+    if (!saved) return defaultFixedInstructions;
+
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return defaultFixedInstructions;
+
+    const customRules = parsed.filter(
+      (item) =>
+        item?.id &&
+        !defaultFixedInstructionIds.has(item.id) &&
+        !legacyDefaultFixedInstructionIds.has(item.id)
+    );
+
+    return [...defaultFixedInstructions, ...customRules];
+  } catch {
+    return defaultFixedInstructions;
   }
 }
 
@@ -283,7 +377,45 @@ function normalizeAiData(raw) {
   });
 }
 
-function buildAiPrompt(tasks) {
+function makeHistoryTitle(tasks) {
+  const first = tasks.find((task) => String(task.title ?? "").trim());
+  if (first?.title) return String(first.title).trim().slice(0, 22);
+  return "名称なしの依頼";
+}
+
+function cloneRequestTasksForSave(tasks) {
+  return (tasks ?? []).map((task, index) => ({
+    id: index + 1,
+    title: task.title ?? "",
+    startDate: task.startDate ?? formatDateKey(today),
+    endDate: task.endDate ?? formatDateKey(addDays(today, 7)),
+    detail: task.detail ?? "",
+    open: index === 0,
+  }));
+}
+
+function restoreRequestTasks(tasks) {
+  const restored = (tasks ?? []).map((task, index) => ({
+    id: makeId() + index,
+    title: task.title ?? "",
+    startDate: task.startDate ?? formatDateKey(today),
+    endDate: task.endDate ?? formatDateKey(addDays(today, 7)),
+    detail: task.detail ?? "",
+    open: index === 0,
+  }));
+
+  return restored.length > 0 ? restored : initialRequestTasks;
+}
+
+function hasRequestContent(tasks) {
+  return (tasks ?? []).some(
+    (task) =>
+      String(task.title ?? "").trim() ||
+      String(task.detail ?? "").trim()
+  );
+}
+
+function buildAiPrompt(tasks, fixedInstructions = []) {
   const cleanTasks = tasks.map((task) => ({
     id: task.id,
     title: task.title,
@@ -292,17 +424,35 @@ function buildAiPrompt(tasks) {
     detail: task.detail,
   }));
 
+  const selectedRules = fixedInstructions
+    .filter((item) => item.enabled && String(item.text ?? "").trim())
+    .map((item) => item.text.trim());
+
   return JSON.stringify(
     {
       requestType: "create_long_task_plan",
       version: "long_task_request_v1",
       instruction:
-        "以下の長期タスクを、日別の小タスクに分解してください。必ず純粋なJSONのみで返してください。",
+        "以下の長期タスクを、日別の小タスクに分解してください。返答は指定されたJSON形式のみとし、アプリに貼り戻して利用できる形にしてください。",
+      assistantRole: [
+        "あなたは、長期タスクを実行しやすい日別タスクへ分解する計画補助AIです。",
+        "完璧な理想計画より、ユーザーが実行しやすい現実的な計画を優先してください。",
+        "ただし、ユーザーごとに好みが異なるため、additionalUserRules に書かれた内容を最優先してください。",
+      ],
+      planningPhilosophy: [
+        "無理な詰め込み計画を避けてください。",
+        "小タスクは、今日実際に着手できる具体的な行動単位まで分解してください。",
+        "空き日を作っても構いません。",
+        "毎日を必ず均等にする必要はありません。",
+      ],
+      additionalUserRules: selectedRules,
       strictOutputRules: [
-        "返答はJSONのみ。説明文、前置き、補足、Markdown、必ずコードブロックを用いて。",
-        "最初の文字は {、最後の文字は } にしてください。",
+        "返答は必ず ```json から始まるMarkdownコードブロックで囲んでください。",
+        "コードブロック内には純粋なJSONのみを書いてください。",
+        "コードブロック外には説明文、前置き、補足を書かないでください。",
+        "コードブロック内の最初の文字は {、最後の文字は } にしてください。",
         "キー名は指定されたoutputFormatから変更しないでください。",
-        "dailyPlansはstartDateからendDateまでの全日付を必ず1日1行で出力してください。",
+        "dailyPlans は startDate から endDate までの全日付を必ず1日1行で出力してください。",
         "1日に複数の小タスクを入れて構いません。",
         "予定を入れない日は tasks を空配列 [] にしてください。",
         "各小タスクの title は15文字以内にしてください。",
@@ -338,7 +488,7 @@ function buildAiPrompt(tasks) {
       userHistory: {
         include: false,
         note:
-          "過去の達成タスクから、あなたの傾向をもとにした計画を立案できる可能性があります。現時点では履歴データは渡していないため、入力内容だけで無理のない計画にしてください。",
+          "現時点では過去の達成履歴は渡していません。入力内容と additionalUserRules のみを根拠に計画してください。",
       },
       tasks: cleanTasks,
     },
@@ -428,30 +578,9 @@ function StepTabs({ step, setStep }) {
   );
 }
 
-function Header({ onBack, step, setStep }) {
+function Header({ step, setStep }) {
   return (
     <header className="mb-2">
-      <div className="mb-2 grid h-10 grid-cols-[40px_1fr_40px] items-center">
-        <button
-          type="button"
-          onClick={onBack}
-          className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-slate-950 shadow-[0_4px_12px_rgba(15,23,42,0.04)] active:bg-slate-100"
-        >
-          <ArrowLeft className="h-6 w-6" strokeWidth={2.5} />
-        </button>
-
-        <h1 className="text-center text-[22px] font-black tracking-[-0.05em] text-slate-950">
-          AI分析
-        </h1>
-
-        <button
-          type="button"
-          className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-slate-950 shadow-[0_4px_12px_rgba(15,23,42,0.04)] active:bg-slate-100"
-        >
-          <HelpCircle className="h-6 w-6" strokeWidth={2.3} />
-        </button>
-      </div>
-
       <StepTabs step={step} setStep={setStep} />
     </header>
   );
@@ -738,6 +867,183 @@ function RequestTaskCard({
   );
 }
 
+function FixedInstructionPanel({ fixedInstructions, setFixedInstructions, setToast }) {
+  const [open, setOpen] = useState(false);
+  const [newRule, setNewRule] = useState("");
+
+  const toggleRule = (id) => {
+    setFixedInstructions((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, enabled: !item.enabled } : item
+      )
+    );
+  };
+
+  const updateRuleText = (id, text) => {
+    setFixedInstructions((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, text } : item
+      )
+    );
+  };
+
+  const deleteRule = (id) => {
+    setFixedInstructions((current) => current.filter((item) => item.id !== id));
+    setToast("固定要望を削除しました");
+  };
+
+  const addRule = () => {
+    const text = newRule.trim();
+    if (!text) {
+      setToast("固定要望を入力してください");
+      return;
+    }
+
+    setFixedInstructions((current) => [
+      ...current,
+      {
+        id: String(makeId()),
+        text,
+        enabled: true,
+      },
+    ]);
+
+    setNewRule("");
+    setToast("固定要望を追加しました");
+  };
+
+  const selectedCount = fixedInstructions.filter((item) => item.enabled).length;
+
+  return (
+    <section className="rounded-[18px] border border-slate-100 bg-white p-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)]">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <div>
+          <h3 className="text-[14px] font-black text-slate-950">固定要望</h3>
+          <p className="mt-0.5 text-[11px] font-bold text-slate-500">
+            今回AIに入れる条件を選択 / {selectedCount}件選択中
+          </p>
+        </div>
+        <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-2 border-t border-slate-100 pt-2">
+          {fixedInstructions.length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 px-3 py-3 text-center text-[12px] font-bold text-slate-400">
+              固定要望はまだありません
+            </div>
+          ) : (
+            fixedInstructions.map((item) => (
+              <div key={item.id} className={`rounded-2xl border px-2 py-1.5 ${item.enabled ? "border-emerald-200 bg-emerald-50/70" : "border-slate-100 bg-white"}`}>
+                <div className="grid grid-cols-[28px_1fr_32px] items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleRule(item.id)}
+                    className={`grid h-6 w-6 place-items-center rounded-full border ${
+                      item.enabled
+                        ? "border-emerald-500 bg-emerald-500 text-white"
+                        : "border-slate-300 bg-white text-transparent"
+                    }`}
+                  >
+                    <Check className="h-4 w-4" strokeWidth={3} />
+                  </button>
+
+                  <input
+                    value={item.text}
+                    onChange={(e) => updateRuleText(item.id, e.target.value)}
+                    placeholder="固定要望の詳細"
+                    className="h-9 min-w-0 rounded-xl border border-slate-200 bg-white px-2.5 text-[13px] font-bold text-slate-800 outline-none focus:border-emerald-400"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => deleteRule(item.id)}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-red-400 active:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+
+          <div className="rounded-2xl bg-slate-50 p-2.5">
+            <p className="mb-1.5 text-[12px] font-black text-slate-700">固定要望を追加</p>
+            <textarea
+              value={newRule}
+              onChange={(e) => setNewRule(e.target.value)}
+              rows={2}
+              placeholder="例）午前中は軽め、午後に重いタスクを置いてください"
+              className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
+            />
+            <button
+              type="button"
+              onClick={addRule}
+              className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-[13px] font-black text-white active:scale-[0.985]"
+            >
+              <Plus className="h-4 w-4" />
+              追加
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RequestHistoryPanel({ requestHistory, onRestoreHistory, onDeleteHistory }) {
+  if (!requestHistory.length) {
+    return (
+      <section className="rounded-[18px] border border-slate-100 bg-white p-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)]">
+        <h3 className="text-[14px] font-black text-slate-950">入力履歴</h3>
+        <p className="mt-1 text-[12px] font-bold text-slate-400">
+          AIに依頼すると、直近5件までここに残ります。
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-[18px] border border-slate-100 bg-white p-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)]">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h3 className="text-[14px] font-black text-slate-950">入力履歴</h3>
+          <p className="mt-0.5 text-[11px] font-bold text-slate-500">押すと依頼内容を復元します</p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {requestHistory.map((item) => (
+          <div key={item.id} className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50/70 px-2.5 py-2">
+            <button
+              type="button"
+              onClick={() => onRestoreHistory(item)}
+              className="min-w-0 flex-1 text-left"
+            >
+              <p className="truncate text-[13px] font-black text-slate-800">{item.title}</p>
+              <p className="mt-0.5 truncate text-[11px] font-bold text-slate-400">
+                {item.tasks?.[0]?.startDate ? `${toSlashDate(item.tasks[0].startDate)}〜${toSlashDate(item.tasks[0].endDate)}` : "日付なし"}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onDeleteHistory(item.id)}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-red-400 active:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function IncludeHistoryToggle() {
   return (
     <div className="flex w-full items-start gap-2 rounded-[16px] border border-slate-100 bg-slate-50/80 px-3 py-2.5 text-left opacity-70">
@@ -750,7 +1056,7 @@ function IncludeHistoryToggle() {
           過去の達成履歴もAIに渡す
         </span>
         <span className="mt-0.5 block text-[11px] font-bold leading-relaxed text-slate-400">
-          過去の達成タスクから、あなたの傾向をもとにした計画を立案できる可能性があります。
+          履歴データは保存済みですが、AI連携は後で実装します。
         </span>
       </span>
     </div>
@@ -766,6 +1072,10 @@ function RequestPage({
   setAiDestinations,
   selectedAiDestinationId,
   setSelectedAiDestinationId,
+  fixedInstructions,
+  setFixedInstructions,
+  requestHistory,
+  setRequestHistory,
 }) {
   const selectedAiDestination =
     aiDestinations.find((item) => item.id === selectedAiDestinationId) ??
@@ -803,24 +1113,51 @@ function RequestPage({
     );
   };
 
+  const saveRequestHistory = () => {
+    if (!hasRequestContent(requestTasks)) return;
+
+    const nextItem = {
+      id: String(makeId()),
+      title: makeHistoryTitle(requestTasks),
+      tasks: cloneRequestTasksForSave(requestTasks),
+      createdAt: new Date().toISOString(),
+    };
+
+    setRequestHistory((current) => {
+      const withoutSameTitle = current.filter((item) => item.title !== nextItem.title);
+      return [nextItem, ...withoutSameTitle].slice(0, 5);
+    });
+  };
+
+  const restoreHistory = (historyItem) => {
+    setRequestTasks(restoreRequestTasks(historyItem.tasks));
+    setToast("入力履歴を復元しました");
+  };
+
+  const deleteHistory = (id) => {
+    setRequestHistory((current) => current.filter((item) => item.id !== id));
+    setToast("入力履歴を削除しました");
+  };
+
   const copyAndOpen = async () => {
-  const prompt = buildAiPrompt(requestTasks);
-  const url = selectedAiDestination?.url || DEFAULT_AI_URL;
+    const prompt = buildAiPrompt(requestTasks, fixedInstructions);
+    const url = selectedAiDestination?.url || DEFAULT_AI_URL;
 
-  const copied = await copyTextToClipboard(prompt);
+    const copied = await copyTextToClipboard(prompt);
 
-  if (!copied) {
-    setToast("コピーできませんでした。手動でコピーしてください");
-    return;
-  }
+    if (!copied) {
+      setToast("コピーできませんでした。手動でコピーしてください");
+      return;
+    }
 
-  setToast("AIへの依頼内容をコピーしました");
-  setStep(2);
+    saveRequestHistory();
+    setToast("AIへの依頼内容をコピーしました");
+    setStep(2);
 
-  setTimeout(() => {
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, 150);
-};
+    setTimeout(() => {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }, 150);
+  };
 
   return (
     <main className="space-y-2.5">
@@ -829,7 +1166,7 @@ function RequestPage({
           長期タスクをAIに分解
         </h2>
         <p className="mt-0.5 text-[12px] font-bold text-slate-500">
-          要望をコピーしてAIを開きます
+          要望と固定条件をコピーしてAIを開きます
         </p>
       </section>
 
@@ -866,6 +1203,18 @@ function RequestPage({
         />
       ))}
 
+      <FixedInstructionPanel
+        fixedInstructions={fixedInstructions}
+        setFixedInstructions={setFixedInstructions}
+        setToast={setToast}
+      />
+
+      <RequestHistoryPanel
+        requestHistory={requestHistory}
+        onRestoreHistory={restoreHistory}
+        onDeleteHistory={deleteHistory}
+      />
+
       <IncludeHistoryToggle />
 
       <button
@@ -890,22 +1239,33 @@ function PasteCard({ jsonText, setJsonText, onParse, parseStatus, onLoadSample }
       <div className="mb-2 flex items-center justify-between">
         <div>
           <h2 className="text-[14px] font-black text-slate-950">AI提案JSON</h2>
-          <p className="mt-0.5 text-[11px] font-bold text-slate-500">入力欄に貼り付けて読み込み</p>
+          <p className="mt-0.5 text-[11px] font-bold text-slate-500">
+            コードブロックごと貼り付けても読み込めます
+          </p>
         </div>
 
-        <button type="button" onClick={onLoadSample} className="rounded-full bg-slate-50 px-3 py-1.5 text-[11px] font-black text-slate-500 active:bg-slate-100">
+        <button
+          type="button"
+          onClick={onLoadSample}
+          className="rounded-full bg-slate-50 px-3 py-1.5 text-[11px] font-black text-slate-500 active:bg-slate-100"
+        >
           例
         </button>
       </div>
 
-      <input
-  value={jsonText}
-  onChange={(e) => setJsonText(e.target.value)}
-  placeholder='{"longTasks":[...]}'
-  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-800 outline-none focus:border-emerald-400"
-/>
+      <textarea
+        value={jsonText}
+        onChange={(e) => setJsonText(e.target.value)}
+        placeholder={"```json\n{\"longTasks\":[...]}\n```"}
+        rows={3}
+        className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
+      />
 
-      <button type="button" onClick={() => onParse()} className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-50 text-[13px] font-black text-emerald-700 active:bg-emerald-100">
+      <button
+        type="button"
+        onClick={() => onParse()}
+        className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-50 text-[13px] font-black text-emerald-700 active:bg-emerald-100"
+      >
         <RefreshCcw className="h-4 w-4" />
         読み込む
       </button>
@@ -1002,14 +1362,26 @@ function DayTaskItem({
   onToggle,
   onDragStart,
   dragging,
+  dragOffsetY = 0,
+  dragClientY = 0,
+  isDraggingSourceDay = false,
 }) {
   return (
     <div
-      data-plan-task-id={item.id}
-      className={`rounded-2xl border border-slate-100 bg-white px-3 py-3 ${
-        dragging ? "opacity-60 ring-2 ring-emerald-100" : ""
-      }`}
-    >
+  data-plan-task-id={item.id}
+  style={
+  dragging
+    ? {
+        transform: `translate3d(0, ${dragOffsetY}px, 0) scale(1.01)`,
+      }
+    : undefined
+}
+className={`relative rounded-2xl border border-slate-100 bg-white px-3 py-3 transition-all ${
+  dragging
+    ? "pointer-events-none z-[999999] opacity-95 shadow-[0_18px_38px_rgba(15,23,42,0.22)] ring-2 ring-emerald-100 duration-100"
+    : "z-0 duration-200"
+}`}
+>
       <div className="grid grid-cols-[28px_36px_1fr_54px] items-center gap-1.5">
         <button
           type="button"
@@ -1048,12 +1420,14 @@ function DayTaskItem({
         />
       </div>
 
-      <textarea
-        value={item.detail ?? ""}
-        onChange={(e) => onChange({ ...item, detail: e.target.value })}
-        placeholder="詳細内容"
-        className="mt-2 h-[72px] w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
-      />
+      {!dragging && (
+        <textarea
+          value={item.detail ?? ""}
+          onChange={(e) => onChange({ ...item, detail: e.target.value })}
+          placeholder="詳細内容"
+          className="mt-2 h-[72px] w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold leading-relaxed text-slate-800 outline-none focus:border-emerald-400"
+        />
+      )}
     </div>
   );
 }
@@ -1069,6 +1443,9 @@ function DayRow({
   onToggleTask,
   onDragStart,
   draggingTaskId,
+  dragOffsetY = 0,
+  dragClientY = 0,
+  isDraggingSourceDay = false,
 }) {
   const selectedCount = (day.tasks ?? []).filter((item) => item.selected).length;
   const totalMinutes = (day.tasks ?? []).reduce((sum, item) => sum + (Number(item.estimatedMinutes) || 0), 0);
@@ -1077,24 +1454,34 @@ function DayRow({
   const isShiftBase = shiftBaseDate === day.date;
 
   return (
-    <section data-day-date={day.date} className={`overflow-hidden rounded-[18px] border bg-white shadow-[0_5px_14px_rgba(15,23,42,0.035)] ${isShiftBase ? "border-emerald-300 ring-2 ring-emerald-50" : "border-slate-100"}`}>
+    <section
+  data-day-date={day.date}
+  className={`relative overflow-visible rounded-[18px] border bg-white shadow-[0_5px_14px_rgba(15,23,42,0.035)] ${
+  isDraggingSourceDay ? "z-[999998]" : "z-0"
+} ${isShiftBase ? "border-emerald-300 ring-2 ring-emerald-50" : "border-slate-100"}`}
+>
       <div className="grid w-full grid-cols-[32px_58px_1fr_auto] items-center gap-2 px-3 py-2.5 text-left">
-        <button type="button" disabled={!hasTasks} onClick={() => onToggleDaySelected(day.date)} className={`grid h-7 w-7 place-items-center rounded-xl border ${allSelected ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"} ${!hasTasks ? "opacity-40" : ""}`}>
+        <button
+          type="button"
+          disabled={!hasTasks}
+          onClick={() => onToggleDaySelected(day.date)}
+          className={`grid h-7 w-7 place-items-center rounded-xl border ${allSelected ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"} ${!hasTasks ? "opacity-40" : ""}`}
+        >
           <Check className="h-4 w-4" strokeWidth={3} />
         </button>
 
         <button
-  type="button"
-  onClick={(event) => {
-    onSelectShiftBaseDate(day.date);
+          type="button"
+          onClick={(event) => {
+            onSelectShiftBaseDate(day.date);
 
-    setTimeout(() => {
-      event.currentTarget.blur();
-      document.activeElement?.blur?.();
-    }, 0);
-  }}
-  className={`rounded-xl px-1.5 py-1 text-left active:bg-emerald-50 ${isShiftBase ? "bg-emerald-50" : ""}`}
->
+            setTimeout(() => {
+              event.currentTarget.blur();
+              document.activeElement?.blur?.();
+            }, 0);
+          }}
+          className={`rounded-xl px-1.5 py-1 text-left active:bg-emerald-50 ${isShiftBase ? "bg-emerald-50" : ""}`}
+        >
           <p className={`text-[12px] font-black leading-none ${isShiftBase ? "text-emerald-700" : "text-slate-900"}`}>
             {Number(day.date.slice(5, 7))}/{Number(day.date.slice(8, 10))}
           </p>
@@ -1116,16 +1503,30 @@ function DayRow({
       </div>
 
       {day.open && (
-        <div className="space-y-2 border-t border-slate-100 bg-slate-50/50 p-2">
+  <div className="relative overflow-visible space-y-2 border-t border-slate-100 bg-slate-50/50 p-2">
           {day.tasks.length === 0 ? (
             <div className="rounded-2xl bg-white px-3 py-4 text-center text-[12px] font-bold text-slate-400">情報なし</div>
           ) : (
             day.tasks.map((item) => (
-              <DayTaskItem key={item.id} day={day} item={item} dragging={draggingTaskId === item.id} onChange={(next) => onUpdateTask(day.date, item.id, next)} onToggle={() => onToggleTask(day.date, item.id)} onDragStart={onDragStart} />
+              <DayTaskItem
+  key={item.id}
+  day={day}
+  item={item}
+  dragging={draggingTaskId === item.id}
+  dragOffsetY={draggingTaskId === item.id ? dragOffsetY : 0}
+  dragClientY={draggingTaskId === item.id ? dragClientY : 0}
+  onChange={(next) => onUpdateTask(day.date, item.id, next)}
+  onToggle={() => onToggleTask(day.date, item.id)}
+  onDragStart={onDragStart}
+/>
             ))
           )}
 
-          <button type="button" onClick={() => onAddTask(day.date)} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-2xl border border-emerald-100 bg-white text-[12px] font-black text-emerald-600 active:bg-emerald-50">
+          <button
+            type="button"
+            onClick={() => onAddTask(day.date)}
+            className="flex h-9 w-full items-center justify-center gap-1.5 rounded-2xl border border-emerald-100 bg-white text-[12px] font-black text-emerald-600 active:bg-emerald-50"
+          >
             <Plus className="h-4 w-4" />
             この日に小タスク追加
           </button>
@@ -1147,23 +1548,23 @@ function BulkShiftPanel({ task, onShift, shiftBaseDate, setShiftBaseDate }) {
 
       <div className="grid grid-cols-[1fr_repeat(4,44px)] gap-1.5">
         <input
-  type="date"
-  value={shiftBaseDate || task.startDate}
-  min={task.startDate}
-  max={task.endDate}
-  onChange={(event) => {
-    const value = event.target.value;
-    if (!value) return;
+          type="date"
+          value={shiftBaseDate || task.startDate}
+          min={task.startDate}
+          max={task.endDate}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (!value) return;
 
-    setShiftBaseDate(value);
+            setShiftBaseDate(value);
 
-    setTimeout(() => {
-      event.target.blur();
-      document.activeElement?.blur?.();
-    }, 0);
-  }}
-  className="h-9 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-[16px] font-bold outline-none focus:border-emerald-400"
-/>
+            setTimeout(() => {
+              event.target.blur();
+              document.activeElement?.blur?.();
+            }, 0);
+          }}
+          className="h-9 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-[16px] font-bold outline-none focus:border-emerald-400"
+        />
         {[-2, -1, 1, 2].map((diff) => (
           <button
             key={diff}
@@ -1183,7 +1584,13 @@ function DailyPlanEditor({ task, onChange, setToast }) {
   const [shiftBaseDate, setShiftBaseDate] = useState(task?.startDate ?? "");
   const [pendingShift, setPendingShift] = useState(null);
   const [draggingTaskId, setDraggingTaskId] = useState(null);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+const [dragClientY, setDragClientY] = useState(0);
   const dragInfoRef = useRef(null);
+  const startYRef = useRef(0);
+  const startScrollYRef = useRef(0);
+  const previousBodyTouchActionRef = useRef("");
+  const previousBodyUserSelectRef = useRef("");
 
   useEffect(() => {
     setShiftBaseDate(task?.startDate ?? "");
@@ -1306,20 +1713,20 @@ function DailyPlanEditor({ task, onChange, setToast }) {
   };
 
   const toggleDaySelected = (date) => {
-  updateDay(date, (day) => {
-    const hasTasks = (day.tasks ?? []).length > 0;
-    if (!hasTasks) return day;
+    updateDay(date, (day) => {
+      const hasTasks = (day.tasks ?? []).length > 0;
+      if (!hasTasks) return day;
 
-    const allSelected = day.tasks.every((item) => item.selected);
-    return {
-      ...day,
-      tasks: day.tasks.map((item) => ({
-        ...item,
-        selected: !allSelected,
-      })),
-    };
-  });
-};
+      const allSelected = day.tasks.every((item) => item.selected);
+      return {
+        ...day,
+        tasks: day.tasks.map((item) => ({
+          ...item,
+          selected: !allSelected,
+        })),
+      };
+    });
+  };
 
   const moveTaskToDate = (fromDate, taskId, toDate) => {
     if (!task || !toDate || fromDate === toDate) return;
@@ -1360,18 +1767,68 @@ function DailyPlanEditor({ task, onChange, setToast }) {
       taskId,
     };
 
+    startYRef.current = event.clientY;
+    startScrollYRef.current = window.scrollY;
+    previousBodyTouchActionRef.current = document.body.style.touchAction;
+    previousBodyUserSelectRef.current = document.body.style.userSelect;
+
     setDraggingTaskId(taskId);
+setDragOffsetY(0);
+setDragClientY(event.clientY);
     document.body.style.touchAction = "none";
     document.body.style.userSelect = "none";
   };
 
   useEffect(() => {
+    const handlePointerMove = (event) => {
+      if (!dragInfoRef.current) return;
+
+      event.preventDefault();
+
+      const nextOffsetY =
+  event.clientY -
+  startYRef.current +
+  (window.scrollY - startScrollYRef.current);
+
+setDragOffsetY(nextOffsetY);
+setDragClientY(event.clientY);
+
+const edgeThreshold = 110;
+const scrollSpeed = 18;
+
+if (event.clientY < edgeThreshold) {
+  window.scrollBy({
+    top: -scrollSpeed,
+    behavior: "auto",
+  });
+} else if (window.innerHeight - event.clientY < edgeThreshold) {
+  window.scrollBy({
+    top: scrollSpeed,
+    behavior: "auto",
+  });
+}
+    };
+
     const handlePointerUp = (event) => {
       if (!dragInfoRef.current) return;
 
-      const element = document.elementFromPoint(event.clientX, event.clientY);
-      const dayElement = element?.closest?.("[data-day-date]");
-      const toDate = dayElement?.dataset?.dayDate;
+      const draggingElement = document.querySelector(
+  `[data-plan-task-id="${dragInfoRef.current.taskId}"]`
+);
+
+if (draggingElement) {
+  draggingElement.style.pointerEvents = "none";
+  draggingElement.style.display = "none";
+}
+
+const element = document.elementFromPoint(event.clientX, event.clientY);
+const dayElement = element?.closest?.("[data-day-date]");
+const toDate = dayElement?.dataset?.dayDate;
+
+if (draggingElement) {
+  draggingElement.style.display = "";
+  draggingElement.style.pointerEvents = "";
+}
 
       moveTaskToDate(
         dragInfoRef.current.fromDate,
@@ -1381,14 +1838,18 @@ function DailyPlanEditor({ task, onChange, setToast }) {
 
       dragInfoRef.current = null;
       setDraggingTaskId(null);
-      document.body.style.touchAction = "";
-      document.body.style.userSelect = "";
+setDragOffsetY(0);
+setDragClientY(0);
+      document.body.style.touchAction = previousBodyTouchActionRef.current;
+      document.body.style.userSelect = previousBodyUserSelectRef.current;
     };
 
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
     window.addEventListener("pointerup", handlePointerUp);
     window.addEventListener("pointercancel", handlePointerUp);
 
     return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
@@ -1411,21 +1872,24 @@ function DailyPlanEditor({ task, onChange, setToast }) {
         onShift={(diff) => applyShift(diff, false)}
       />
 
-      <section className="space-y-1.5">
+      <section className="relative z-0 overflow-visible space-y-1.5">
         {task.dailyPlans.map((day) => (
           <DayRow
   key={day.date}
   day={day}
   shiftBaseDate={shiftBaseDate}
   draggingTaskId={draggingTaskId}
-  onSelectShiftBaseDate={setShiftBaseDate}
-  onToggleDaySelected={toggleDaySelected}
-  onToggleOpen={() => toggleDayOpen(day.date)}
-  onAddTask={addTaskToDay}
-  onUpdateTask={updateTaskItem}
-  onToggleTask={toggleTaskItem}
-  onDragStart={handleDragStart}
-/>
+  dragOffsetY={dragOffsetY}
+  dragClientY={dragClientY}
+  isDraggingSourceDay={day.tasks?.some((item) => item.id === draggingTaskId)}
+            onSelectShiftBaseDate={setShiftBaseDate}
+            onToggleDaySelected={toggleDaySelected}
+            onToggleOpen={() => toggleDayOpen(day.date)}
+            onAddTask={addTaskToDay}
+            onUpdateTask={updateTaskItem}
+            onToggleTask={toggleTaskItem}
+            onDragStart={handleDragStart}
+          />
         ))}
       </section>
 
@@ -1480,21 +1944,21 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
   );
 
   const parseJson = (overrideText) => {
-  try {
-    const normalized = normalizeAiData(overrideText ?? jsonText);
-    setAiTasks(normalized);
-    setActiveTaskId(normalized[0]?.id ?? null);
-    setParseStatus({
-      type: "success",
-      message: "JSONを読み込みました。",
-    });
-  } catch (error) {
-    setParseStatus({
-      type: "error",
-      message: `読み込み失敗：${error.message}`,
-    });
-  }
-};
+    try {
+      const normalized = normalizeAiData(overrideText ?? jsonText);
+      setAiTasks(normalized);
+      setActiveTaskId(normalized[0]?.id ?? null);
+      setParseStatus({
+        type: "success",
+        message: "JSONを読み込みました。",
+      });
+    } catch (error) {
+      setParseStatus({
+        type: "error",
+        message: `読み込み失敗：${error.message}`,
+      });
+    }
+  };
 
   const updateTask = (taskId, next) => {
     setAiTasks((current) => current.map((task) => (task.id === taskId ? next : task)));
@@ -1513,15 +1977,15 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
   return (
     <main className="space-y-2.5">
       <PasteCard
-  jsonText={jsonText}
-  setJsonText={setJsonText}
-  parseStatus={parseStatus}
-  onParse={parseJson}
-  onLoadSample={() => {
-    setJsonText(JSON.stringify(sampleAiJson));
-    setParseStatus(null);
-  }}
-/>
+        jsonText={jsonText}
+        setJsonText={setJsonText}
+        parseStatus={parseStatus}
+        onParse={parseJson}
+        onLoadSample={() => {
+          setJsonText(`\`\`\`json\n${JSON.stringify(sampleAiJson, null, 2)}\n\`\`\``);
+          setParseStatus(null);
+        }}
+      />
 
       <section>
         <div className="mb-1.5 flex items-center justify-between px-1">
@@ -1605,7 +2069,12 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
         <button
           type="button"
           onClick={saveTasks}
-          className="flex h-11 items-center justify-center gap-1 rounded-[16px] bg-emerald-600 text-[13px] font-black text-white shadow-[0_10px_20px_rgba(16,185,129,0.22)] active:scale-[0.985]"
+          disabled={aiTasks.length === 0}
+          className={`flex h-11 items-center justify-center gap-1 rounded-[16px] text-[13px] font-black shadow-[0_10px_20px_rgba(16,185,129,0.22)] active:scale-[0.985] ${
+            aiTasks.length === 0
+              ? "bg-slate-200 text-white shadow-none"
+              : "bg-emerald-600 text-white"
+          }`}
         >
           <Check className="h-4 w-4" />
           保存する
@@ -1629,6 +2098,8 @@ export default function AIPage({
   const [selectedAiDestinationId, setSelectedAiDestinationId] = useState(() =>
     loadSelectedAiDestinationId(loadAiDestinations())
   );
+  const [requestHistory, setRequestHistory] = useState(() => loadRequestHistory());
+  const [fixedInstructions, setFixedInstructions] = useState(() => loadFixedInstructions());
 
   useEffect(() => {
     try {
@@ -1647,6 +2118,18 @@ export default function AIPage({
   }, [selectedAiDestinationId]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(AI_REQUEST_HISTORY_STORAGE_KEY, JSON.stringify(requestHistory.slice(0, 5)));
+    } catch {}
+  }, [requestHistory]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(AI_FIXED_INSTRUCTIONS_STORAGE_KEY, JSON.stringify(fixedInstructions));
+    } catch {}
+  }, [fixedInstructions]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2200);
     return () => window.clearTimeout(timer);
@@ -1655,7 +2138,7 @@ export default function AIPage({
   return (
     <div className="min-h-[100dvh] bg-[#fbfcfb] text-slate-950 antialiased">
       <div className="mx-auto min-h-[100dvh] w-full max-w-[480px] px-3 pb-[calc(98px+env(safe-area-inset-bottom))] pt-[calc(8px+env(safe-area-inset-top))]">
-        <Header onBack={onBack} step={step} setStep={setStep} />
+        <Header step={step} setStep={setStep} />
 
         {step === 1 ? (
           <RequestPage
@@ -1667,6 +2150,10 @@ export default function AIPage({
             setAiDestinations={setAiDestinations}
             selectedAiDestinationId={selectedAiDestinationId}
             setSelectedAiDestinationId={setSelectedAiDestinationId}
+            fixedInstructions={fixedInstructions}
+            setFixedInstructions={setFixedInstructions}
+            requestHistory={requestHistory}
+            setRequestHistory={setRequestHistory}
           />
         ) : (
           <EditPage
