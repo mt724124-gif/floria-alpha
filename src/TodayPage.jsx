@@ -1450,7 +1450,7 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSel
             今日の長期タスクは完了しました
           </p>
           <p className="mt-1 text-[11px] font-bold text-emerald-600/80">
-            ReviewPageで記録を確認できます。
+            達成済みタスクは詳細ページで確認できます。
           </p>
         </div>
       ) : (

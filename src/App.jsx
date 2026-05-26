@@ -28,6 +28,80 @@ function isFutureDateKey(dateKey) {
   return String(dateKey) > getTodayKey();
 }
 
+function formatJapaneseDateKey(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+  return `${date.getMonth() + 1}月${date.getDate()}日（${weekdays[date.getDay()]}）`;
+}
+
+function isReviewConfirmed(record) {
+  return record?.status === "confirmed" || record?.reviewCompleted === true;
+}
+
+function hasReviewTasksForDate(appData, dateKey) {
+  const recordTasks = appData?.dailyRecords?.[dateKey]?.tasks ?? [];
+
+  if (recordTasks.some((task) => task?.taskStatus !== "deleted")) {
+    return true;
+  }
+
+  const normalTasks = (appData?.tasks ?? []).some(
+    (task) =>
+      getTaskDateKey(task) === dateKey &&
+      task?.type !== "longDailyReview" &&
+      task?.type !== "longDaily" &&
+      task?.taskStatus !== "deleted"
+  );
+
+  if (normalTasks) return true;
+
+  return (appData?.longTasks ?? []).some((longTask) => {
+    const plan = (longTask.dailyPlans ?? []).find((row) => row.date === dateKey);
+    if (!plan) return false;
+
+    if (Array.isArray(plan.tasks)) {
+      return plan.tasks.some(
+        (task) =>
+          task?.selected !== false &&
+          task?.reviewOnly !== true &&
+          task?.taskStatus !== "deleted" &&
+          String(task?.title ?? "").trim()
+      );
+    }
+
+    return String(plan.title ?? "").trim();
+  });
+}
+
+function findOldestIncompletePastReviewDateKey(appData) {
+  const todayKey = getTodayKey();
+  const dateKeys = new Set();
+
+  Object.keys(appData?.dailyRecords ?? {}).forEach((dateKey) => {
+    if (dateKey < todayKey) dateKeys.add(dateKey);
+  });
+
+  (appData?.tasks ?? []).forEach((task) => {
+    const dateKey = getTaskDateKey(task);
+    if (dateKey < todayKey) dateKeys.add(dateKey);
+  });
+
+  (appData?.longTasks ?? []).forEach((longTask) => {
+    (longTask.dailyPlans ?? []).forEach((plan) => {
+      if (plan.date && plan.date < todayKey) dateKeys.add(plan.date);
+    });
+  });
+
+  return (
+    [...dateKeys]
+      .sort()
+      .find((dateKey) => {
+        const record = appData?.dailyRecords?.[dateKey];
+        return !isReviewConfirmed(record) && hasReviewTasksForDate(appData, dateKey);
+      }) ?? null
+  );
+}
+
 function loadSavedData() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -265,7 +339,8 @@ export default function App() {
   const [timerTask, setTimerTask] = useState(null);
   const [taskUpdateRequest, setTaskUpdateRequest] = useState(null);
   const [reviewDateKey, setReviewDateKey] = useState(getTodayKey());
-  const [todayInitialDateKey, setTodayInitialDateKey] = useState(null);
+const [todayInitialDateKey, setTodayInitialDateKey] = useState(null);
+const [forcedReviewDateKey, setForcedReviewDateKey] = useState(null);
 
   const [appData, setAppData] = useState(createInitialAppData);
 
@@ -492,18 +567,24 @@ export default function App() {
   };
 
   const handleSaveLongTasksFromAI = (longTasks) => {
-    const normalizedLongTasks = normalizeLongTasksFromAI(longTasks);
+  const normalizedLongTasks = normalizeLongTasksFromAI(longTasks);
 
-    updateAppData((current) => ({
-      ...current,
-      longTasks: [...(current.longTasks ?? []), ...normalizedLongTasks],
-      aiLongTaskDrafts: normalizedLongTasks,
-    }));
+  updateAppData((current) => ({
+    ...current,
+    longTasks: [...(current.longTasks ?? []), ...normalizedLongTasks],
+    aiLongTaskDrafts: normalizedLongTasks,
+  }));
 
-    setScreen("calendar");
-  };
+  setScreen("calendar");
+};
 
-  return (
+const incompletePastReviewDateKey = findOldestIncompletePastReviewDateKey(appData);
+const shouldShowIncompleteReviewPopup =
+  screen === "today" &&
+  incompletePastReviewDateKey &&
+  screen !== "review";
+
+return (
     <>
       {screen === "today" && (
         <TodayPage
@@ -549,17 +630,21 @@ export default function App() {
           appData={appData}
           setAppData={updateAppData}
           onNavigate={(nextScreen) => {
-            if (nextScreen === "today") {
-              setTodayInitialDateKey(reviewDateKey);
-            }
-            setScreen(nextScreen);
-          }}
+  if (nextScreen === "today") {
+    if (forcedReviewDateKey && reviewDateKey === forcedReviewDateKey) {
+  setForcedReviewDateKey(null);
+}
+
+setTodayInitialDateKey(reviewDateKey);
+  }
+  setScreen(nextScreen);
+}}
         />
       )}
 
       {screen === "settings" && <SetPage onNavigate={setScreen} />}
 
-      {screen === "timer" && (
+            {screen === "timer" && (
         <TimerPage
           task={timerTask}
           onClose={closeTimer}
@@ -567,6 +652,36 @@ export default function App() {
           onSaveProgress={handleTimerProgress}
           onUpdateTask={updateTaskFromTimer}
         />
+      )}
+
+      {shouldShowIncompleteReviewPopup && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/35 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[28px] bg-white p-5 shadow-2xl">
+            <div className="mb-4 rounded-[22px] bg-amber-50 px-4 py-3">
+              <p className="text-[12px] font-black text-amber-600">
+                未完了の振り返りがあります
+              </p>
+              <h2 className="mt-1 text-[21px] font-black tracking-[-0.04em] text-slate-950">
+                {formatJapaneseDateKey(incompletePastReviewDateKey)}
+              </h2>
+              <p className="mt-2 text-[13px] font-bold leading-5 text-slate-500">
+                この日の振り返りを完了すると、今日のTodo画面に進めます。
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setForcedReviewDateKey(incompletePastReviewDateKey);
+                setReviewDateKey(incompletePastReviewDateKey);
+                setScreen("review");
+              }}
+              className="h-14 w-full rounded-2xl bg-emerald-500 text-[15px] font-black text-white shadow-[0_12px_22px_rgba(16,185,129,0.26)] active:scale-[0.99]"
+            >
+              振り返りへ移動する
+            </button>
+          </div>
+        </div>
       )}
     </>
   );
