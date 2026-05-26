@@ -1234,14 +1234,46 @@ const saveLongTask = (task) => {
     const updatedAt = new Date().toISOString();
 
     const applyUpdate = (item) => {
-      if (String(item.id) !== String(task.id)) return item;
+  if (String(item.id) !== String(task.id)) return item;
 
-      return applyLongTaskPeriodFromDailyPlans({
-        ...item,
-        dailyPlans: nextRows ?? [],
-        updatedAt,
-      });
-    };
+  const currentStart = item.start ?? item.startDate;
+  const currentEnd = item.end ?? item.endDate;
+
+  const taskDates = (nextRows ?? [])
+    .filter((row) =>
+      Array.isArray(row.tasks) &&
+      row.tasks.some(
+        (task) =>
+          task?.taskStatus !== "deleted" &&
+          String(task?.title ?? "").trim()
+      )
+    )
+    .map((row) => row.date)
+    .sort((a, b) => a.localeCompare(b));
+
+  const minTaskDate = taskDates[0];
+  const maxTaskDate = taskDates[taskDates.length - 1];
+
+  const nextStart =
+    minTaskDate && currentStart && minTaskDate < currentStart
+      ? minTaskDate
+      : currentStart;
+
+  const nextEnd =
+    maxTaskDate && currentEnd && maxTaskDate > currentEnd
+      ? maxTaskDate
+      : currentEnd;
+
+  return {
+    ...item,
+    dailyPlans: nextRows ?? [],
+    start: nextStart,
+    end: nextEnd,
+    startDate: nextStart,
+    endDate: nextEnd,
+    updatedAt,
+  };
+};
 
     setLongTasks((current) => current.map(applyUpdate));
 
@@ -1395,7 +1427,15 @@ const saveLongTask = (task) => {
   </div>
 )}
 
-      <LongTaskModal open={isLongTaskModalOpen} editingTask={editingLongTask} categories={longTaskCategories} setCategories={setLongTaskCategories} onClose={() => setIsLongTaskModalOpen(false)} onSave={saveLongTask} />
+      <LongTaskModal
+  open={isLongTaskModalOpen}
+  editingTask={editingLongTask}
+  defaultStartDate={dateKey(selectedDate)}
+  categories={longTaskCategories}
+  setCategories={setLongTaskCategories}
+  onClose={() => setIsLongTaskModalOpen(false)}
+  onSave={saveLongTask}
+/>
     </div>
   );
 }

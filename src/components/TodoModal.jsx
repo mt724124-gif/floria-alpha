@@ -84,8 +84,14 @@ const savedHasPlannedTime =
   localStorage.getItem("last-has-planned-time") === "true";
 
 setHasPlannedTime(savedHasPlannedTime);
-setDurationHour("");
-setDurationMinute("");
+
+if (savedHasPlannedTime) {
+  setDurationHour(1);
+  setDurationMinute(0);
+} else {
+  setDurationHour("");
+  setDurationMinute("");
+}
       setActualHour(0);
       setActualMinute(0);
       setCompleted(false);
@@ -347,8 +353,8 @@ estimatedMinutes,
       setDurationHour("");
       setDurationMinute("");
     } else {
-  setDurationHour("");
-  setDurationMinute("");
+        setDurationHour(1);
+        setDurationMinute(0);
 }
 
     return next;

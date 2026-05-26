@@ -206,7 +206,8 @@ export default function LongTaskDetail({
   const todayKey = dateKey(new Date());
   const todayRow = dailyRows.find((row) => row.date === todayKey) ?? dailyRows[0];
   const listScrollRef = useRef(null);
-  const startScrollTopRef = useRef(0);
+const startScrollTopRef = useRef(0);
+
 
 const autoScrollWhileDragging = (clientY) => {
   const container = listScrollRef.current;
@@ -259,16 +260,14 @@ const autoScrollWhileDragging = (clientY) => {
   const previousBodyUserSelectRef = useRef("");
 
   useEffect(() => {
-    setOverviewMemo(task.overviewMemo || "");
-    setExpandedId(null);
-    setEditingTaskId(null);
-    setShiftBaseDate(focusDateKey);
+  setOverviewMemo(task.overviewMemo || "");
+  setShiftBaseDate(focusDateKey);
 
-    window.requestAnimationFrame(() => {
-      const target = listScrollRef.current?.querySelector(`[data-date="${focusDateKey}"]`);
-      target?.scrollIntoView({ block: "start" });
-    });
-  }, [task, focusDateKey]);
+  window.requestAnimationFrame(() => {
+    const target = listScrollRef.current?.querySelector(`[data-date="${focusDateKey}"]`);
+    target?.scrollIntoView({ block: "start" });
+  });
+}, [task, focusDateKey]);
 
   const allSubTasks = dailyRows.flatMap((row) => row.tasks ?? []);
   const completedCount = allSubTasks.filter((item) => isSubTaskCompleted(item)).length;
@@ -309,32 +308,35 @@ const autoScrollWhileDragging = (clientY) => {
   };
 
   const addSubTask = (row) => {
-    const newItem = {
-      id: makeId(),
-      title: "",
-      estimatedMinutes: "",
-      actualMinutes: null,
-      actualSeconds: null,
-      memo: "",
-      detail: "",
-      completed: false,
-      taskStatus: "pending",
-      completedAt: null,
-      selected: true,
-      status: "accepted",
-    };
-
-    const nextRows = dailyRows.map((item) =>
-      item.id === row.id ? { ...item, tasks: [...(item.tasks ?? []), newItem] } : item
-    );
-
-    setExpandedId(row.id);
-    setEditingTaskId(newItem.id);
-    setDraftTitle("");
-    setDraftMinutes("");
-    setDraftMemo("");
-    commitRows(nextRows, newItem);
+  const newItem = {
+    id: makeId(),
+    title: "",
+    estimatedMinutes: "",
+    actualMinutes: null,
+    actualSeconds: null,
+    memo: "",
+    detail: "",
+    completed: false,
+    taskStatus: "pending",
+    completedAt: null,
+    selected: true,
+    status: "accepted",
   };
+
+  const nextRows = dailyRows.map((item) =>
+    item.id === row.id ? { ...item, tasks: [...(item.tasks ?? []), newItem] } : item
+  );
+
+  commitRows(nextRows, newItem);
+
+requestAnimationFrame(() => {
+  setExpandedId(row.id);
+  setEditingTaskId(newItem.id);
+  setDraftTitle("");
+  setDraftMinutes("");
+  setDraftMemo("");
+});
+};
 
   const deleteSubTask = (rowId, taskId) => {
     const nextRows = dailyRows.map((row) =>

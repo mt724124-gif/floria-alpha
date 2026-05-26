@@ -19,6 +19,7 @@ export default function LongTaskModal({
   onClose,
   onSave,
   editingTask,
+  defaultStartDate,
   categories,
   setCategories,
 }) {
@@ -26,6 +27,12 @@ export default function LongTaskModal({
   const getNextDate = (dateString) => {
   const date = new Date(dateString);
   date.setDate(date.getDate() + 1);
+  return date.toISOString().split("T")[0];
+};
+
+const getDateAfterDays = (dateString, days) => {
+  const date = new Date(dateString);
+  date.setDate(date.getDate() + days);
   return date.toISOString().split("T")[0];
 };
 
@@ -41,7 +48,7 @@ const endDateInputRef = useRef(null);
   useEffect(() => {
   if (!open) return;
 
-  const now = new Date().toISOString().split("T")[0];
+  const now = defaultStartDate ?? new Date().toISOString().split("T")[0];
 
   if (editingTask) {
     setTitle(editingTask.title || "");
@@ -59,11 +66,11 @@ setCategory(
   }
 );
   } else {
-    setTitle("");
-    setStartDate(now);
-    setEndDate(getNextDate(now));
-    setCategory(categories[0] ?? INITIAL_CATEGORIES[0]);
-  }
+  setTitle("");
+  setStartDate(now);
+  setEndDate(getDateAfterDays(now, 7));
+  setCategory(categories[0] ?? INITIAL_CATEGORIES[0]);
+}
 
   setNewCategoryName("");
 }, [open, editingTask]);

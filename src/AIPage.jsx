@@ -1966,14 +1966,18 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
   };
 
   const saveTasks = () => {
-    const selectedTasks = aiTasks.map((task) => ({
-      ...task,
-      dailyPlans: flattenSelectedPlans(task),
-    }));
+  const selectedTasks = aiTasks.map((task) => ({
+    ...task,
+    dailyPlans: task.dailyPlans.map((day) => ({
+      ...day,
+      tasks: (day.tasks ?? []).filter((item) => item.selected),
+    })),
+  }));
 
-    onSaveLongTasks?.(selectedTasks);
-    setToast("長期タスクに保存しました");
-  };
+  onSaveLongTasks?.(selectedTasks);
+  setToast("長期タスクに保存しました");
+};
+
 
   return (
     <main className="space-y-2.5">
