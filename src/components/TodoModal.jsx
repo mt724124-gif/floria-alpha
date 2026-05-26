@@ -84,8 +84,8 @@ const savedHasPlannedTime =
   localStorage.getItem("last-has-planned-time") === "true";
 
 setHasPlannedTime(savedHasPlannedTime);
-setDurationHour(1);
-setDurationMinute(0);
+setDurationHour("");
+setDurationMinute("");
       setActualHour(0);
       setActualMinute(0);
       setCompleted(false);
@@ -110,8 +110,16 @@ setDurationMinute(0);
     event.preventDefault();
     if (!title.trim()) return;
 
-    const estimatedMinutes = hasPlannedTime ? Number(durationHour || 0) * 60 + Number(durationMinute || 0) : null;
-    const actualMinutes = Number(actualHour || 0) * 60 + Number(actualMinute || 0);
+    const estimatedMinutes = hasPlannedTime
+  ? Number(durationHour || 0) * 60 + Number(durationMinute || 0)
+  : null;
+
+if (hasPlannedTime && estimatedMinutes <= 0) {
+  alert("予定時間を入力してください。");
+  return;
+}
+
+const actualMinutes = Number(actualHour || 0) * 60 + Number(actualMinute || 0);
 
     let finalCategory = isEditMode ? initialTodo?.category ?? category : category;
 
@@ -339,8 +347,8 @@ estimatedMinutes,
       setDurationHour("");
       setDurationMinute("");
     } else {
-  setDurationHour(1);
-  setDurationMinute(0);
+  setDurationHour("");
+  setDurationMinute("");
 }
 
     return next;

@@ -2376,14 +2376,14 @@ createdDate:
     Number(target.focusMinutes) > 0 ||
     Number(target.elapsedMinutes) > 0;
 
-  if (!hasActualTime) {
-    setWorkLogModal({
-      open: true,
-      todo: target,
-      completeAfterSave: true,
-    });
-    return;
-  }
+  if (Number(target.estimatedMinutes) > 0 && !hasActualTime) {
+  setWorkLogModal({
+    open: true,
+    todo: target,
+    completeAfterSave: true,
+  });
+  return;
+}
 
   completeTodo(target);
 };
