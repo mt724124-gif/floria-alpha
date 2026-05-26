@@ -21,7 +21,7 @@ function Header() {
       </button>
 
       <h1 className="text-[22px] font-black tracking-[-0.04em] text-slate-950">
-        統計 (仮)
+        まとめ (仮)
       </h1>
 
       <button className="grid h-11 w-11 place-items-center rounded-2xl text-slate-950 active:bg-slate-100">

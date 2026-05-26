@@ -10,9 +10,28 @@ export default function BottomNav({ active = "today", onNavigate }) {
   const items = [
   { key: "today", label: "今日", icon: Home },
   { key: "calendar", label: "カレンダー", icon: CalendarDays },
-  { key: "stats", label: "統計", icon: BarChart3 },
+
+  {
+    key: "stats",
+    label: (
+      <span className="line-through decoration-2">
+        まとめ
+      </span>
+    ),
+    icon: BarChart3,
+  },
+
   { key: "ai", label: "AI", icon: Sparkles },
-  { key: "settings", label: "設定", icon: Settings },
+
+  {
+    key: "settings",
+    label: (
+      <span className="line-through decoration-2">
+        設定
+      </span>
+    ),
+    icon: Settings,
+  },
 ];
 
   return (
