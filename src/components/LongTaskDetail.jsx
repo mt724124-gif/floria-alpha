@@ -82,6 +82,7 @@ function isSubTaskCompleted(item) {
 function normalizeTaskStatus(item) {
   if (item?.taskStatus === "completed") return "completed";
   if (item?.taskStatus === "pending") return "pending";
+  if (item?.taskStatus === "postponed") return "postponed";
   if (item?.taskStatus === "deleted") return "deleted";
   return item?.completed ? "completed" : "pending";
 }
@@ -525,27 +526,11 @@ if (targetRow) {
     .filter((row) => (row.tasks ?? []).length > 0 || row.date >= (start ?? row.date) && row.date <= (end ?? row.date))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const taskDates = nextRows
-    .filter((row) => (row.tasks ?? []).length > 0)
-    .map((row) => row.date);
-
-  const nextStart = taskDates[0] ?? start;
-  const nextEnd = taskDates[taskDates.length - 1] ?? end;
   const nextDailyPlans = serializeDailyRows(nextRows);
 
-  onUpdateDailyPlan?.(task, null, nextDailyPlans);
+onUpdateDailyPlan?.(task, null, nextDailyPlans);
 
-  onUpdateTask?.({
-    ...task,
-    start: nextStart,
-    startDate: nextStart,
-    end: nextEnd,
-    endDate: nextEnd,
-    dailyPlans: nextDailyPlans,
-    updatedAt: new Date().toISOString(),
-  });
-
-  setShiftBaseDate(addDaysToDateKey(shiftBaseDate, diffDays));
+setShiftBaseDate(addDaysToDateKey(shiftBaseDate, diffDays));
 };
 
   const updateOverviewMemo = (value) => {

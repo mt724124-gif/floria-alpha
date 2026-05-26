@@ -74,9 +74,42 @@ function isCompleted(item) {
   return item?.completed === true || item?.taskStatus === "completed";
 }
 
-function normalizeLongTaskShape(task) {
-  const start = task.start ?? task.startDate ?? task.start_date ?? "";
-  const end = task.end ?? task.endDate ?? task.end_date ?? task.deadline ?? start;
+function getHasVisibleDailyTask(row) {
+  if (!row) return false;
+
+  if (Array.isArray(row.tasks)) {
+    return row.tasks.some(
+      (item) =>
+        item?.selected !== false &&
+        item?.reviewOnly !== true &&
+        item?.taskStatus !== "deleted" &&
+        String(item?.title ?? "").trim()
+    );
+  }
+
+  return (
+    String(row.title ?? "").trim() ||
+    String(row.memo ?? row.detail ?? "").trim() ||
+    Number(row.estimatedMinutes) > 0
+  );
+}
+
+function getPeriodFromDailyPlans(dailyPlans, fallbackStart = "", fallbackEnd = fallbackStart) {
+  const planDates = (dailyPlans ?? [])
+    .filter((row) => row?.date && getHasVisibleDailyTask(row))
+    .map((row) => row.date)
+    .sort((a, b) => a.localeCompare(b));
+
+  const start = planDates[0] ?? fallbackStart ?? "";
+  const end = planDates[planDates.length - 1] ?? fallbackEnd ?? start;
+
+  return { start, end };
+}
+
+function applyLongTaskPeriodFromDailyPlans(task) {
+  const fallbackStart = task.start ?? task.startDate ?? task.start_date ?? "";
+  const fallbackEnd = task.end ?? task.endDate ?? task.end_date ?? task.deadline ?? fallbackStart;
+  const { start, end } = getPeriodFromDailyPlans(task.dailyPlans, fallbackStart, fallbackEnd);
 
   return {
     ...task,
@@ -85,6 +118,10 @@ function normalizeLongTaskShape(task) {
     startDate: start,
     endDate: end,
   };
+}
+
+function normalizeLongTaskShape(task) {
+  return applyLongTaskPeriodFromDailyPlans(task);
 }
 
 function normalizeLongTaskList(tasks) {
@@ -174,21 +211,28 @@ function getLongDailyTasksForDate(longTasks, targetDateKey) {
     if (!plan) return [];
 
     if (Array.isArray(plan.tasks)) {
-      return plan.tasks
-        .filter((item) => item?.selected !== false)
-        .map((item, index) => ({
-          ...item,
-          id: item.id ?? `${longTask.id}-${targetDateKey}-${index}`,
-          type: "longDaily",
-          parentId: longTask.id,
-          parentTitle: longTask.title,
-          parentColor: longTask.color ?? "bg-emerald-400",
-          date: targetDateKey,
-          title: item.title || "小タスク名なし",
-          estimatedMinutes: item.estimatedMinutes ?? null,
-          completed: Boolean(item.completed),
-        }));
-    }
+  return plan.tasks
+    .filter(
+      (item) =>
+        item?.selected !== false &&
+        item?.reviewOnly !== true &&
+        item?.taskStatus !== "postponed" &&
+        item?.taskStatus !== "deleted" &&
+        String(item?.title ?? "").trim()
+    )
+    .map((item, index) => ({
+      ...item,
+      id: item.id ?? `${longTask.id}-${targetDateKey}-${index}`,
+      type: "longDaily",
+      parentId: longTask.id,
+      parentTitle: longTask.title,
+      parentColor: longTask.color ?? "bg-emerald-400",
+      date: targetDateKey,
+      title: item.title || "小タスク名なし",
+      estimatedMinutes: item.estimatedMinutes ?? null,
+      completed: Boolean(item.completed),
+    }));
+}
 
     if (String(plan.title ?? "").trim()) {
       return [
@@ -217,13 +261,20 @@ function getLongDailyLabels(longTask, targetDateKey) {
   if (!plan) return [];
 
   if (Array.isArray(plan.tasks)) {
-    return plan.tasks
-      .filter((item) => item?.selected !== false && String(item?.title ?? "").trim())
-      .map((item) => ({
-        title: item.title,
-        completed: Boolean(item.completed),
-      }));
-  }
+  return plan.tasks
+    .filter(
+      (item) =>
+        item?.selected !== false &&
+        item?.reviewOnly !== true &&
+        item?.taskStatus !== "postponed" &&
+        item?.taskStatus !== "deleted" &&
+        String(item?.title ?? "").trim()
+    )
+    .map((item) => ({
+      title: item.title,
+      completed: Boolean(item.completed),
+    }));
+}
 
   if (String(plan.title ?? "").trim()) {
     return [
@@ -641,9 +692,16 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
   }, [longTasks, weekDays]);
 
   const getShortTasksForDay = (day) => {
-    const key = dateKey(day);
-    return (shortTasks ?? []).filter((todo) => getTodoDateKey(todo) === key);
-  };
+  const key = dateKey(day);
+  return (shortTasks ?? []).filter(
+    (todo) =>
+      getTodoDateKey(todo) === key &&
+      todo.taskStatus !== "postponed" &&
+      todo.taskStatus !== "deleted" &&
+      todo.type !== "longDailyReview" &&
+      todo.type !== "longDaily"
+  );
+};
 
   const weekLongDailyTasks = weekDays.flatMap((day) => getLongDailyTasksForDate(longTasks, dateKey(day)));
 
@@ -964,10 +1022,11 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
     const normalizedTask = normalizeLongTaskShape(task);
     const oldTask = longTasks.find((item) => String(item.id) === String(normalizedTask.id));
 
-    const savedTask = {
+    const savedTask = applyLongTaskPeriodFromDailyPlans({
       ...normalizedTask,
       dailyPlans: buildDailyPlansForTask(normalizedTask, oldTask?.dailyPlans ?? normalizedTask.dailyPlans ?? []),
-    };
+      updatedAt: new Date().toISOString(),
+    });
 
     setLongTasks((current) => {
       const exists = current.some((item) => String(item.id) === String(savedTask.id));
@@ -1021,54 +1080,46 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
   };
 
   const updateDailyPlan = (task, updatedRow, nextRows) => {
-    setLongTasks((current) =>
-      current.map((item) =>
-        String(item.id) === String(task.id)
-          ? {
-              ...item,
-              dailyPlans: nextRows,
-            }
-          : item
-      )
-    );
+    const updatedAt = new Date().toISOString();
+
+    const applyUpdate = (item) => {
+      if (String(item.id) !== String(task.id)) return item;
+
+      return applyLongTaskPeriodFromDailyPlans({
+        ...item,
+        dailyPlans: nextRows ?? [],
+        updatedAt,
+      });
+    };
+
+    setLongTasks((current) => current.map(applyUpdate));
 
     setAppData?.((currentAppData) => ({
       ...currentAppData,
-      longTasks: (currentAppData.longTasks ?? []).map((item) =>
-        String(item.id) === String(task.id)
-          ? {
-              ...item,
-              dailyPlans: nextRows,
-            }
-          : item
-      ),
+      longTasks: (currentAppData.longTasks ?? []).map(applyUpdate),
     }));
 
     setSelectedLongTaskId(task.id);
   };
 
   const updateLongTask = (updatedTask) => {
-    setLongTasks((current) =>
-      current.map((item) =>
-        String(item.id) === String(updatedTask.id)
-          ? {
-              ...item,
-              ...updatedTask,
-            }
-          : item
-      )
-    );
+    const updatedAt = new Date().toISOString();
+
+    const applyUpdate = (item) => {
+      if (String(item.id) !== String(updatedTask.id)) return item;
+
+      return applyLongTaskPeriodFromDailyPlans({
+        ...item,
+        ...updatedTask,
+        updatedAt: updatedTask.updatedAt ?? updatedAt,
+      });
+    };
+
+    setLongTasks((current) => current.map(applyUpdate));
 
     setAppData?.((currentAppData) => ({
       ...currentAppData,
-      longTasks: (currentAppData.longTasks ?? []).map((item) =>
-        String(item.id) === String(updatedTask.id)
-          ? {
-              ...item,
-              ...updatedTask,
-            }
-          : item
-      ),
+      longTasks: (currentAppData.longTasks ?? []).map(applyUpdate),
     }));
 
     setSelectedLongTaskId(updatedTask.id);

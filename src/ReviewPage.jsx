@@ -324,10 +324,17 @@ function applyLongTaskReviewToCalendar(longTasks, reviewTasks, targetDateKey) {
       ];
     });
 
-    return {
-      ...longTask,
-      dailyPlans,
-    };
+    const latestPlanDate = dailyPlans.reduce(
+  (latest, plan) => (plan.date > latest ? plan.date : latest),
+  longTask.endDate ?? longTask.end ?? targetDateKey
+);
+
+return {
+  ...longTask,
+  end: latestPlanDate,
+  endDate: latestPlanDate,
+  dailyPlans,
+};
   });
 }
 
