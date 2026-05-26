@@ -320,6 +320,8 @@ function TodayGoalCard({
   isReviewConfirmed = false,
   isPastDate = false,
   isFutureDate = false,
+  isEmptyPastDate = false,
+  isClearedPastDate = false,
 }) {
   const canStartTimer =
     selectedTask &&
@@ -1920,11 +1922,12 @@ const isClearedPastDate =
   hadAnyRecordedTodos;
 
   const isReviewConfirmed =
-    isEmptyPastDate ||
-    (
-      totalCount > 0 &&
-      (dailyRecord.status === "confirmed" || dailyRecord.reviewCompleted === true)
-    );
+  isEmptyPastDate ||
+  isClearedPastDate ||
+  (
+    totalCount > 0 &&
+    (dailyRecord.status === "confirmed" || dailyRecord.reviewCompleted === true)
+  );
 
   const canAddTodo = !isPastDate;
   const canSelectTask = isTodayDate && !isReviewConfirmed;
@@ -2748,13 +2751,15 @@ return (
   selectedDate={selectedDate}
   onSetDate={setSelectedDate}
   totalCount={totalCount}
-            incompleteCount={incompleteCount}
-            selectedTask={selectedTask}
-            onStartTimer={startTimer}
-            isReviewConfirmed={isReviewConfirmed}
-            isPastDate={isPastDate}
-            isFutureDate={isFutureDate}
-          />
+  incompleteCount={incompleteCount}
+  selectedTask={selectedTask}
+  onStartTimer={startTimer}
+  isReviewConfirmed={isReviewConfirmed}
+  isPastDate={isPastDate}
+  isFutureDate={isFutureDate}
+  isEmptyPastDate={isEmptyPastDate}
+  isClearedPastDate={isClearedPastDate}
+/>
 
           <SortModeSwitch
             sortMode={sortMode}
