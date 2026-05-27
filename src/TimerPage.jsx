@@ -416,22 +416,40 @@ const plannedSeconds = plannedMinutes * 60;
   };
 
   const toggleTimer = () => {
-    if (isRunning) {
-      pauseTimer();
-    } else {
-      resumeTimer();
-    }
-  };
+  if (isRunning) {
+    pauseTimer();
+  } else {
+    resumeTimer();
+  }
+};
 
-  const buildResult = (completed) => ({
+const getLiveElapsedSeconds = () => {
+  if (!isRunning) return elapsedSeconds;
+
+  return Math.max(
+    0,
+    Math.floor((Date.now() - startedAtRef.current) / 1000)
+  );
+};
+
+const buildResult = (completed) => {
+  const liveSeconds = getLiveElapsedSeconds();
+  const liveMinutes = Math.max(0, Math.round(liveSeconds / 60));
+
+  return {
     task: localTask,
     completed,
-    actualMinutes: elapsedMinutes,
-    actualSeconds: elapsedSeconds,
+    actualMinutes: liveMinutes,
+    actualSeconds: liveSeconds,
+    elapsedMinutes: liveMinutes,
+    elapsedSeconds: liveSeconds,
     plannedMinutes,
     startedAt: startedAtRef.current,
     endedAt: Date.now(),
-  });
+  };
+};
+
+  
 
   const saveProgress = () => {
   if (!localTask?.id) return;
@@ -444,6 +462,32 @@ const plannedSeconds = plannedMinutes * 60;
     onComplete?.(result);
   }
 };
+
+useEffect(() => {
+  const saveTimerBeforeClose = () => {
+  if (!localTask?.id) return;
+
+  const result = buildResult(false);
+
+  onSaveProgress?.(result);
+};
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      saveTimerBeforeClose();
+    }
+  };
+
+  window.addEventListener("pagehide", saveTimerBeforeClose);
+  window.addEventListener("beforeunload", saveTimerBeforeClose);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  return () => {
+    window.removeEventListener("pagehide", saveTimerBeforeClose);
+    window.removeEventListener("beforeunload", saveTimerBeforeClose);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+  };
+}, [localTask, isRunning, elapsedSeconds, onSaveProgress, onComplete]);
 
   const handleClose = () => {
   if (!localTask?.id) {
