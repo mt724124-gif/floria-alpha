@@ -241,13 +241,12 @@ function buildLongDailyReviewTodosForDate(longTasks, targetDateKey) {
     return plans.flatMap((plan, planIndex) => {
       if (Array.isArray(plan.tasks)) {
         const visibleTasks = plan.tasks.filter(
-          (item) =>
-            item?.selected !== false &&
-            item?.reviewOnly !== true &&
-            item?.taskStatus !== "postponed" &&
-            item?.taskStatus !== "deleted" &&
-            String(item?.title ?? "").trim()
-        );
+  (item) =>
+    item?.selected !== false &&
+    item?.reviewOnly !== true &&
+    item?.taskStatus !== "deleted" &&
+    String(item?.title ?? "").trim()
+);
 
         if (visibleTasks.length === 0) {
           return [];
@@ -329,13 +328,12 @@ function buildLongDailyEmptyGroupsForDate(longTasks, targetDateKey) {
       const visibleTasks = plans.flatMap((plan) => {
         if (Array.isArray(plan.tasks)) {
           return plan.tasks.filter(
-            (item) =>
-              item?.selected !== false &&
-              item?.reviewOnly !== true &&
-              item?.taskStatus !== "postponed" &&
-              item?.taskStatus !== "deleted" &&
-              String(item?.title ?? "").trim()
-          );
+  (item) =>
+    item?.selected !== false &&
+    item?.reviewOnly !== true &&
+    item?.taskStatus !== "deleted" &&
+    String(item?.title ?? "").trim()
+);
         }
 
         return String(plan.title ?? "").trim() ? [plan] : [];
