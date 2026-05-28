@@ -2039,12 +2039,17 @@ useEffect(() => {
     );
   }, [appData.dailyRecords, selectedDateKey, filteredTodos]);
 
-  const dailyRecord = getOrCreateDailyRecord(syncedDailyRecords, selectedDateKey);
+  const rawDailyRecord = appData.dailyRecords?.[selectedDateKey];
+
+const dailyRecord =
+  rawDailyRecord?.status === "confirmed" || rawDailyRecord?.reviewCompleted === true
+    ? rawDailyRecord
+    : getOrCreateDailyRecord(syncedDailyRecords, selectedDateKey);
   const totalCount = filteredTodos.length;
   const hadAnyRecordedTodos =
-  (dailyRecord?.todos?.length ?? 0) > 0 ||
-  (dailyRecord?.completedTodos?.length ?? 0) > 0 ||
-  (dailyRecord?.postponedTodos?.length ?? 0) > 0;
+  (dailyRecord?.tasks ?? []).some(
+    (task) => task.taskStatus !== "deleted"
+  );
 
 const isEmptyPastDate =
   isPastDate &&
