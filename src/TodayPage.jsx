@@ -134,6 +134,8 @@ function getRank(todo, fallback = 9999) {
 }
 
 function isCompleted(todo) {
+  if (todo?.isLongTaskEmptyDay) return false;
+  if (todo?.taskStatus === "empty") return false;
   if (todo?.taskStatus === "pending") return false;
   if (todo?.taskStatus === "postponed") return false;
   if (todo?.taskStatus === "deleted") return false;
@@ -238,41 +240,46 @@ function buildLongDailyReviewTodosForDate(longTasks, targetDateKey) {
 
     return plans.flatMap((plan, planIndex) => {
       if (Array.isArray(plan.tasks)) {
-        return plan.tasks
-          .filter(
-            (item) =>
-              item?.selected !== false &&
-              item?.reviewOnly !== true &&
-              item?.taskStatus !== "postponed" &&
-              String(item?.title ?? "").trim()
-          )
-          .map((item, index) => {
-            const longDailyTaskId =
-              item.id ?? `${longTask.id}-${targetDateKey}-${planIndex}-${index}`;
+        const visibleTasks = plan.tasks.filter(
+          (item) =>
+            item?.selected !== false &&
+            item?.reviewOnly !== true &&
+            item?.taskStatus !== "postponed" &&
+            item?.taskStatus !== "deleted" &&
+            String(item?.title ?? "").trim()
+        );
 
-            return {
-              ...item,
-              id: `long-review-${longTask.id}-${targetDateKey}-${longDailyTaskId}`,
-              type: "longDailyReview",
-              isLongTask: true,
-              parentId: longTask.id,
-              parentTitle: longTask.title,
-              longDailyTaskId,
-              date: targetDateKey,
-              targetDate: targetDateKey,
-              createdDate: targetDateKey,
-              title: item.title || "小タスク名なし",
-              category: "長期タスク",
-              priority: "medium",
-              rank: 9990 + planIndex * 100 + index,
-              estimatedMinutes: item.estimatedMinutes ?? null,
-              actualMinutes: item.actualMinutes ?? 0,
-              actualSeconds: item.actualSeconds ?? 0,
-              completed: Boolean(item.completed),
-              taskStatus: item.completed ? "completed" : item.taskStatus ?? "pending",
-              completedAt: item.completedAt ?? null,
-            };
-          });
+        if (visibleTasks.length === 0) {
+          return [];
+        }
+
+        return visibleTasks.map((item, index) => {
+          const longDailyTaskId =
+            item.id ?? `${longTask.id}-${targetDateKey}-${planIndex}-${index}`;
+
+          return {
+            ...item,
+            id: `long-review-${longTask.id}-${targetDateKey}-${longDailyTaskId}`,
+            type: "longDailyReview",
+            isLongTask: true,
+            parentId: longTask.id,
+            parentTitle: longTask.title,
+            longDailyTaskId,
+            date: targetDateKey,
+            targetDate: targetDateKey,
+            createdDate: targetDateKey,
+            title: item.title || "小タスク名なし",
+            category: "長期タスク",
+            priority: "medium",
+            rank: 9990 + planIndex * 100 + index,
+            estimatedMinutes: item.estimatedMinutes ?? null,
+            actualMinutes: item.actualMinutes ?? 0,
+            actualSeconds: item.actualSeconds ?? 0,
+            completed: Boolean(item.completed),
+            taskStatus: item.completed ? "completed" : item.taskStatus ?? "pending",
+            completedAt: item.completedAt ?? null,
+          };
+        });
       }
 
       if (String(plan.title ?? "").trim()) {
@@ -308,6 +315,40 @@ function buildLongDailyReviewTodosForDate(longTasks, targetDateKey) {
       return [];
     });
   });
+}
+
+function buildLongDailyEmptyGroupsForDate(longTasks, targetDateKey) {
+  return (longTasks ?? [])
+    .map((longTask) => {
+      const plans = (longTask.dailyPlans ?? []).filter(
+        (row) => row.date === targetDateKey
+      );
+
+      if (plans.length === 0) return null;
+
+      const visibleTasks = plans.flatMap((plan) => {
+        if (Array.isArray(plan.tasks)) {
+          return plan.tasks.filter(
+            (item) =>
+              item?.selected !== false &&
+              item?.reviewOnly !== true &&
+              item?.taskStatus !== "postponed" &&
+              item?.taskStatus !== "deleted" &&
+              String(item?.title ?? "").trim()
+          );
+        }
+
+        return String(plan.title ?? "").trim() ? [plan] : [];
+      });
+
+      if (visibleTasks.length > 0) return null;
+
+      return {
+        key: String(longTask.id),
+        label: longTask.title ?? "長期タスク",
+      };
+    })
+    .filter(Boolean);
 }
 
 function TodayGoalCard({
@@ -1397,7 +1438,7 @@ function TodoListCard({
   );
 }
 
-function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, canEdit, onSelect, onToggle, onEdit }) {
+function LongTaskListCard({ todos, emptyGroups = [], selectedTaskId, canSelect, canComplete, canEdit, onSelect, onToggle, onEdit }) {
   const [openDetailId, setOpenDetailId] = useState(null);
   const [openGroupKeys, setOpenGroupKeys] = useState([]);
 
@@ -1415,10 +1456,32 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, canEd
     }, {});
   }, [todos]);
 
-  const groupEntries = useMemo(() => Object.entries(groups), [groups]);
-  const totalCount = todos.length;
-  const incompleteCount = todos.filter((todo) => !isCompleted(todo)).length;
-  const completedCount = totalCount - incompleteCount;
+  const taskGroupEntries = useMemo(() => Object.entries(groups), [groups]);
+
+const emptyGroupEntries = useMemo(() => {
+  return (emptyGroups ?? [])
+    .filter((emptyGroup) => !groups[String(emptyGroup.key)])
+    .map((emptyGroup) => [
+      String(emptyGroup.key),
+      {
+        label: emptyGroup.label ?? "長期タスク",
+        todos: [],
+        isEmptyGroup: true,
+      },
+    ]);
+}, [emptyGroups, groups]);
+
+const groupEntries = useMemo(() => {
+  return [...taskGroupEntries, ...emptyGroupEntries];
+}, [taskGroupEntries, emptyGroupEntries]);
+
+const totalCount = todos.length + emptyGroupEntries.length;
+
+const incompleteCount = todos.filter(
+  (todo) => !isCompleted(todo)
+).length;
+
+const completedCount = todos.filter((todo) => isCompleted(todo)).length;
 
   useEffect(() => {
   const keys = groupEntries.map(([key]) => key);
@@ -1460,7 +1523,7 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, canEd
             今日の長期タスクはありません
           </p>
         </div>
-      ) : completedCount === totalCount ? (
+      ) : todos.length > 0 && completedCount === todos.length ? (
         <div className="rounded-[18px] bg-emerald-50/70 px-4 py-5 text-center">
           <p className="text-[13px] font-black text-emerald-700">
             今日の長期タスクは完了しました
@@ -1472,46 +1535,66 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, canEd
       ) : (
         <div className="space-y-2">
           {groupEntries.map(([key, group]) => {
-            const isOpen = openGroupKeys.includes(key);
-            const groupIncompleteCount = group.todos.filter((todo) => !isCompleted(todo)).length;
-            const groupCompletedCount = group.todos.length - groupIncompleteCount;
+  const isOpen = openGroupKeys.includes(key);
+  const isEmptyGroup = group.isEmptyGroup === true;
 
-            return (
-              <div key={key} className="overflow-hidden rounded-[18px] border border-emerald-100 bg-white">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(key)}
-                  className="flex w-full items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-left active:bg-slate-100"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-black text-slate-800">
-                      {group.label}
-                    </p>
-                    <p className="mt-0.5 text-[10px] font-bold text-slate-400">
-                      未完了 {groupIncompleteCount}件 / 完了 {groupCompletedCount}件
-                    </p>
-                  </div>
+  const groupIncompleteCount = group.todos.filter(
+    (todo) => !isCompleted(todo)
+  ).length;
 
-                  <span className="shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">
-                    {group.todos.length}件
-                  </span>
+  const groupCompletedCount = group.todos.filter((todo) =>
+    isCompleted(todo)
+  ).length;
 
-                  <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-black text-slate-400">
-                    {isOpen ? "閉じる" : "開く"}
-                    <ChevronRight
-                      className={`h-4 w-4 transition-transform ${
-                        isOpen ? "rotate-90" : "rotate-0"
-                      }`}
-                      strokeWidth={2.8}
-                    />
-                  </span>
-                </button>
+  return (
+    <div key={key} className="overflow-hidden rounded-[18px] border border-emerald-100 bg-white">
+      <button
+        type="button"
+        onClick={() => {
+          if (isEmptyGroup) return;
+          toggleGroup(key);
+        }}
+        className={`flex w-full items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-left ${
+          isEmptyGroup ? "cursor-default" : "active:bg-slate-100"
+        }`}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-black text-slate-800">
+            {group.label}
+          </p>
+
+          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+            {isEmptyGroup
+              ? "本日の小タスクはありません"
+              : `未完了 ${groupIncompleteCount}件 / 完了 ${groupCompletedCount}件`}
+          </p>
+        </div>
+
+        {!isEmptyGroup && (
+          <>
+            <span className="shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">
+              {group.todos.length}件
+            </span>
+
+            <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-black text-slate-400">
+              {isOpen ? "閉じる" : "開く"}
+              <ChevronRight
+                className={`h-4 w-4 transition-transform ${
+                  isOpen ? "rotate-90" : "rotate-0"
+                }`}
+                strokeWidth={2.8}
+              />
+            </span>
+          </>
+        )}
+      </button>
 
                 {isOpen && (
                   <div className="bg-white">
                     {group.todos.map((todo) => {
                       const completed = isCompleted(todo);
-                      const selected = selectedTaskId === todo.id;
+const selected = selectedTaskId === todo.id;
+const isEmptyDay = todo.isLongTaskEmptyDay === true;
 
                       return (
                         <div key={todo.id} className={`border-b border-slate-100 last:border-b-0 ${selected ? "bg-emerald-50/70" : "bg-white"}`}>
@@ -1524,26 +1607,32 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, canEd
                             className={`relative z-10 px-3 py-2 ${canSelect && !completed ? "cursor-pointer" : "cursor-default"}`}
                           >
                                                         <div className="flex min-h-[48px] items-center gap-2">
-                              <button
-                                type="button"
-                                disabled={!canComplete || completed}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (!canComplete || completed) return;
-                                  onToggle(todo.id);
-                                }}
-                                className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
-                                  completed
-                                    ? "border-emerald-500 bg-emerald-500 text-white"
-                                    : "border-slate-300 bg-white text-transparent"
-                                } ${
-                                  !canComplete || completed
-                                    ? "cursor-not-allowed opacity-60"
-                                    : ""
-                                }`}
-                              >
-                                <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                              </button>
+                              {isEmptyDay ? (
+  <div className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] border-slate-200 bg-slate-50 text-slate-300">
+    <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.5} />
+  </div>
+) : (
+  <button
+    type="button"
+    disabled={!canComplete || completed}
+    onClick={(event) => {
+      event.stopPropagation();
+      if (!canComplete || completed) return;
+      onToggle(todo.id);
+    }}
+    className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
+      completed
+        ? "border-emerald-500 bg-emerald-500 text-white"
+        : "border-slate-300 bg-white text-transparent"
+    } ${
+      !canComplete || completed
+        ? "cursor-not-allowed opacity-60"
+        : ""
+    }`}
+  >
+    <Check className="h-3.5 w-3.5" strokeWidth={3} />
+  </button>
+)}
 
                               <div className="min-w-0 flex-1 touch-manipulation select-none">
                                 <p
@@ -1592,22 +1681,26 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, canEd
                                   )}
                               </div>
 
-                              <button
-                                type="button"
-                                disabled={!canEdit}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (!canEdit) return;
-                                  onEdit(todo);
-                                }}
-                                className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
-                                  !canEdit
-                                    ? "cursor-not-allowed text-slate-200"
-                                    : "text-emerald-500 active:bg-emerald-50"
-                                }`}
-                              >
-                                <Pencil className="h-[17px] w-[17px]" />
-                              </button>
+                              {isEmptyDay ? (
+  <div className="h-8 w-7 shrink-0" />
+) : (
+  <button
+    type="button"
+    disabled={!canEdit}
+    onClick={(event) => {
+      event.stopPropagation();
+      if (!canEdit) return;
+      onEdit(todo);
+    }}
+    className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
+      !canEdit
+        ? "cursor-not-allowed text-slate-200"
+        : "text-emerald-500 active:bg-emerald-50"
+    }`}
+  >
+    <Pencil className="h-[17px] w-[17px]" />
+  </button>
+)}
                             </div>
                           </div>
                         </div>
@@ -1879,7 +1972,8 @@ const normalTodosForDate = useMemo(() => {
     (todo) =>
       getTodoDateKey(todo) === selectedDateKey &&
       todo.type !== "longDailyReview" &&
-      todo.type !== "longDaily" &&
+todo.type !== "longDailyEmpty" &&
+todo.type !== "longDaily" &&
       todo.taskStatus !== "postponed" &&
       todo.taskStatus !== "deleted"
   );
@@ -1887,6 +1981,10 @@ const normalTodosForDate = useMemo(() => {
 
 const longDailyTodosForDate = useMemo(() => {
   return buildLongDailyReviewTodosForDate(longTasks, selectedDateKey);
+}, [longTasks, selectedDateKey]);
+
+const longDailyEmptyGroupsForDate = useMemo(() => {
+  return buildLongDailyEmptyGroupsForDate(longTasks, selectedDateKey);
 }, [longTasks, selectedDateKey]);
 
 const filteredTodos = useMemo(() => {
@@ -1898,22 +1996,22 @@ useEffect(() => {
     const currentTasks = current.tasks ?? [];
 
     const withoutThisDateLongTasks = currentTasks.filter(
-      (task) =>
-        !(
-          getTodoDateKey(task) === selectedDateKey &&
-          task.type === "longDailyReview"
-        )
-    );
+  (task) =>
+    !(
+      getTodoDateKey(task) === selectedDateKey &&
+      (task.type === "longDailyReview" || task.type === "longDailyEmpty")
+    )
+);
 
     const nextTasks = [...withoutThisDateLongTasks, ...longDailyTodosForDate];
 
     const currentLongJson = JSON.stringify(
-      currentTasks
-        .filter(
-          (task) =>
-            getTodoDateKey(task) === selectedDateKey &&
-            task.type === "longDailyReview"
-        )
+  currentTasks
+    .filter(
+      (task) =>
+        getTodoDateKey(task) === selectedDateKey &&
+        (task.type === "longDailyReview" || task.type === "longDailyEmpty")
+    )
         .sort((a, b) => String(a.id).localeCompare(String(b.id)))
     );
 
@@ -2906,6 +3004,7 @@ return (
 
 <LongTaskListCard
   todos={incompleteLongTodos}
+  emptyGroups={longDailyEmptyGroupsForDate}
   selectedTaskId={selectedTaskId}
   canSelect={canSelectTask}
   canComplete={canCompleteTask}
