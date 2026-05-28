@@ -1972,9 +1972,8 @@ const normalTodosForDate = useMemo(() => {
     (todo) =>
       getTodoDateKey(todo) === selectedDateKey &&
       todo.type !== "longDailyReview" &&
-todo.type !== "longDailyEmpty" &&
-todo.type !== "longDaily" &&
-      todo.taskStatus !== "postponed" &&
+      todo.type !== "longDailyEmpty" &&
+      todo.type !== "longDaily" &&
       todo.taskStatus !== "deleted"
   );
 }, [todos, selectedDateKey]);
