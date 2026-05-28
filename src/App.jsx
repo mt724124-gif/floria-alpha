@@ -370,9 +370,10 @@ const [forcedReviewDateKey, setForcedReviewDateKey] = useState(null);
   };
 
   const closeTimer = () => {
-    setTimerTask(null);
-    setScreen("today");
-  };
+  setTimerTask(null);
+  setTodayInitialDateKey(getTodayKey());
+  setScreen("today");
+};
 
   const saveTimerResultToAppData = (result) => {
     const sourceTask = result?.task;
@@ -520,10 +521,11 @@ const [forcedReviewDateKey, setForcedReviewDateKey] = useState(null);
   };
 
   const handleTimerResult = (result) => {
-    saveTimerResultToAppData(result);
-    setTimerTask(null);
-    setScreen("today");
-  };
+  saveTimerResultToAppData(result);
+  setTimerTask(null);
+  setTodayInitialDateKey(getTodayKey());
+  setScreen("today");
+};
 
   const handleTimerProgress = (result) => {
     const normalizedResult = saveTimerResultToAppData(result);
@@ -638,6 +640,14 @@ const [forcedReviewDateKey, setForcedReviewDateKey] = useState(null);
   setScreen("calendar");
 };
 
+const navigateFromBottomNav = (nextScreen) => {
+  if (nextScreen === "today") {
+    setTodayInitialDateKey(getTodayKey());
+  }
+
+  setScreen(nextScreen);
+};
+
 const incompletePastReviewDateKey = findOldestIncompletePastReviewDateKey(appData);
 const shouldShowIncompleteReviewPopup =
   screen === "today" &&
@@ -655,7 +665,7 @@ return (
   appData={appData}
   setAppData={updateAppData}
   onUpdateTaskEverywhere={updateTaskEverywhere}
-  onNavigate={setScreen}
+  onNavigate={navigateFromBottomNav}
   onOpenReview={(dateKey) => {
     setReviewDateKey(dateKey);
     setScreen("review");
@@ -665,24 +675,27 @@ return (
 
       {screen === "calendar" && (
         <CalendarPage
-          appData={appData}
-          setAppData={updateAppData}
-          onNavigate={setScreen}
-        />
+  appData={appData}
+  setAppData={updateAppData}
+  onNavigate={navigateFromBottomNav}
+/>
       )}
 
       {screen === "stats" && (
-        <StatsPageDay appData={appData} onNavigate={setScreen} />
+        <StatsPageDay appData={appData} onNavigate={navigateFromBottomNav} />
       )}
 
       {screen === "ai" && (
         <AIPage
-          appData={appData}
-          setAppData={updateAppData}
-          onNavigate={setScreen}
-          onBack={() => setScreen("today")}
-          onSaveLongTasks={handleSaveLongTasksFromAI}
-        />
+  appData={appData}
+  setAppData={updateAppData}
+  onNavigate={navigateFromBottomNav}
+  onBack={() => {
+    setTodayInitialDateKey(getTodayKey());
+    setScreen("today");
+  }}
+  onSaveLongTasks={handleSaveLongTasksFromAI}
+/>
       )}
 
       {screen === "review" && (
@@ -703,7 +716,7 @@ return (
 />
       )}
 
-      {screen === "settings" && <SetPage onNavigate={setScreen} />}
+      {screen === "settings" && <SetPage onNavigate={navigateFromBottomNav} />}
 
             {screen === "timer" && (
         <TimerPage
