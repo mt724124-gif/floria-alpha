@@ -289,14 +289,18 @@ function updateLongDailyTaskInLongTasks(longTasks, sourceTask, patchOrUpdater) {
             ...patch,
           };
 
-          const completed =
-            nextItem.taskStatus === "completed" || nextItem.completed === true;
+          const nextStatus =
+            nextItem.taskStatus ??
+            (nextItem.completed === true ? "completed" : item.taskStatus ?? "pending");
+
+          const completed = nextStatus === "completed" || nextItem.completed === true;
 
           return {
             ...nextItem,
             completed,
-            taskStatus: completed ? "completed" : "pending",
+            taskStatus: completed ? "completed" : nextStatus,
             completedAt: completed ? nextItem.completedAt ?? new Date().toISOString() : null,
+            updatedAt: new Date().toISOString(),
           };
         }),
       };
@@ -566,6 +570,62 @@ const [forcedReviewDateKey, setForcedReviewDateKey] = useState(null);
     });
   };
 
+  const updateTaskEverywhere = (sourceTask, patch = {}) => {
+  if (!sourceTask?.id) return;
+
+  const targetDateKey = getTaskDateKey(sourceTask);
+
+  updateAppData((current) => {
+    const nextTask = {
+      ...sourceTask,
+      ...patch,
+    };
+
+    const completed =
+      nextTask.taskStatus === "completed" || nextTask.completed === true;
+
+    const normalizedTask = {
+      ...nextTask,
+      completed,
+      taskStatus: completed ? "completed" : nextTask.taskStatus ?? "pending",
+      completedAt: completed ? nextTask.completedAt ?? new Date().toISOString() : null,
+    };
+
+    const nextTasks = isLongDailyReviewTask(sourceTask)
+      ? current.tasks ?? []
+      : (current.tasks ?? []).map((task) =>
+          String(task.id) === String(sourceTask.id) ? normalizedTask : task
+        );
+
+    const nextLongTasks = isLongDailyReviewTask(sourceTask)
+  ? updateLongDailyTaskInLongTasks(current.longTasks ?? [], sourceTask, normalizedTask)
+  : current.longTasks ?? [];
+
+    const nextDailyRecords = updateDailyRecordTask(
+      current.dailyRecords ?? {},
+      targetDateKey,
+      normalizedTask,
+      {
+        estimatedMinutes: normalizedTask.estimatedMinutes,
+        actualMinutes: normalizedTask.actualMinutes,
+        actualSeconds: normalizedTask.actualSeconds,
+        completed: normalizedTask.completed,
+        taskStatus: normalizedTask.taskStatus,
+        completedAt: normalizedTask.completedAt,
+        priority: normalizedTask.priority ?? "medium",
+        rank: normalizedTask.rank,
+      }
+    );
+
+    return {
+      ...current,
+      tasks: nextTasks,
+      longTasks: nextLongTasks,
+      dailyRecords: nextDailyRecords,
+    };
+  });
+};
+
   const handleSaveLongTasksFromAI = (longTasks) => {
   const normalizedLongTasks = normalizeLongTasksFromAI(longTasks);
 
@@ -588,18 +648,19 @@ return (
     <>
       {screen === "today" && (
         <TodayPage
-          initialDateKey={todayInitialDateKey}
-          onOpenTimer={openTimer}
-          taskUpdateRequest={taskUpdateRequest}
-          onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
-          appData={appData}
-          setAppData={updateAppData}
-          onNavigate={setScreen}
-          onOpenReview={(dateKey) => {
-            setReviewDateKey(dateKey);
-            setScreen("review");
-          }}
-        />
+  initialDateKey={todayInitialDateKey}
+  onOpenTimer={openTimer}
+  taskUpdateRequest={taskUpdateRequest}
+  onTaskUpdateHandled={() => setTaskUpdateRequest(null)}
+  appData={appData}
+  setAppData={updateAppData}
+  onUpdateTaskEverywhere={updateTaskEverywhere}
+  onNavigate={setScreen}
+  onOpenReview={(dateKey) => {
+    setReviewDateKey(dateKey);
+    setScreen("review");
+  }}
+/>
       )}
 
       {screen === "calendar" && (
@@ -626,20 +687,20 @@ return (
 
       {screen === "review" && (
         <ReviewPage
-          dateKey={reviewDateKey}
-          appData={appData}
-          setAppData={updateAppData}
-          onNavigate={(nextScreen) => {
-  if (nextScreen === "today") {
-    if (forcedReviewDateKey && reviewDateKey === forcedReviewDateKey) {
-  setForcedReviewDateKey(null);
-}
+  dateKey={reviewDateKey}
+  appData={appData}
+  setAppData={updateAppData}
+  onNavigate={(nextScreen) => {
+    if (nextScreen === "today") {
+      if (forcedReviewDateKey && reviewDateKey === forcedReviewDateKey) {
+        setForcedReviewDateKey(null);
+      }
 
-setTodayInitialDateKey(reviewDateKey);
-  }
-  setScreen(nextScreen);
-}}
-        />
+      setTodayInitialDateKey(reviewDateKey);
+    }
+    setScreen(nextScreen);
+  }}
+/>
       )}
 
       {screen === "settings" && <SetPage onNavigate={setScreen} />}

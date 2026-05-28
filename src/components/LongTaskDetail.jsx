@@ -283,7 +283,25 @@ const autoScrollWhileDragging = (clientY) => {
     (sum, item) => sum + Number(item.estimatedMinutes || 0),
     0
   );
-  const progress = totalTaskCount === 0 ? 0 : Math.round((completedCount / totalTaskCount) * 100);
+    const progress = totalTaskCount === 0 ? 0 : Math.round((completedCount / totalTaskCount) * 100);
+  const isLongTaskCompleted = task.taskStatus === "completed" || task.completed === true;
+  const canCompleteLongTask =
+    totalTaskCount > 0 &&
+    completedCount === totalTaskCount &&
+    !isLongTaskCompleted;
+
+  const completeLongTask = () => {
+    if (!canCompleteLongTask) return;
+
+    onUpdateTask?.({
+      ...task,
+      completed: true,
+      taskStatus: "completed",
+      completedAt: new Date().toISOString(),
+      status: "completed",
+      updatedAt: new Date().toISOString(),
+    });
+  };
 
   const commitRows = (nextRows, changedItem = null) => {
     const serialized = serializeDailyRows(nextRows);
@@ -611,7 +629,7 @@ setShiftBaseDate(addDaysToDateKey(shiftBaseDate, diffDays));
               />
             </div>
 
-            <div className="mt-3 grid grid-cols-4 gap-2">
+                        <div className="mt-3 grid grid-cols-4 gap-2">
               <MiniStat
                 icon={<CalendarDays className="h-4 w-4" />}
                 label="残り期間"
@@ -633,6 +651,41 @@ setShiftBaseDate(addDaysToDateKey(shiftBaseDate, diffDays));
                 value={todayPlannedMinutes ? formatMinutes(todayPlannedMinutes) : "—"}
               />
             </div>
+
+            {totalTaskCount === 0 ? (
+              <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2.5 text-center">
+                <p className="text-[12px] font-black text-slate-500">
+                  完了するには小タスクを1つ以上追加してください
+                </p>
+                <p className="mt-1 text-[10px] font-bold text-slate-400">
+                  適当な確認用タスクでも大丈夫です。
+                </p>
+              </div>
+            ) : isLongTaskCompleted ? (
+              <div className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2.5 text-center">
+                <p className="text-[12px] font-black text-emerald-700">
+                  この長期タスクは完了済みです
+                </p>
+              </div>
+            ) : canCompleteLongTask ? (
+              <button
+                type="button"
+                onClick={completeLongTask}
+                className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-[14px] font-black text-white shadow-[0_10px_22px_rgba(16,185,129,0.24)] active:scale-[0.99]"
+              >
+                <CheckCircle2 className="h-5 w-5" />
+                この長期タスクを完了する
+              </button>
+            ) : (
+              <div className="mt-3 rounded-2xl bg-amber-50 px-3 py-2.5 text-center">
+                <p className="text-[12px] font-black text-amber-700">
+                  未完了の小タスクがあります
+                </p>
+                <p className="mt-1 text-[10px] font-bold text-amber-600">
+                  すべての小タスクを達成すると完了ボタンが表示されます。
+                </p>
+              </div>
+            )}
           </section>
 
           <div className="mt-3 flex rounded-t-[16px] bg-white text-[13px] font-black">

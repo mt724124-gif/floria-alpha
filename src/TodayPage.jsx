@@ -999,7 +999,7 @@ function TodoSection({
   displayRank={todo.displayRank}
   canSelect={canSelect && !todo.isLongTask}
   canComplete={canComplete}
-  canEdit={canEdit && !todo.isLongTask}
+   canEdit={canEdit}
   canDelete={canDelete && !todo.isLongTask}
   canMoveTomorrow={canMoveTomorrow && !todo.isLongTask}
   canReorder={canReorder && !todo.isLongTask}
@@ -1397,7 +1397,7 @@ function TodoListCard({
   );
 }
 
-function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSelect, onToggle }) {
+function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, canEdit, onSelect, onToggle, onEdit }) {
   const [openDetailId, setOpenDetailId] = useState(null);
   const [openGroupKeys, setOpenGroupKeys] = useState([]);
 
@@ -1421,19 +1421,16 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSel
   const completedCount = totalCount - incompleteCount;
 
   useEffect(() => {
-    const keys = groupEntries.map(([key]) => key);
+  const keys = groupEntries.map(([key]) => key);
 
-    setOpenGroupKeys((current) => {
-      if (keys.length === 0) return [];
-      if (current.length === 0) return keys;
+  setOpenGroupKeys((current) => {
+    if (keys.length === 0) return [];
 
-      const currentSet = new Set(current);
-      const nextKeys = keys.filter((key) => currentSet.has(key));
-      const addedKeys = keys.filter((key) => !currentSet.has(key));
+    const currentSet = new Set(current);
 
-      return [...nextKeys, ...addedKeys];
-    });
-  }, [groupEntries]);
+    return keys.filter((key) => currentSet.has(key));
+  });
+}, [groupEntries]);
 
   const toggleGroup = (key) => {
     setOpenGroupKeys((current) =>
@@ -1526,7 +1523,7 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSel
                             }}
                             className={`relative z-10 px-3 py-2 ${canSelect && !completed ? "cursor-pointer" : "cursor-default"}`}
                           >
-                            <div className="flex min-h-[48px] items-center gap-2">
+                                                        <div className="flex min-h-[48px] items-center gap-2">
                               <button
                                 type="button"
                                 disabled={!canComplete || completed}
@@ -1536,39 +1533,81 @@ function LongTaskListCard({ todos, selectedTaskId, canSelect, canComplete, onSel
                                   onToggle(todo.id);
                                 }}
                                 className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.6px] ${
-                                  completed ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"
-                                } ${!canComplete || completed ? "cursor-not-allowed opacity-60" : ""}`}
+                                  completed
+                                    ? "border-emerald-500 bg-emerald-500 text-white"
+                                    : "border-slate-300 bg-white text-transparent"
+                                } ${
+                                  !canComplete || completed
+                                    ? "cursor-not-allowed opacity-60"
+                                    : ""
+                                }`}
                               >
                                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
                               </button>
 
                               <div className="min-w-0 flex-1 touch-manipulation select-none">
-                                <p className={`text-[13px] font-bold leading-tight tracking-[-0.01em] ${completed ? "text-slate-400" : "text-slate-950"}`}>
-                                  <span className="line-clamp-2 break-words">{todo.title}</span>
+                                <p
+                                  className={`text-[13px] font-bold leading-tight tracking-[-0.01em] ${
+                                    completed
+                                      ? "text-slate-400"
+                                      : "text-slate-950"
+                                  }`}
+                                >
+                                  <span className="line-clamp-2 break-words">
+                                    {todo.title}
+                                  </span>
                                 </p>
 
                                 <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
                                   <div className="flex items-center gap-1 text-emerald-600">
-                                    <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.2} />
-                                    <span className="text-[11px] font-black">長期タスク</span>
+                                    <CalendarDays
+                                      className="h-3.5 w-3.5"
+                                      strokeWidth={2.2}
+                                    />
+                                    <span className="text-[11px] font-black">
+                                      長期タスク
+                                    </span>
                                   </div>
 
                                   {Number(todo.estimatedMinutes) > 0 && (
                                     <div className="flex items-center gap-1 text-slate-400">
-                                      <Clock className="h-3.5 w-3.5" strokeWidth={2.2} />
-                                      <span className="text-[11px] font-bold">{formatMinutes(todo.estimatedMinutes)}</span>
+                                      <Clock
+                                        className="h-3.5 w-3.5"
+                                        strokeWidth={2.2}
+                                      />
+                                      <span className="text-[11px] font-bold">
+                                        {formatMinutes(todo.estimatedMinutes)}
+                                      </span>
                                     </div>
                                   )}
                                 </div>
 
-                                {openDetailId === todo.id && String(todo.detail ?? "").trim() && (
-                                  <div className="mt-2 rounded-2xl bg-slate-50 px-3 py-2">
-                                    <p className="whitespace-pre-wrap text-[12px] font-bold leading-5 text-slate-600">
-                                      {todo.detail}
-                                    </p>
-                                  </div>
-                                )}
+                                {openDetailId === todo.id &&
+                                  String(todo.detail ?? "").trim() && (
+                                    <div className="mt-2 rounded-2xl bg-slate-50 px-3 py-2">
+                                      <p className="whitespace-pre-wrap text-[12px] font-bold leading-5 text-slate-600">
+                                        {todo.detail}
+                                      </p>
+                                    </div>
+                                  )}
                               </div>
+
+                              <button
+                                type="button"
+                                disabled={!canEdit}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (!canEdit) return;
+                                  onEdit(todo);
+                                }}
+                                className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
+                                  !canEdit
+                                    ? "cursor-not-allowed text-slate-200"
+                                    : "text-emerald-500 active:bg-emerald-50"
+                                }`}
+                              >
+                                <Pencil className="h-[17px] w-[17px]" />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1807,6 +1846,7 @@ export default function TodayPage({
   onTaskUpdateHandled,
   appData,
   setAppData,
+  onUpdateTaskEverywhere,
   onNavigate,
   onOpenReview,
 }) {
@@ -2163,7 +2203,31 @@ const undoTimerRef = useRef(null);
     };
 
     if (todoModal.mode === "edit") {
-      setTodos((current) =>
+
+  if (normalizedTodoData.isLongTask) {
+    onUpdateTaskEverywhere?.(normalizedTodoData, {
+      estimatedMinutes: normalizedTodoData.estimatedMinutes ?? null,
+      actualMinutes: normalizedTodoData.actualMinutes ?? 0,
+      actualSeconds:
+        normalizedTodoData.actualSeconds ??
+        (Number(normalizedTodoData.actualMinutes) || 0) * 60,
+      workedMinutes:
+        normalizedTodoData.actualMinutes ?? 0,
+      focusMinutes:
+        normalizedTodoData.actualMinutes ?? 0,
+      elapsedMinutes:
+        normalizedTodoData.actualMinutes ?? 0,
+      elapsedSeconds:
+        normalizedTodoData.actualSeconds ??
+        (Number(normalizedTodoData.actualMinutes) || 0) * 60,
+      detail: normalizedTodoData.detail ?? "",
+      memo: normalizedTodoData.memo ?? normalizedTodoData.detail ?? "",
+    });
+
+    return;
+  }
+
+  setTodos((current) =>
         current.map((todo) =>
           todo.id === normalizedTodoData.id
             ? {
@@ -2845,11 +2909,33 @@ return (
   selectedTaskId={selectedTaskId}
   canSelect={canSelectTask}
   canComplete={canCompleteTask}
+  canEdit={canEditTask}
   onSelect={(todo) => {
     if (!canSelectTask) return;
     if (!isCompleted(todo)) setSelectedTaskId(todo.id);
   }}
   onToggle={toggleTodo}
+  onEdit={(todo) => {
+    if (!canEditTask) return;
+
+    const savedWorkLog = workLogs.find((log) => log.taskId === todo.id);
+    const actualMinutes = getActualMinutesFromTask(todo, savedWorkLog);
+    const actualSeconds = getActualSecondsFromTask(todo, savedWorkLog);
+
+    setTodoModal({
+      open: true,
+      mode: "edit",
+      todo: {
+        ...todo,
+        actualMinutes,
+        actualSeconds,
+        workedMinutes: actualMinutes,
+        focusMinutes: actualMinutes,
+        elapsedMinutes: actualMinutes,
+        elapsedSeconds: actualSeconds,
+      },
+    });
+  }}
 />
 
           <TodayRecordCard

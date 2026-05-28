@@ -852,7 +852,7 @@ const Icon = style.icon;
             </div>
           </div>
 
-          {postponed ? (
+                    {postponed ? (
   <div className="relative h-8 w-[72px] shrink-0 overflow-hidden rounded-xl border border-orange-100 bg-orange-50">
     <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-1 px-2 text-[11px] font-black text-orange-600">
       <span>{formatPostponeButtonLabel(displayPostponeDate, baseDateKey)}</span>
@@ -880,6 +880,8 @@ const Icon = style.icon;
   className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
 />
   </div>
+) : completed ? (
+  <div className="h-8 w-7 shrink-0" />
 ) : (
             <button
               type="button"
@@ -890,7 +892,9 @@ const Icon = style.icon;
   onEdit(task);
 }}
               className={`grid h-8 w-7 shrink-0 place-items-center rounded-xl ${
-                disabled || isLongDailyReviewTask(task) ? "cursor-not-allowed text-slate-200" : "text-emerald-500 active:bg-emerald-50"
+                disabled
+  ? "cursor-not-allowed text-slate-200"
+  : "text-emerald-500 active:bg-emerald-50"
               }`}
             >
               <Pencil className="h-[17px] w-[17px]" />
@@ -1650,10 +1654,10 @@ const canConfirm = !isConfirmed && incompleteTasks.length === 0;
     const workLog = (appData?.workLogs ?? []).find((log) => log.taskId === task.id);
     const minutes = getActualMinutes(task, workLog);
 
-    if (!isLongDailyReviewTask(task) && hasPlannedTime(task) && minutes <= 0) {
-      setWorkLogModal({ open: true, task, completeAfterSave: true });
-      return;
-    }
+    if (hasPlannedTime(task) && minutes <= 0) {
+  setWorkLogModal({ open: true, task, completeAfterSave: true });
+  return;
+}
 
     completeTask(task, minutes);
   };
@@ -1788,9 +1792,31 @@ const handleMoveTaskToStatus = (taskOrId, nextStatus) => {
 };
 
   const handleEditTask = (task) => {
-    if (isConfirmed || isPostponed(task) || isLongDailyReviewTask(task)) return;
-    setTodoModal({ open: true, mode: "edit", todo: task });
-  };
+  if (isConfirmed || isPostponed(task)) return;
+
+  setTodoModal({
+    open: true,
+    mode: "edit",
+    todo: {
+      ...task,
+      actualMinutes:
+        task.actualMinutes ??
+        task.workedMinutes ??
+        task.focusMinutes ??
+        task.elapsedMinutes ??
+        0,
+      actualSeconds:
+        task.actualSeconds ??
+        (Number(
+          task.actualMinutes ??
+          task.workedMinutes ??
+          task.focusMinutes ??
+          task.elapsedMinutes ??
+          0
+        ) * 60),
+    },
+  });
+};
 
   const handleDeleteTask = (task) => {
     if (isConfirmed || isLongDailyReviewTask(task)) return;
@@ -1853,33 +1879,31 @@ const handleMoveTaskToStatus = (taskOrId, nextStatus) => {
 
 
   const handleSaveWorkLog = (log) => {
-    if (isConfirmed) return;
+  if (isConfirmed) return;
 
-    const seconds = log.seconds ?? log.minutes * 60;
+  const seconds = log.seconds ?? log.minutes * 60;
+  const sourceTask = workLogModal.task;
 
-    setAppData((current) => {
-      const nextTasks = (current.tasks ?? []).map((task) =>
-        task.id === log.taskId
-          ? {
-              ...task,
-              actualMinutes: log.minutes,
-              actualSeconds: seconds,
-              workedMinutes: log.minutes,
-              focusMinutes: log.minutes,
-              elapsedMinutes: log.minutes,
-              elapsedSeconds: seconds,
-              completed: log.completeAfterSave ? true : task.completed,
-              taskStatus: log.completeAfterSave ? "completed" : task.taskStatus ?? "pending",
-              completedAt: log.completeAfterSave ? new Date().toISOString() : task.completedAt ?? null,
-              postponedToDate: log.completeAfterSave ? null : task.postponedToDate ?? null,
-              postponedCloneId: log.completeAfterSave ? null : task.postponedCloneId ?? null,
-              ...preserveReviewTaskType(task),
-            }
-          : task
+  setAppData((current) => {
+    if (isLongDailyReviewTask(sourceTask)) {
+      const nextLongTasks = updateLongDailyTaskInCalendar(
+        current.longTasks ?? [],
+        sourceTask,
+        (item) => ({
+          ...item,
+          actualMinutes: log.minutes,
+          actualSeconds: seconds,
+          workedMinutes: log.minutes,
+          focusMinutes: log.minutes,
+          elapsedMinutes: log.minutes,
+          elapsedSeconds: seconds,
+          completed: log.completeAfterSave ? true : item.completed,
+          taskStatus: log.completeAfterSave ? "completed" : item.taskStatus ?? "pending",
+          completedAt: log.completeAfterSave ? new Date().toISOString() : item.completedAt ?? null,
+          postponedToDate: log.completeAfterSave ? null : item.postponedToDate ?? null,
+          reviewOnly: false,
+        })
       );
-
-      const targetTask = (current.tasks ?? []).find((task) => task.id === log.taskId);
-      const nextTasksWithoutClone = log.completeAfterSave && targetTask ? removePostponedClone(nextTasks, targetTask) : nextTasks;
 
       const nextWorkLogs = [
         ...(current.workLogs ?? []).filter((item) => item.taskId !== log.taskId),
@@ -1888,17 +1912,105 @@ const handleMoveTaskToStatus = (taskOrId, nextStatus) => {
 
       return {
         ...current,
-        tasks: nextTasksWithoutClone,
+        longTasks: nextLongTasks,
         workLogs: nextWorkLogs,
-        dailyRecords: syncCurrentDateRecords(current, nextTasksWithoutClone),
+        dailyRecords: syncCurrentDateRecords(current, current.tasks ?? [], nextLongTasks),
       };
-    });
-  };
+    }
+
+    const nextTasks = (current.tasks ?? []).map((task) =>
+      task.id === log.taskId
+        ? {
+            ...task,
+            actualMinutes: log.minutes,
+            actualSeconds: seconds,
+            workedMinutes: log.minutes,
+            focusMinutes: log.minutes,
+            elapsedMinutes: log.minutes,
+            elapsedSeconds: seconds,
+            completed: log.completeAfterSave ? true : task.completed,
+            taskStatus: log.completeAfterSave ? "completed" : task.taskStatus ?? "pending",
+            completedAt: log.completeAfterSave ? new Date().toISOString() : task.completedAt ?? null,
+            postponedToDate: log.completeAfterSave ? null : task.postponedToDate ?? null,
+            postponedCloneId: log.completeAfterSave ? null : task.postponedCloneId ?? null,
+            ...preserveReviewTaskType(task),
+          }
+        : task
+    );
+
+    const targetTask = (current.tasks ?? []).find((task) => task.id === log.taskId);
+    const nextTasksWithoutClone =
+      log.completeAfterSave && targetTask
+        ? removePostponedClone(nextTasks, targetTask)
+        : nextTasks;
+
+    const nextWorkLogs = [
+      ...(current.workLogs ?? []).filter((item) => item.taskId !== log.taskId),
+      { ...log, seconds, id: Date.now(), date: dateKey },
+    ];
+
+    return {
+      ...current,
+      tasks: nextTasksWithoutClone,
+      workLogs: nextWorkLogs,
+      dailyRecords: syncCurrentDateRecords(current, nextTasksWithoutClone),
+    };
+  });
+};
 
   const handleSaveTask = (updatedTask) => {
-    if (isConfirmed) return;
+  if (isConfirmed) return;
 
+  if (isLongDailyReviewTask(updatedTask)) {
     setAppData((current) => {
+
+      const nextLongTasks = updateLongDailyTaskInCalendar(
+        current.longTasks ?? [],
+        updatedTask,
+        (item) => ({
+          ...item,
+          estimatedMinutes: updatedTask.estimatedMinutes ?? null,
+          actualMinutes: updatedTask.actualMinutes ?? 0,
+          actualSeconds:
+            updatedTask.actualSeconds ??
+            (Number(updatedTask.actualMinutes) || 0) * 60,
+          workedMinutes:
+            updatedTask.workedMinutes ??
+            updatedTask.actualMinutes ??
+            0,
+          focusMinutes:
+            updatedTask.focusMinutes ??
+            updatedTask.actualMinutes ??
+            0,
+          elapsedMinutes:
+            updatedTask.elapsedMinutes ??
+            updatedTask.actualMinutes ??
+            0,
+          elapsedSeconds:
+            updatedTask.elapsedSeconds ??
+            updatedTask.actualSeconds ??
+            (Number(updatedTask.actualMinutes) || 0) * 60,
+          detail: updatedTask.detail ?? "",
+          memo: updatedTask.memo ?? updatedTask.detail ?? "",
+        })
+      );
+
+      return {
+        ...current,
+        longTasks: nextLongTasks,
+        dailyRecords: syncCurrentDateRecords(
+          current,
+          current.tasks ?? [],
+          nextLongTasks
+        ),
+      };
+    });
+
+    setTodoModal({ open: false, mode: "edit", todo: null });
+    return;
+  }
+
+  setAppData((current) => {
       const nextTasks = (current.tasks ?? []).map((item) =>
         item.id === updatedTask.id
           ? {

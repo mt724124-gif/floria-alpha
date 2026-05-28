@@ -683,9 +683,15 @@ function MonthCalendar({ currentDate, selectedDate, setSelectedDate, longTasks, 
                       onOpenLongTask(task);
                     }
                   }} className="pointer-events-auto relative flex h-[13px] items-center transition-all duration-200" style={{ ...placement, gridRow: `${rowIndex + 1}` }}>
-                    <span className={`${task.color ?? "bg-emerald-400"} block h-[12px] w-full truncate rounded-r-full px-1.5 text-[7.5px] font-black leading-[12px] text-white shadow-sm`}>
-                      {task.title}
-                    </span>
+                    <span
+  className={`block h-[12px] w-full truncate rounded-r-full px-1.5 text-[7.5px] font-black leading-[12px] shadow-sm ${
+    task.taskStatus === "completed" || task.completed
+      ? "bg-slate-200 text-slate-500 opacity-70"
+      : `${task.color ?? "bg-emerald-400"} text-white`
+  }`}
+>
+  {task.title}
+</span>
                   </button>
                 ))}
               </div>
@@ -857,7 +863,13 @@ function WeekCalendar({ currentDate, setCurrentDate, selectedDate, setSelectedDa
 
                   <div className="pointer-events-none absolute left-2 right-2 top-3 grid grid-cols-7">
                     <button type="button" onClick={() => onOpenLongTask(task)} className="pointer-events-auto flex h-[30px] items-center" style={placement}>
-                      <span className={`flex h-[30px] w-full items-center justify-between gap-2 rounded-r-full px-2.5 text-[11px] font-black text-white shadow-sm ${task.color ?? "bg-emerald-400"}`}>
+                      <span
+  className={`flex h-[30px] w-full items-center justify-between gap-2 rounded-r-full px-2.5 text-[11px] font-black shadow-sm ${
+    task.taskStatus === "completed" || task.completed
+      ? "bg-slate-200 text-slate-500 opacity-70"
+      : `${task.color ?? "bg-emerald-400"} text-white`
+  }`}
+>
                         <span className="min-w-0 truncate">{task.title}</span>
                         <span className="shrink-0 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-black text-slate-700">
                           {remainingDays > 0 ? `残り${remainingDays}日` : "終了"}
@@ -1003,11 +1015,9 @@ function MonthSummary({ expanded, setExpanded, longTasks, onAddLongTask, current
     return diffDays >= 0 && diffDays <= 2;
   }).length;
 
-  const completedCount = visibleTasks.filter((task) => {
-    const end = parseDate(task.end);
-    end.setHours(0, 0, 0, 0);
-    return end < today;
-  }).length;
+  const completedCount = visibleTasks.filter(
+  (task) => task.taskStatus === "completed" || task.completed === true
+).length;
 
   return (
     <section className="mx-3 mt-2 shrink-0 rounded-[18px] border border-slate-100 bg-white px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
