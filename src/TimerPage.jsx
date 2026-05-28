@@ -487,7 +487,7 @@ useEffect(() => {
     window.removeEventListener("beforeunload", saveTimerBeforeClose);
     document.removeEventListener("visibilitychange", handleVisibilityChange);
   };
-}, [localTask, isRunning, elapsedSeconds, onSaveProgress, onComplete]);
+}, [localTask, isRunning, onSaveProgress]);
 
   const handleClose = () => {
   if (!localTask?.id) {
