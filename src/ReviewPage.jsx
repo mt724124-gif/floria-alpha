@@ -1377,16 +1377,15 @@ const displayRecord = {
 };
 
 const activeTasks = reviewTasks.filter((task) => task.taskStatus !== "deleted");
-const incompleteTasks = activeTasks.filter(
-  (task) => {
-    const status = getReviewStatus(task);
-    return status === "pending" || status === "postponed";
-  }
+
+const pendingTasks = activeTasks.filter(
+  (task) => getReviewStatus(task) === "pending"
 );
+
 const taskCount = activeTasks.length;
 const isAutoCompletedEmptyDay = taskCount === 0;
 const isConfirmed = rawRecord.status === "confirmed" || rawRecord.reviewCompleted === true;
-const canConfirm = !isConfirmed && incompleteTasks.length === 0;
+const canConfirm = !isConfirmed && pendingTasks.length === 0;
   const todayKey = getTodayKey();
 const isPastReviewDate = dateKey < todayKey;
 const defaultPostponeDateKey = getTomorrowKey(dateKey);
@@ -2136,26 +2135,37 @@ const handleMoveTaskToStatus = (taskOrId, nextStatus) => {
     });
 
     const nextTasks = [...tasksWithCloneIds, ...clones];
-    const currentReviewTasks = buildReviewTasksForDate(nextTasks, current.longTasks ?? [], dateKey);
 
-    const nextLongTasks = applyLongTaskReviewToCalendar(
-      current.longTasks ?? [],
-      currentReviewTasks,
-      dateKey
-    );
-
-    const nextDailyRecords = syncDailyRecordFromTasks(
-  current.dailyRecords ?? {},
-  dateKey,
-  currentReviewTasks
+const currentReviewTasks = buildReviewTasksForDate(
+  nextTasks,
+  current.longTasks ?? [],
+  dateKey
 );
 
-    return {
-      ...current,
-      tasks: nextTasks,
-      longTasks: nextLongTasks,
-      dailyRecords: confirmDailyRecord(nextDailyRecords, dateKey, { reflectionText }),
-    };
+const nextLongTasks = applyLongTaskReviewToCalendar(
+  current.longTasks ?? [],
+  currentReviewTasks,
+  dateKey
+);
+
+const finalizedReviewTasks = buildReviewTasksForDate(
+  nextTasks,
+  nextLongTasks,
+  dateKey
+);
+
+const nextDailyRecords = syncDailyRecordFromTasks(
+  current.dailyRecords ?? {},
+  dateKey,
+  finalizedReviewTasks
+);
+
+return {
+  ...current,
+  tasks: nextTasks,
+  longTasks: nextLongTasks,
+  dailyRecords: confirmDailyRecord(nextDailyRecords, dateKey, { reflectionText }),
+};
   });
 };
 
@@ -2219,11 +2229,11 @@ const handleMoveTaskToStatus = (taskOrId, nextStatus) => {
 
     
 
-          {!isConfirmed && incompleteTasks.length === 0 && !isAutoCompletedEmptyDay && (
-            <div className="rounded-[20px] bg-emerald-50 px-4 py-3 text-[13px] font-bold leading-5 text-emerald-700">
-              すべてのタスクが分類済みです。振り返りを完了できます。
-            </div>
-          )}
+          {!isConfirmed && pendingTasks.length === 0 && !isAutoCompletedEmptyDay && (
+  <div className="rounded-[20px] bg-emerald-50 px-4 py-3 text-[13px] font-bold leading-5 text-emerald-700">
+    すべてのタスクが分類済みです。振り返りを完了できます。
+  </div>
+)}
 
           <TaskSection
   record={{
