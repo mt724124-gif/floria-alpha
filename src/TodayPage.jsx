@@ -787,7 +787,7 @@ const moveTomorrowThreshold = 104;
     >
       {!dragging && !isCompleted(todo) && canMoveTomorrow && (
         <div className="absolute inset-y-0 left-0 z-0 flex w-32 items-center justify-start bg-amber-50 px-4 text-amber-600">
-          <span className="text-xs font-black">明日へ</span>
+          <span className="text-xs font-black">延期へ</span>
         </div>
       )}
 
@@ -2571,39 +2571,41 @@ createdDate:
   };
 
   const moveTodoTomorrow = (todo) => {
-    if (!canMoveTomorrow) return;
+  if (!canMoveTomorrow) return;
 
-    const originalDate = getTodoDateKey(todo);
-    const tomorrowKey = addDaysToDateKey(todayDateKey, 1);
+  const originalDate = getTodoDateKey(todo);
+  const postponeDateKey = addDaysToDateKey(todayDateKey, 1);
 
-    setTodos((current) =>
-      current.map((item) =>
-        item.id === todo.id
-          ? {
-              ...item,
-              completed: false,
-              taskStatus: "pending",
-              completedAt: null,
-              targetDate: tomorrowKey,
-              date: item.date === originalDate ? tomorrowKey : item.date,
-            }
-          : item
-      )
-    );
+  setTodos((current) =>
+    current.map((item) =>
+      item.id === todo.id
+        ? {
+            ...item,
+            completed: false,
+            taskStatus: "postponed",
+            completedAt: null,
+            postponedToDate: postponeDateKey,
+            postponedCloneId: null,
+            targetDate: originalDate,
+            date: item.date,
+          }
+        : item
+    )
+  );
 
-    if (selectedTaskId === todo.id) {
-      setSelectedTaskId(null);
-    }
+  if (selectedTaskId === todo.id) {
+    setSelectedTaskId(null);
+  }
 
-    showUndoToast({
-      type: "moveTomorrow",
-      message: "明日に移動しました",
-      taskTitle: todo.title,
-      todo,
-      originalDate,
-      movedDate: tomorrowKey,
-    });
-  };
+  showUndoToast({
+    type: "moveTomorrow",
+    message: "延期に移動しました",
+    taskTitle: todo.title,
+    todo,
+    originalDate,
+    movedDate: postponeDateKey,
+  });
+};
 
   const undoLastAction = () => {
     if (!undoToast) return;
@@ -2630,25 +2632,26 @@ createdDate:
     }
 
     if (undoToast.type === "moveTomorrow") {
-      setTodos((current) =>
-        current.map((todo) =>
-          todo.id === undoToast.todo.id
-            ? {
-                ...todo,
-                targetDate: undoToast.originalDate,
-                date:
-                  todo.date === undoToast.movedDate
-                    ? undoToast.originalDate
-                    : todo.date,
-              }
-            : todo
-        )
-      );
+  setTodos((current) =>
+    current.map((todo) =>
+      todo.id === undoToast.todo.id
+        ? {
+            ...todo,
+            completed: false,
+            taskStatus: "pending",
+            completedAt: null,
+            postponedToDate: null,
+            postponedCloneId: null,
+            targetDate: undoToast.originalDate,
+          }
+        : todo
+    )
+  );
 
-      if (!isCompleted(undoToast.todo) && undoToast.originalDate === selectedDateKey) {
-        setSelectedTaskId(undoToast.todo.id);
-      }
-    }
+  if (!isCompleted(undoToast.todo) && undoToast.originalDate === selectedDateKey) {
+    setSelectedTaskId(undoToast.todo.id);
+  }
+}
 
     setUndoToast(null);
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
