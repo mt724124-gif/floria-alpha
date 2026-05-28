@@ -1377,7 +1377,12 @@ const displayRecord = {
 };
 
 const activeTasks = reviewTasks.filter((task) => task.taskStatus !== "deleted");
-const incompleteTasks = activeTasks.filter((task) => getReviewStatus(task) === "pending");
+const incompleteTasks = activeTasks.filter(
+  (task) => {
+    const status = getReviewStatus(task);
+    return status === "pending" || status === "postponed";
+  }
+);
 const taskCount = activeTasks.length;
 const isAutoCompletedEmptyDay = taskCount === 0;
 const isConfirmed = rawRecord.status === "confirmed" || rawRecord.reviewCompleted === true;
