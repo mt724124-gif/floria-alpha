@@ -2126,10 +2126,14 @@ const undoTimerRef = useRef(null);
     null;
 
   const completedCount = filteredTodos.filter((t) => isCompleted(t)).length;
-  const incompleteTodos = filteredTodos.filter((t) => !isCompleted(t));
-  const incompleteNormalTodos = incompleteTodos.filter((todo) => !todo.isLongTask);
-  const incompleteLongTodos = incompleteTodos.filter((todo) => todo.isLongTask);
-  const incompleteCount = incompleteTodos.length;
+
+const incompleteTodos = filteredTodos.filter(
+  (t) => !isCompleted(t) && t.taskStatus !== "postponed"
+);
+
+const incompleteNormalTodos = incompleteTodos.filter((todo) => !todo.isLongTask);
+const incompleteLongTodos = incompleteTodos.filter((todo) => todo.isLongTask);
+const incompleteCount = incompleteTodos.length;
 
   const showUndoToast = (toast) => {
     setUndoToast(toast);
