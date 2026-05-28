@@ -1388,7 +1388,8 @@ const isAutoCompletedEmptyDay = taskCount === 0;
 const isConfirmed = rawRecord.status === "confirmed" || rawRecord.reviewCompleted === true;
 const canConfirm = !isConfirmed && incompleteTasks.length === 0;
   const todayKey = getTodayKey();
-  const defaultPostponeDateKey = getTomorrowKey(dateKey);
+const isPastReviewDate = dateKey < todayKey;
+const defaultPostponeDateKey = getTomorrowKey(dateKey);
 
   const [reflectionText, setReflectionText] = useState(record.reflectionText ?? "");
 
@@ -2253,12 +2254,13 @@ requestCompleteTask={requestCompleteTask}
 {!isAutoCompletedEmptyDay && (
         <button
   type="button"
-  disabled={!isConfirmed && !canConfirm}
-  onClick={(event) => {
+  disabled={(!isConfirmed && !canConfirm) || (isConfirmed && isPastReviewDate)}
+onClick={(event) => {
   event.preventDefault();
   event.stopPropagation();
 
   if (isConfirmed) {
+    if (isPastReviewDate) return;
     unconfirmReview();
   } else {
     confirmReview();
@@ -2279,10 +2281,12 @@ requestCompleteTask={requestCompleteTask}
   )}
 
   {isConfirmed
-    ? "振り返り完了を解除する"
-    : canConfirm
-      ? "今日の振り返りを完了する"
-      : "未達成タスクを分類してください"}
+  ? isPastReviewDate
+    ? "過去日の振り返りは完了済みです"
+    : "振り返り完了を解除する"
+  : canConfirm
+    ? "今日の振り返りを完了する"
+    : "未達成タスクを分類してください"}
 </button>
 )}
       </main>
