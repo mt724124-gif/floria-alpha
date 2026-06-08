@@ -9,6 +9,7 @@ import AIPage from "./AIPage";
 import { updateDailyRecordTask } from "./utils/dailyRecords";
 
 const STORAGE_KEY = "todo-app-data-v1";
+const LEGACY_LONG_TASKS_STORAGE_KEY = "todo-app-long-tasks-v1";
 
 function getTodayKey() {
   return new Date().toLocaleDateString("sv-SE");
@@ -113,6 +114,19 @@ function loadSavedData() {
   }
 }
 
+function loadLegacyLongTasks() {
+  try {
+    const saved = localStorage.getItem(LEGACY_LONG_TASKS_STORAGE_KEY);
+    if (!saved) return null;
+
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch (error) {
+    console.error("旧長期タスクデータの読み込みに失敗しました", error);
+    return null;
+  }
+}
+
 function saveData(data) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -206,6 +220,11 @@ function normalizeDailyPlan(plan = {}, longTaskId = "") {
 }
 
 function createInitialAppData() {
+  const savedData = loadSavedData() ?? {};
+  const hasSavedLongTasks =
+    Array.isArray(savedData.longTasks) && savedData.longTasks.length > 0;
+  const legacyLongTasks = hasSavedLongTasks ? null : loadLegacyLongTasks();
+
   return {
     tasks: [],
     categories: ["学習", "仕事", "健康", "その他"],
@@ -215,7 +234,8 @@ function createInitialAppData() {
     longTasks: [],
     aiLongTaskDrafts: [],
     settings: {},
-    ...(loadSavedData() ?? {}),
+    ...savedData,
+    longTasks: legacyLongTasks ?? savedData.longTasks ?? [],
   };
 }
 
