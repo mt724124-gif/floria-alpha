@@ -1077,22 +1077,16 @@ export default function CalendarPage({ appData, setAppData, onNavigate }) {
   const [viewMode, setViewMode] = useState("month");
   const [summaryExpanded, setSummaryExpanded] = useState(true);
 
-  const LONG_TASKS_STORAGE_KEY = "todo-app-long-tasks-v1";
   const CATEGORIES_STORAGE_KEY = "todo-app-long-task-categories-v1";
 
   const [longTasks, setLongTasks] = useState(() => {
     const fromAppData = appData?.longTasks;
 
-    if (Array.isArray(fromAppData) && fromAppData.length > 0) {
+    if (Array.isArray(fromAppData)) {
       return normalizeLongTaskList(fromAppData);
     }
 
-    try {
-      const saved = localStorage.getItem(LONG_TASKS_STORAGE_KEY);
-      return saved ? normalizeLongTaskList(JSON.parse(saved)) : initialLongTasks;
-    } catch {
-      return initialLongTasks;
-    }
+    return initialLongTasks;
   });
 
   const [longTaskCategories, setLongTaskCategories] = useState(() => {
@@ -1120,14 +1114,6 @@ const [periodWarning, setPeriodWarning] = useState(null);
     if (!Array.isArray(appData?.longTasks)) return;
     setLongTasks(normalizeLongTaskList(appData.longTasks));
   }, [appData?.longTasks]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(LONG_TASKS_STORAGE_KEY, JSON.stringify(longTasks));
-    } catch (error) {
-      console.error("長期タスクの保存に失敗しました", error);
-    }
-  }, [longTasks]);
 
   useEffect(() => {
     try {
@@ -1327,7 +1313,7 @@ const saveLongTask = (task) => {
   const reorderLongTasks = (orderedIds) => {
     if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
 
-    setLongTasks((current) => {
+    const applyOrder = (current = []) => {
       const orderedKeySet = new Set(orderedIds.map((id) => String(id)));
       const orderedTasks = orderedIds
         .map((id) => current.find((task) => String(task.id) === String(id)))
@@ -1336,6 +1322,14 @@ const saveLongTask = (task) => {
       const otherTasks = current.filter((task) => !orderedKeySet.has(String(task.id)));
 
       return [...orderedTasks, ...otherTasks];
+    };
+
+    setLongTasks(applyOrder);
+    setAppData?.((currentAppData) => {
+      return {
+        ...currentAppData,
+        longTasks: applyOrder(currentAppData.longTasks ?? []),
+      };
     });
   };
 
