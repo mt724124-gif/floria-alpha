@@ -1,7 +1,10 @@
+import { useState } from "react";
 import {
   BarChart3,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   CircleDot,
   Clock3,
   Medal,
@@ -10,6 +13,33 @@ import {
 import BottomNav from "./components/BottomNav";
 
 const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
+
+const TREND_MODES = {
+  focus: {
+    label: "集中時間",
+    title: "日別の集中時間",
+    icon: Clock3,
+    valueKey: "focusMinutes",
+    colorClass: "bg-emerald-500",
+    valueLabel: (value) => (value > 0 ? formatMinutes(value) : "0分"),
+  },
+  completed: {
+    label: "完了数",
+    title: "日別の完了数",
+    icon: CheckCircle2,
+    valueKey: "completedTaskCount",
+    colorClass: "bg-blue-500",
+    valueLabel: (value) => `${value}件`,
+  },
+  achievement: {
+    label: "達成率",
+    title: "日別の達成率",
+    icon: BarChart3,
+    valueKey: "achievementRate",
+    colorClass: "bg-violet-500",
+    valueLabel: (value) => `${value}%`,
+  },
+};
 
 function getDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -66,8 +96,8 @@ function isCompleted(task) {
   return task?.taskStatus === "completed" || task?.completed === true;
 }
 
-function getWeekDays() {
-  const start = getStartOfWeek();
+function getWeekDays(baseDate = new Date()) {
+  const start = getStartOfWeek(baseDate);
   return Array.from({ length: 7 }, (_, index) => {
     const date = addDays(start, index);
     return {
@@ -78,8 +108,8 @@ function getWeekDays() {
   });
 }
 
-function buildWeekStats(appData = {}) {
-  const weekDays = getWeekDays();
+function buildWeekStats(appData = {}, baseDate = new Date()) {
+  const weekDays = getWeekDays(baseDate);
   const dailyRecords = appData.dailyRecords ?? {};
 
   const days = weekDays.map((day) => {
@@ -166,17 +196,39 @@ function buildLongTaskProgress(appData = {}, weekDays = []) {
     .sort((a, b) => b.progress - a.progress || b.total - a.total);
 }
 
-function Header({ rangeLabel }) {
+function Header({ rangeLabel, onPreviousWeek, onNextWeek }) {
   return (
-    <header className="mb-3 flex items-center justify-between">
-      <div>
-        <p className="text-[12px] font-black text-emerald-600">今週のまとめ</p>
-        <h1 className="text-[24px] font-black text-slate-950">週間まとめ</h1>
+    <header className="mb-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <p className="text-[12px] font-black text-emerald-600">今週のまとめ</p>
+          <h1 className="text-[24px] font-black text-slate-950">週間まとめ</h1>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1.5 rounded-2xl bg-white px-3 py-2 text-[12px] font-black text-slate-500 shadow-sm">
-        <CalendarDays className="h-4 w-4 text-emerald-500" strokeWidth={2.4} />
-        <span>{rangeLabel}</span>
+      <div className="grid grid-cols-[40px_1fr_40px] items-center gap-2 rounded-2xl bg-white p-1.5 text-[12px] font-black text-slate-500 shadow-sm">
+        <button
+          type="button"
+          onClick={onPreviousWeek}
+          className="grid h-9 w-9 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
+          aria-label="前週"
+        >
+          <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
+        </button>
+
+        <div className="flex min-w-0 items-center justify-center gap-1.5">
+          <CalendarDays className="h-4 w-4 shrink-0 text-emerald-500" strokeWidth={2.4} />
+          <span className="truncate">{rangeLabel}</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={onNextWeek}
+          className="grid h-9 w-9 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
+          aria-label="翌週"
+        >
+          <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
+        </button>
       </div>
     </header>
   );
@@ -184,7 +236,7 @@ function Header({ rangeLabel }) {
 
 function SummaryCard({ stats }) {
   return (
-    <section className="mb-3 rounded-[22px] border border-emerald-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
+    <section className="rounded-[22px] border border-emerald-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
       <div className="grid grid-cols-3 divide-x divide-slate-100">
         <SummaryItem
           icon={Clock3}
@@ -222,28 +274,56 @@ function SummaryItem({ icon: Icon, label, value }) {
   );
 }
 
-function TrendCard({ title, icon: Icon, days, valueKey, valueLabel, colorClass }) {
-  const maxValue = Math.max(1, ...days.map((day) => Number(day[valueKey] ?? 0)));
+function TrendCard({ days }) {
+  const [mode, setMode] = useState("focus");
+  const activeMode = TREND_MODES[mode] ?? TREND_MODES.focus;
+  const Icon = activeMode.icon;
+  const maxValue = Math.max(
+    1,
+    ...days.map((day) => Number(day[activeMode.valueKey] ?? 0))
+  );
 
   return (
     <section className="rounded-[20px] border border-slate-100 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
       <div className="mb-3 flex items-center gap-2">
         <Icon className="h-5 w-5 text-emerald-500" strokeWidth={2.4} />
-        <h2 className="text-[15px] font-black text-slate-950">{title}</h2>
+        <h2 className="min-w-0 flex-1 truncate text-[15px] font-black text-slate-950">
+          {activeMode.title}
+        </h2>
+      </div>
+
+      <div className="mb-3 grid grid-cols-3 gap-1 rounded-2xl bg-slate-50 p-1">
+        {Object.entries(TREND_MODES).map(([key, item]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setMode(key)}
+            className={`h-8 rounded-xl text-[12px] font-black ${
+              mode === key
+                ? "bg-white text-emerald-600 shadow-sm"
+                : "text-slate-400"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       <div className="flex h-[118px] items-end gap-2 border-b border-slate-100 px-1">
         {days.map((day) => {
-          const value = Number(day[valueKey] ?? 0);
+          const value = Number(day[activeMode.valueKey] ?? 0);
           const height = value === 0 ? 3 : Math.max(8, (value / maxValue) * 100);
 
           return (
-            <div key={day.dateKey} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
+            <div
+              key={day.dateKey}
+              className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
+            >
               <div className="text-[10px] font-black text-slate-400">
-                {valueLabel(value)}
+                {activeMode.valueLabel(value)}
               </div>
               <div
-                className={`w-full max-w-[18px] rounded-t-lg ${colorClass}`}
+                className={`w-full max-w-[18px] rounded-t-lg ${activeMode.colorClass}`}
                 style={{ height: `${height}%` }}
               />
             </div>
@@ -280,7 +360,9 @@ function BestDayCard({ bestDay }) {
         <div>
           <p className="text-[12px] font-black text-amber-600">ベストデイ</p>
           <h2 className="text-[17px] font-black text-slate-950">
-            {bestDay ? `${formatShortDate(bestDay.dateKey)}（${bestDay.weekday}）` : "まだありません"}
+            {bestDay
+              ? `${formatShortDate(bestDay.dateKey)}（${bestDay.weekday}）`
+              : "まだありません"}
           </h2>
         </div>
       </div>
@@ -293,7 +375,7 @@ function BestDayCard({ bestDay }) {
         </div>
       ) : (
         <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-[13px] font-bold text-slate-400">
-          今週の記録はまだありません
+          この週の記録はまだありません
         </p>
       )}
     </section>
@@ -324,7 +406,7 @@ function LongTaskProgressCard({ tasks }) {
 
       {tasks.length === 0 ? (
         <p className="rounded-2xl bg-slate-50 px-3 py-5 text-center text-[13px] font-bold text-slate-400">
-          今週予定されている長期タスクはありません
+          この週に予定されている長期タスクはありません
         </p>
       ) : (
         <div className="space-y-3">
@@ -354,7 +436,8 @@ function LongTaskProgressCard({ tasks }) {
 }
 
 export default function StatsPage({ appData, onNavigate }) {
-  const stats = buildWeekStats(appData);
+  const [baseDate, setBaseDate] = useState(() => new Date());
+  const stats = buildWeekStats(appData, baseDate);
   const longTaskProgress = buildLongTaskProgress(appData, stats.days);
   const rangeLabel = `${formatShortDate(stats.days[0].dateKey)} - ${formatShortDate(
     stats.days[6].dateKey
@@ -363,38 +446,15 @@ export default function StatsPage({ appData, onNavigate }) {
   return (
     <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
       <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(94px+env(safe-area-inset-bottom))] pt-[calc(12px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
-        <Header rangeLabel={rangeLabel} />
+        <Header
+          rangeLabel={rangeLabel}
+          onPreviousWeek={() => setBaseDate((current) => addDays(current, -7))}
+          onNextWeek={() => setBaseDate((current) => addDays(current, 7))}
+        />
 
         <main className="space-y-3">
           <SummaryCard stats={stats} />
-
-          <TrendCard
-            title="日別の集中時間"
-            icon={Clock3}
-            days={stats.days}
-            valueKey="focusMinutes"
-            valueLabel={(value) => (value > 0 ? formatMinutes(value) : "0分")}
-            colorClass="bg-emerald-500"
-          />
-
-          <TrendCard
-            title="日別の完了数"
-            icon={CheckCircle2}
-            days={stats.days}
-            valueKey="completedTaskCount"
-            valueLabel={(value) => `${value}件`}
-            colorClass="bg-blue-500"
-          />
-
-          <TrendCard
-            title="日別の達成率"
-            icon={BarChart3}
-            days={stats.days}
-            valueKey="achievementRate"
-            valueLabel={(value) => `${value}%`}
-            colorClass="bg-violet-500"
-          />
-
+          <TrendCard days={stats.days} />
           <BestDayCard bestDay={stats.bestDay} />
           <LongTaskProgressCard tasks={longTaskProgress} />
         </main>
