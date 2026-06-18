@@ -385,6 +385,23 @@ function cloneRequestTasksForSave(tasks) {
   }));
 }
 
+function buildOriginalRequestText(tasks) {
+  return (tasks ?? [])
+    .map((task, index) => {
+      const lines = [
+        `${index + 1}. ${String(task.title ?? "").trim() || "Untitled"}`,
+        `期間: ${task.startDate ?? ""}〜${task.endDate ?? ""}`,
+      ];
+
+      if (String(task.detail ?? "").trim()) {
+        lines.push(`要望: ${String(task.detail).trim()}`);
+      }
+
+      return lines.join("\n");
+    })
+    .join("\n\n");
+}
+
 function restoreRequestTasks(tasks) {
   const restored = (tasks ?? []).map((task, index) => ({
     id: makeId() + index,
@@ -1915,7 +1932,7 @@ setDragClientY(0);
   );
 }
 
-function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
+function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks, requestTasks }) {
   const [jsonText, setJsonText] = useState("");
   const [parseStatus, setParseStatus] = useState(null);
   const [activeTaskId, setActiveTaskId] = useState(aiTasks[0]?.id ?? null);
@@ -1978,8 +1995,15 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks }) {
   };
 
   const saveTasks = () => {
+  const originalRequest = buildOriginalRequestText(requestTasks);
   const selectedTasks = aiTasks.map((task) => ({
     ...task,
+    aiMetadata: {
+      ...(task.aiMetadata ?? {}),
+      originalRequest,
+      createdAt: task.aiMetadata?.createdAt ?? new Date().toISOString(),
+      version: "long_task_plan_v1",
+    },
     dailyPlans: task.dailyPlans.map((day) => ({
       ...day,
       tasks: (day.tasks ?? []).filter((item) => item.selected),
@@ -2179,6 +2203,7 @@ export default function AIPage({
             setStep={setStep}
             setToast={setToast}
             onSaveLongTasks={onSaveLongTasks}
+            requestTasks={requestTasks}
           />
         )}
       </div>
