@@ -290,6 +290,7 @@ function buildReplanPrompt(task, dailyRows, targetEndDate) {
   const completedTasks = [];
   const incompleteTasks = [];
   const dailyTaskCounts = {};
+  const todayDate = dateKey(new Date());
 
   dailyRows.forEach((row) => {
     const visibleTasks = (row.tasks ?? []).filter((item) => item?.taskStatus !== "deleted");
@@ -301,6 +302,7 @@ function buildReplanPrompt(task, dailyRows, targetEndDate) {
         title: item.title,
         date: row.date,
         estimatedMinutes: item.estimatedMinutes === "" ? null : Number(item.estimatedMinutes ?? 0),
+        details: item.detail ?? item.memo ?? "",
         taskStatus: normalizeTaskStatus(item),
         completed: isSubTaskCompleted(item),
       };
@@ -318,14 +320,39 @@ function buildReplanPrompt(task, dailyRows, targetEndDate) {
       requestType: "replan_long_task_daily_plans",
       version: "long_task_replan_request_v1",
       instruction:
-        "未完了の小タスクだけを対象に、終了希望日までに無理のない形で再配置してください。完了済みタスクは変更しないでください。返答はJSONのみで返してください。",
+        "あなたの役割は、長期タスクの未完了小タスクだけを再配置するスケジューリングAIです。完了済み小タスクは絶対に変更せず、終了希望日までに無理のない形で再配置してください。アプリに貼り戻して読み込むため、返答は指定されたJSON構造だけにしてください。",
+      assistantRole: [
+        "長期タスクの未完了小タスクだけを再配置してください。",
+        "完了済み小タスクは変更禁止対象です。dailyPlans に含めないでください。",
+        "未完了小タスクの id は既存IDをそのまま使い、新しい task id を作らないでください。",
+        "できるだけ元の日別配置と小タスクの順番を維持してください。",
+        "終了希望日までに、1日に偏りすぎないように日別へ分散してください。",
+      ],
+      planningRules: [
+        "対象は incompleteTasks に含まれる未完了小タスクのみです。",
+        "completedTasks に含まれる小タスクは、変更・移動・出力のすべてを禁止します。",
+        "estimatedMinutes を参考に、1日の予定時間が偏りすぎないようにしてください。",
+        "既存 details がある場合は可能な限り保持してください。",
+        "現在の日別配置を参考にし、必要な範囲だけ再配置してください。",
+      ],
       strictOutputRules: [
-        "返答はJSONのみ。Markdown、説明文、前置き、補足は不要です。",
-        "version は long_task_replan_v1 にしてください。",
-        "longTaskId は入力と同じ値にしてください。",
-        "dailyPlans は未完了タスクの再配置案だけを含めてください。",
-        "完了済み小タスクの id は dailyPlans に含めないでください。",
-        "各 tasks の id は既存の未完了タスク id を必ず使ってください。",
+        "返答は必ず ```json から始まるMarkdownコードブロックで囲んでください。",
+        "コードブロック内には純粋なJSONのみを書いてください。",
+        "JSON以外の文章を前後に付けないでください。",
+        "説明文、補足、コメント、挨拶は一切書かないでください。",
+        "コードブロック内の最初の文字は {、最後の文字は } にしてください。",
+        "JSONとしてそのままJSON.parseできる形式にしてください。",
+        "version を long_task_replan_v1 から変更しないでください。",
+        "longTaskId を入力された長期タスクIDから変更しないでください。",
+        "targetEndDate は入力された終了希望日を使ってください。",
+        "dailyPlans は未完了小タスクの再配置案だけを含めてください。",
+        "完了済みタスクを dailyPlans に含めないでください。",
+        "task id を新規作成しないでください。",
+        "task id を変更しないでください。",
+        "配列やキー名を変更しないでください。",
+        "trailing comma を付けないでください。",
+        "markdown説明文を書かないでください。",
+        "JSONの外にコメントを書かないでください。",
       ],
       outputFormat: {
         version: "long_task_replan_v1",
@@ -339,11 +366,18 @@ function buildReplanPrompt(task, dailyRows, targetEndDate) {
                 id: "existing-incomplete-sub-task-id",
                 title: "string",
                 estimatedMinutes: 60,
+                details: "string",
               },
             ],
           },
         ],
       },
+      outputExample:
+        '```json\n{\n  "version": "long_task_replan_v1",\n  "longTaskId": "長期タスクID",\n  "targetEndDate": "YYYY-MM-DD",\n  "dailyPlans": [\n    {\n      "date": "YYYY-MM-DD",\n      "tasks": [\n        {\n          "id": "既存小タスクID",\n          "title": "小タスク名",\n          "estimatedMinutes": 60,\n          "details": "必要なら詳細"\n        }\n      ]\n    }\n  ]\n}\n```',
+      finalOutputInstruction:
+        '返答は以下のJSONコードブロックのみです。説明文、補足、コメント、挨拶は一切書かないでください。\n\n```json\n{\n  "version": "long_task_replan_v1",\n  "longTaskId": "...",\n  "targetEndDate": "YYYY-MM-DD",\n  "dailyPlans": []\n}\n```',
+      todayDate,
+      targetEndDate,
       longTask: {
         id: task.id,
         title: task.title,
@@ -362,6 +396,7 @@ function buildReplanPrompt(task, dailyRows, targetEndDate) {
             item.estimatedMinutes === "" || item.estimatedMinutes == null
               ? null
               : Number(item.estimatedMinutes),
+          details: item.detail ?? item.memo ?? "",
           taskStatus: normalizeTaskStatus(item),
           completed: isSubTaskCompleted(item),
         })),
@@ -369,6 +404,22 @@ function buildReplanPrompt(task, dailyRows, targetEndDate) {
       completedTasks,
       incompleteTasks,
       dailyTaskCounts,
+      currentDailyPlacement: dailyRows.map((row) => ({
+        date: row.date,
+        tasks: (row.tasks ?? [])
+          .filter((item) => item?.taskStatus !== "deleted")
+          .map((item) => ({
+            id: item.id,
+            title: item.title,
+            estimatedMinutes:
+              item.estimatedMinutes === "" || item.estimatedMinutes == null
+                ? null
+                : Number(item.estimatedMinutes),
+            details: item.detail ?? item.memo ?? "",
+            completed: isSubTaskCompleted(item),
+            taskStatus: normalizeTaskStatus(item),
+          })),
+      })),
       existingSchedule: dailyRows.map((row) => ({
         date: row.date,
         taskCount: (row.tasks ?? []).filter((item) => item?.taskStatus !== "deleted").length,
@@ -423,6 +474,8 @@ function normalizeReplanData(raw, task, dailyRows, targetEndDate) {
             item.estimatedMinutes === "" || item.estimatedMinutes == null
               ? source.estimatedMinutes
               : Number(item.estimatedMinutes),
+          detail: item.details ?? item.detail ?? item.memo ?? source.detail ?? source.memo ?? "",
+          memo: item.details ?? item.detail ?? item.memo ?? source.memo ?? source.detail ?? "",
           selected: item.selected !== undefined ? Boolean(item.selected) : true,
           completed: false,
           taskStatus: "pending",
