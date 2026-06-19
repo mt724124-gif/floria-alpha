@@ -13,11 +13,7 @@ export default function BottomNav({ active = "today", onNavigate }) {
 
   {
     key: "stats",
-    label: (
-      <span className="line-through decoration-2">
-        まとめ
-      </span>
-    ),
+    label: "まとめ",
     icon: BarChart3,
   },
 
