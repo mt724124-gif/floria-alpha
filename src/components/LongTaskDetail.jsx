@@ -1632,7 +1632,7 @@ if (targetRow) {
                   : "border-b border-slate-100 text-slate-400"
               }`}
             >
-              概要・メモ
+              メモ
             </button>
           </div>
 
@@ -1876,17 +1876,6 @@ if (targetRow) {
 
           {activeTab === "memo" && (
             <section className="space-y-3 rounded-b-[20px] border border-t-0 border-slate-100 bg-white p-3">
-              {task.aiMetadata?.originalRequest && (
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3">
-                  <p className="text-[12px] font-black text-emerald-700">
-                    元のAI作成依頼
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap text-[12px] font-bold leading-relaxed text-slate-600">
-                    {task.aiMetadata.originalRequest}
-                  </p>
-                </div>
-              )}
-
               <textarea
                 value={overviewMemo}
                 onChange={(e) => updateOverviewMemo(e.target.value)}

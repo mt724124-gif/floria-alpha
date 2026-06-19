@@ -403,14 +403,39 @@ function buildOriginalRequestText(tasks) {
 
 function buildSourceRequest(tasks, fixedInstructions = []) {
   return {
-    freeText: buildOriginalRequestText(tasks),
+    freeText: (tasks ?? [])
+      .map((task) => String(task.detail ?? "").trim())
+      .filter(Boolean)
+      .join("\n\n"),
     fixedRequests: (fixedInstructions ?? [])
-      .filter((item) => item.enabled && String(item.text ?? "").trim())
+      .filter((item) => item.enabled !== false && String(item.text ?? "").trim())
       .map((item) => ({
         id: String(item.id ?? makeId()),
         text: String(item.text).trim(),
       })),
   };
+}
+
+function hasSourceRequestContent(sourceRequest) {
+  return (
+    String(sourceRequest?.freeText ?? "").trim() ||
+    (sourceRequest?.fixedRequests ?? []).some((item) => String(item?.text ?? "").trim())
+  );
+}
+
+function buildSourceRequestFromHistory(historyItem, targetTitle) {
+  if (!historyItem) return null;
+
+  const title = String(targetTitle ?? "").trim();
+  const tasks = historyItem.tasks ?? [];
+  const matchedTask =
+    tasks.find((task) => String(task.title ?? "").trim() === title) ??
+    (String(historyItem.title ?? "").trim() === title ? tasks[0] : null);
+
+  if (!matchedTask) return null;
+
+  const sourceRequest = buildSourceRequest([matchedTask], historyItem.fixedRequests ?? []);
+  return hasSourceRequestContent(sourceRequest) ? sourceRequest : null;
 }
 
 function restoreRequestTasks(tasks) {
@@ -536,7 +561,7 @@ function buildReplanRequestTask(task) {
     title: task?.title ?? "",
     startDate: formatDateKey(today),
     endDate: formatDateKey(addDays(today, 7)),
-    detail: task?.aiMetadata?.originalRequest ?? task?.overviewMemo ?? "",
+    detail: "",
     open: true,
   };
 }
@@ -1305,9 +1330,7 @@ function RequestHistoryPanel({
   onRestoreSourceRequest,
 }) {
   if (mode === "replan") {
-    const hasSource =
-      String(replanSourceRequest?.freeText ?? "").trim() ||
-      (replanSourceRequest?.fixedRequests ?? []).length > 0;
+    const hasSource = hasSourceRequestContent(replanSourceRequest);
 
     return (
       <section className="rounded-[18px] border border-slate-100 bg-white p-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)]">
@@ -1328,7 +1351,7 @@ function RequestHistoryPanel({
               : "bg-slate-50 text-slate-300"
           }`}
         >
-          作成時の要望を呼び戻す
+          {hasSource ? "作成時の要望を呼び戻す" : "作成時の入力履歴がありません"}
         </button>
       </section>
     );
@@ -1423,8 +1446,19 @@ function RequestPage({
     aiDestinations.find((item) => item.id === selectedAiDestinationId) ??
     aiDestinations[0] ??
     defaultAiDestinations[0];
+  const historySourceRequest = buildSourceRequestFromHistory(
+    requestHistory.find(
+      (item) =>
+        String(item.title ?? "").trim() === String(replanTarget?.title ?? "").trim() ||
+        (item.tasks ?? []).some(
+          (task) => String(task.title ?? "").trim() === String(replanTarget?.title ?? "").trim()
+        )
+    ),
+    replanTarget?.title
+  );
   const replanSourceRequest =
-    replanTarget?.sourceRequest ??
+    (hasSourceRequestContent(replanTarget?.sourceRequest) ? replanTarget.sourceRequest : null) ??
+    historySourceRequest ??
     (replanTarget?.aiMetadata?.originalRequest
       ? { freeText: replanTarget.aiMetadata.originalRequest, fixedRequests: [] }
       : null);
@@ -1467,6 +1501,7 @@ function RequestPage({
       id: String(makeId()),
       title: makeHistoryTitle(requestTasks),
       tasks: cloneRequestTasksForSave(requestTasks),
+      fixedRequests: buildSourceRequest(requestTasks, fixedInstructions).fixedRequests,
       createdAt: new Date().toISOString(),
     };
 
@@ -1485,7 +1520,7 @@ function RequestPage({
           ...buildReplanRequestTask(replanTarget),
           startDate: current.startDate,
           endDate: current.endDate,
-          detail: restored.detail ?? replanTarget.aiMetadata?.originalRequest ?? "",
+          detail: restored.detail ?? "",
         },
       ]);
       setToast("入力履歴を反映しました");
@@ -2235,22 +2270,28 @@ function EditPage({
     return;
   }
 
-  const sourceRequest = buildSourceRequest(requestTasks, fixedInstructions);
-  const originalRequest = sourceRequest.freeText;
-  const selectedTasks = aiTasks.map((task) => ({
-    ...task,
-    sourceRequest,
-    aiMetadata: {
-      ...(task.aiMetadata ?? {}),
-      originalRequest,
-      createdAt: task.aiMetadata?.createdAt ?? new Date().toISOString(),
-      version: "long_task_plan_v1",
-    },
-    dailyPlans: task.dailyPlans.map((day) => ({
-      ...day,
-      tasks: (day.tasks ?? []).filter((item) => item.selected),
-    })),
-  }));
+  const selectedTasks = aiTasks.map((task, index) => {
+    const sourceRequest = buildSourceRequest(
+      [requestTasks[index] ?? requestTasks[0]].filter(Boolean),
+      fixedInstructions
+    );
+    const originalRequest = sourceRequest.freeText;
+
+    return {
+      ...task,
+      sourceRequest,
+      aiMetadata: {
+        ...(task.aiMetadata ?? {}),
+        originalRequest,
+        createdAt: task.aiMetadata?.createdAt ?? new Date().toISOString(),
+        version: "long_task_plan_v1",
+      },
+      dailyPlans: task.dailyPlans.map((day) => ({
+        ...day,
+        tasks: (day.tasks ?? []).filter((item) => item.selected),
+      })),
+    };
+  });
 
   onSaveLongTasks?.(selectedTasks);
   setToast("長期タスクに保存しました");
