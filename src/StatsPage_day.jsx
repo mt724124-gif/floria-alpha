@@ -324,7 +324,14 @@ function buildLongTaskProgress(appData = {}, weekDays = []) {
   };
 }
 
-function Header({ rangeLabel, onPreviousWeek, onNextWeek, onOpenDatePicker }) {
+function Header({
+  rangeLabel,
+  isThisWeek,
+  onPreviousWeek,
+  onNextWeek,
+  onCurrentWeek,
+  onOpenDatePicker,
+}) {
   return (
     <header className="mb-3">
       <div className="mb-2 flex items-center justify-between">
@@ -361,6 +368,18 @@ function Header({ rangeLabel, onPreviousWeek, onNextWeek, onOpenDatePicker }) {
           <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
         </button>
       </div>
+
+      {!isThisWeek && (
+        <div className="mt-2 flex justify-center">
+          <button
+            type="button"
+            onClick={onCurrentWeek}
+            className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-600 active:scale-[0.97]"
+          >
+            今週に戻る
+          </button>
+        </div>
+      )}
     </header>
   );
 }
@@ -391,8 +410,7 @@ function SummaryItem({ icon: Icon, label, value }) {
   );
 }
 
-function TrendCard({ days }) {
-  const [mode, setMode] = useState("focus");
+function TrendCard({ days, mode, setMode }) {
   const activeMode = TREND_MODES[mode] ?? TREND_MODES.focus;
   const Icon = activeMode.icon;
   const values = days.map((day) => Number(day[activeMode.valueKey] ?? 0));
@@ -486,6 +504,57 @@ function TrendCard({ days }) {
   );
 }
 
+function WeekTrendPager({ appData, baseDate, setBaseDate }) {
+  const scrollRef = useRef(null);
+  const pendingCenterScrollRef = useRef(true);
+  const [mode, setMode] = useState("focus");
+  const baseWeek = useMemo(() => getStartOfWeek(baseDate), [baseDate]);
+  const weeks = useMemo(() => {
+    return Array.from({ length: 25 }, (_, index) => addDays(baseWeek, (index - 12) * 7));
+  }, [baseWeek]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !pendingCenterScrollRef.current) return;
+    requestAnimationFrame(() => {
+      el.scrollLeft = el.clientWidth * 12;
+      pendingCenterScrollRef.current = false;
+    });
+  }, [weeks]);
+
+  const handleScrollEnd = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const index = Math.round(el.scrollLeft / el.clientWidth);
+    const nextWeek = weeks[index];
+    if (!nextWeek) return;
+
+    const currentWeekKey = getDateKey(baseWeek);
+    const nextWeekKey = getDateKey(nextWeek);
+    if (nextWeekKey !== currentWeekKey) {
+      setBaseDate(nextWeek);
+    }
+  };
+
+  return (
+    <div
+      ref={scrollRef}
+      onScrollEnd={handleScrollEnd}
+      className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[20px] scrollbar-none touch-pan-x"
+    >
+      {weeks.map((weekDate) => {
+        const weekStats = buildWeekStats(appData, weekDate);
+        return (
+          <div key={getDateKey(weekDate)} className="w-full shrink-0 snap-start snap-always">
+            <TrendCard days={weekStats.days} mode={mode} setMode={setMode} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function MiniStat({ label, value }) {
   return (
     <div className="rounded-2xl bg-slate-50 px-2 py-2.5 text-center">
@@ -554,7 +623,7 @@ function DateJumpModal({ open, value, onChange, onClose, onSubmit }) {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4 backdrop-blur-sm">
-      <div className="box-border w-full max-w-[min(340px,calc(100vw-48px))] rounded-[26px] bg-white p-4 shadow-2xl">
+      <div className="box-border w-full max-w-[340px] rounded-[26px] bg-white p-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[17px] font-black text-slate-950">週を選ぶ</h2>
           <button
@@ -569,12 +638,17 @@ function DateJumpModal({ open, value, onChange, onClose, onSubmit }) {
         <label className="block text-[12px] font-black text-slate-500">
           表示したい日付
         </label>
-        <input
-          type="date"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="mt-2 box-border block h-12 w-full min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400"
-        />
+        <div className="relative mt-2 h-12 w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="pointer-events-none flex h-full min-w-0 items-center px-3 text-[16px] font-bold text-slate-900">
+            {value ? value.replaceAll("-", "/") : "日付を選択"}
+          </div>
+          <input
+            type="date"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        </div>
 
         <button
           type="button"
@@ -592,10 +666,6 @@ export default function StatsPage({ appData, onNavigate }) {
   const [baseDate, setBaseDate] = useState(() => new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [jumpDateKey, setJumpDateKey] = useState(() => getDateKey(new Date()));
-  const [slideDirection, setSlideDirection] = useState(0);
-  const [isSliding, setIsSliding] = useState(false);
-  const swipeStartRef = useRef(null);
-  const slideTimerRef = useRef(null);
   const stats = useMemo(() => buildWeekStats(appData, baseDate), [appData, baseDate]);
   const longTaskProgress = useMemo(
     () => buildLongTaskProgress(appData, stats.days),
@@ -604,43 +674,12 @@ export default function StatsPage({ appData, onNavigate }) {
   const rangeLabel = `${formatShortDate(stats.days[0].dateKey)} - ${formatShortDate(
     stats.days[6].dateKey
   )}`;
-
-  useEffect(() => {
-    return () => {
-      if (slideTimerRef.current) window.clearTimeout(slideTimerRef.current);
-    };
-  }, []);
+  const thisWeekKey = getDateKey(getStartOfWeek(new Date()));
+  const currentWeekKey = getDateKey(getStartOfWeek(baseDate));
+  const isThisWeek = currentWeekKey === thisWeekKey;
 
   const moveWeek = (diff) => {
-    if (slideTimerRef.current) window.clearTimeout(slideTimerRef.current);
-    setSlideDirection(diff > 0 ? 1 : -1);
-    setIsSliding(true);
     setBaseDate((current) => addDays(current, diff * 7));
-    slideTimerRef.current = window.setTimeout(() => {
-      setIsSliding(false);
-      setSlideDirection(0);
-    }, 210);
-  };
-
-  const handlePointerDown = (event) => {
-    if (event.pointerType === "mouse") return;
-    swipeStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-    };
-  };
-
-  const handlePointerUp = (event) => {
-    const start = swipeStartRef.current;
-    swipeStartRef.current = null;
-    if (!start) return;
-
-    const diffX = event.clientX - start.x;
-    const diffY = event.clientY - start.y;
-    if (Math.abs(diffX) < 64 || Math.abs(diffX) < Math.abs(diffY) * 1.2) return;
-
-    if (diffX < 0) moveWeek(1);
-    if (diffX > 0) moveWeek(-1);
   };
 
   const openDatePicker = () => {
@@ -650,16 +689,7 @@ export default function StatsPage({ appData, onNavigate }) {
 
   const jumpToWeek = () => {
     if (!jumpDateKey) return;
-    if (slideTimerRef.current) window.clearTimeout(slideTimerRef.current);
-    const nextDate = parseDateKey(jumpDateKey);
-    const diff = nextDate.getTime() - baseDate.getTime();
-    setSlideDirection(diff >= 0 ? 1 : -1);
-    setIsSliding(true);
-    setBaseDate(nextDate);
-    slideTimerRef.current = window.setTimeout(() => {
-      setIsSliding(false);
-      setSlideDirection(0);
-    }, 210);
+    setBaseDate(parseDateKey(jumpDateKey));
     setDatePickerOpen(false);
   };
 
@@ -667,30 +697,19 @@ export default function StatsPage({ appData, onNavigate }) {
     <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
       <div
         className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(94px+env(safe-area-inset-bottom))] pt-[calc(12px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]"
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={() => {
-          swipeStartRef.current = null;
-        }}
       >
         <Header
           rangeLabel={rangeLabel}
+          isThisWeek={isThisWeek}
           onPreviousWeek={() => moveWeek(-1)}
           onNextWeek={() => moveWeek(1)}
+          onCurrentWeek={() => setBaseDate(new Date())}
           onOpenDatePicker={openDatePicker}
         />
 
-        <main
-          className={`space-y-3 transition-all duration-200 ease-out ${
-            isSliding
-              ? slideDirection > 0
-                ? "-translate-x-3 opacity-80"
-                : "translate-x-3 opacity-80"
-              : "translate-x-0 opacity-100"
-          }`}
-        >
+        <main className="space-y-3">
           <SummaryCard stats={stats} />
-          <TrendCard days={stats.days} />
+          <WeekTrendPager appData={appData} baseDate={baseDate} setBaseDate={setBaseDate} />
           <LongTaskProgressCard progress={longTaskProgress} />
         </main>
       </div>
