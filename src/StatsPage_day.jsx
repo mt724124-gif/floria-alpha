@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   CalendarDays,
@@ -79,6 +79,16 @@ function formatMinutes(minutes) {
   if (hours === 0) return `${mins}分`;
   if (mins === 0) return `${hours}時間`;
   return `${hours}時間${mins}分`;
+}
+
+function formatCompactMinutes(minutes) {
+  const total = Math.max(0, Math.round(Number(minutes ?? 0)));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+
+  if (hours === 0) return `${mins}m`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h${mins}m`;
 }
 
 function formatShortDate(dateKey) {
@@ -387,6 +397,8 @@ function TrendCard({ days }) {
   const Icon = activeMode.icon;
   const values = days.map((day) => Number(day[activeMode.valueKey] ?? 0));
   const rawMax = Math.max(0, ...values);
+  const barValueLabel =
+    mode === "focus" ? formatCompactMinutes : activeMode.valueLabel;
   const maxValue =
     activeMode.maxMode === "percent"
       ? 100
@@ -446,8 +458,8 @@ function TrendCard({ days }) {
                       🏆
                     </span>
                   )}
-                  <div className="text-[9px] font-black text-slate-500">
-                    {activeMode.valueLabel(value)}
+                  <div className="whitespace-nowrap text-[8px] font-black leading-none text-slate-500 min-[390px]:text-[9px]">
+                    {barValueLabel(value)}
                   </div>
                   <div className="flex h-[104px] w-full max-w-[22px] items-end rounded-t-xl bg-slate-50">
                     <div
@@ -542,7 +554,7 @@ function DateJumpModal({ open, value, onChange, onClose, onSubmit }) {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-[340px] rounded-[26px] bg-white p-4 shadow-2xl">
+      <div className="box-border w-full max-w-[min(340px,calc(100vw-48px))] rounded-[26px] bg-white p-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[17px] font-black text-slate-950">週を選ぶ</h2>
           <button
@@ -561,7 +573,7 @@ function DateJumpModal({ open, value, onChange, onClose, onSubmit }) {
           type="date"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400"
+          className="mt-2 box-border block h-12 w-full min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-900 outline-none focus:border-emerald-400"
         />
 
         <button
@@ -580,7 +592,10 @@ export default function StatsPage({ appData, onNavigate }) {
   const [baseDate, setBaseDate] = useState(() => new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [jumpDateKey, setJumpDateKey] = useState(() => getDateKey(new Date()));
+  const [slideDirection, setSlideDirection] = useState(0);
+  const [isSliding, setIsSliding] = useState(false);
   const swipeStartRef = useRef(null);
+  const slideTimerRef = useRef(null);
   const stats = useMemo(() => buildWeekStats(appData, baseDate), [appData, baseDate]);
   const longTaskProgress = useMemo(
     () => buildLongTaskProgress(appData, stats.days),
@@ -590,8 +605,21 @@ export default function StatsPage({ appData, onNavigate }) {
     stats.days[6].dateKey
   )}`;
 
+  useEffect(() => {
+    return () => {
+      if (slideTimerRef.current) window.clearTimeout(slideTimerRef.current);
+    };
+  }, []);
+
   const moveWeek = (diff) => {
+    if (slideTimerRef.current) window.clearTimeout(slideTimerRef.current);
+    setSlideDirection(diff > 0 ? 1 : -1);
+    setIsSliding(true);
     setBaseDate((current) => addDays(current, diff * 7));
+    slideTimerRef.current = window.setTimeout(() => {
+      setIsSliding(false);
+      setSlideDirection(0);
+    }, 210);
   };
 
   const handlePointerDown = (event) => {
@@ -622,7 +650,16 @@ export default function StatsPage({ appData, onNavigate }) {
 
   const jumpToWeek = () => {
     if (!jumpDateKey) return;
-    setBaseDate(parseDateKey(jumpDateKey));
+    if (slideTimerRef.current) window.clearTimeout(slideTimerRef.current);
+    const nextDate = parseDateKey(jumpDateKey);
+    const diff = nextDate.getTime() - baseDate.getTime();
+    setSlideDirection(diff >= 0 ? 1 : -1);
+    setIsSliding(true);
+    setBaseDate(nextDate);
+    slideTimerRef.current = window.setTimeout(() => {
+      setIsSliding(false);
+      setSlideDirection(0);
+    }, 210);
     setDatePickerOpen(false);
   };
 
@@ -643,7 +680,15 @@ export default function StatsPage({ appData, onNavigate }) {
           onOpenDatePicker={openDatePicker}
         />
 
-        <main className="space-y-3">
+        <main
+          className={`space-y-3 transition-all duration-200 ease-out ${
+            isSliding
+              ? slideDirection > 0
+                ? "-translate-x-3 opacity-80"
+                : "translate-x-3 opacity-80"
+              : "translate-x-0 opacity-100"
+          }`}
+        >
           <SummaryCard stats={stats} />
           <TrendCard days={stats.days} />
           <LongTaskProgressCard progress={longTaskProgress} />
