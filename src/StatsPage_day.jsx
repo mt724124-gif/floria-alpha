@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
+  CalendarDays,
   CheckCircle2,
   CircleDot,
   Clock3,
   Target,
+  X,
 } from "lucide-react";
 import BottomNav from "./components/BottomNav";
 
 const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
+const WEEK_PAGER_CENTER_INDEX = 8;
+const WEEK_PAGER_PAGE_COUNT = 17;
 
 const TREND_MODES = {
   focus: {
@@ -320,12 +324,12 @@ function buildLongTaskProgress(appData = {}, weekDays = []) {
   };
 }
 
-function Header() {
+function Header({ rangeLabel }) {
   return (
     <header className="mb-3">
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h1 className="text-[24px] font-black text-slate-950">週間まとめ</h1>
+          <h1 className="text-[24px] font-black text-slate-950">{rangeLabel}</h1>
         </div>
       </div>
     </header>
@@ -358,7 +362,7 @@ function SummaryItem({ icon: Icon, label, value }) {
   );
 }
 
-function TrendCard({ days, mode, setMode, rangeLabel, isThisWeek, onCurrentWeek }) {
+function TrendCard({ days, mode, setMode, isThisWeek, onCurrentWeek, onOpenDatePicker }) {
   const activeMode = TREND_MODES[mode] ?? TREND_MODES.focus;
   const Icon = activeMode.icon;
   const values = days.map((day) => Number(day[activeMode.valueKey] ?? 0));
@@ -380,10 +384,15 @@ function TrendCard({ days, mode, setMode, rangeLabel, isThisWeek, onCurrentWeek 
         <h2 className="min-w-0 flex-1 truncate text-[15px] font-black text-slate-950">
           {activeMode.title}
         </h2>
-        <div className="flex shrink-0 items-center gap-1">
-          <span className="whitespace-nowrap rounded-full bg-slate-50 px-2 py-1 text-[10px] font-black text-slate-500">
-            {rangeLabel}
-          </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onOpenDatePicker}
+            className="grid h-8 w-8 place-items-center rounded-full bg-slate-50 text-emerald-600 active:scale-[0.97]"
+            aria-label="週を選ぶ"
+          >
+            <CalendarDays className="h-4 w-4" strokeWidth={2.4} />
+          </button>
           {!isThisWeek && (
             <button
               type="button"
@@ -467,17 +476,21 @@ function WeekTrendPager({ appData, baseDate, setBaseDate }) {
   const scrollRef = useRef(null);
   const pendingCenterScrollRef = useRef(true);
   const [mode, setMode] = useState("focus");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [jumpDateKey, setJumpDateKey] = useState(() => getDateKey(new Date()));
   const baseWeek = useMemo(() => getStartOfWeek(baseDate), [baseDate]);
   const thisWeekKey = getDateKey(getStartOfWeek(new Date()));
   const weeks = useMemo(() => {
-    return [-1, 0, 1].map((offset) => addDays(baseWeek, offset * 7));
+    return Array.from({ length: WEEK_PAGER_PAGE_COUNT }, (_, index) =>
+      addDays(baseWeek, (index - WEEK_PAGER_CENTER_INDEX) * 7)
+    );
   }, [baseWeek]);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !pendingCenterScrollRef.current) return;
     requestAnimationFrame(() => {
-      el.scrollLeft = el.clientWidth;
+      el.scrollLeft = el.clientWidth * WEEK_PAGER_CENTER_INDEX;
       pendingCenterScrollRef.current = false;
     });
   }, [weeks]);
@@ -487,8 +500,7 @@ function WeekTrendPager({ appData, baseDate, setBaseDate }) {
     if (!el) return;
 
     const rawIndex = Math.round(el.scrollLeft / el.clientWidth);
-    const index = Math.min(2, Math.max(0, rawIndex));
-    const offset = index - 1;
+    const offset = Math.max(-1, Math.min(1, rawIndex - WEEK_PAGER_CENTER_INDEX));
     const nextWeek = addDays(baseWeek, offset * 7);
     if (!nextWeek) return;
 
@@ -498,40 +510,59 @@ function WeekTrendPager({ appData, baseDate, setBaseDate }) {
       return;
     }
 
-    if (rawIndex !== 1) {
-      el.scrollTo({ left: el.clientWidth, behavior: "smooth" });
+    if (rawIndex !== WEEK_PAGER_CENTER_INDEX) {
+      el.scrollTo({ left: el.clientWidth * WEEK_PAGER_CENTER_INDEX, behavior: "smooth" });
     }
   };
 
+  const openDatePicker = () => {
+    setJumpDateKey(getDateKey(baseWeek));
+    setDatePickerOpen(true);
+  };
+
+  const jumpToWeek = () => {
+    if (!jumpDateKey) return;
+    pendingCenterScrollRef.current = true;
+    setBaseDate(parseDateKey(jumpDateKey));
+    setDatePickerOpen(false);
+  };
+
   return (
-    <div
-      ref={scrollRef}
-      onScrollEnd={handleScrollEnd}
-      className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[20px] scrollbar-none touch-pan-x"
-    >
-      {weeks.map((weekDate) => {
-        const weekStats = buildWeekStats(appData, weekDate);
-        const rangeLabel = `${formatShortDate(weekStats.days[0].dateKey)} - ${formatShortDate(
-          weekStats.days[6].dateKey
-        )}`;
-        const weekKey = getDateKey(getStartOfWeek(weekDate));
-        return (
-          <div key={getDateKey(weekDate)} className="w-full shrink-0 snap-start snap-always">
-            <TrendCard
-              days={weekStats.days}
-              mode={mode}
-              setMode={setMode}
-              rangeLabel={rangeLabel}
-              isThisWeek={weekKey === thisWeekKey}
-              onCurrentWeek={() => {
-                pendingCenterScrollRef.current = true;
-                setBaseDate(new Date());
-              }}
-            />
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <div
+        ref={scrollRef}
+        onScrollEnd={handleScrollEnd}
+        className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-[20px] scrollbar-none touch-pan-x"
+      >
+        {weeks.map((weekDate) => {
+          const weekStats = buildWeekStats(appData, weekDate);
+          const weekKey = getDateKey(getStartOfWeek(weekDate));
+          return (
+            <div key={getDateKey(weekDate)} className="w-full shrink-0 snap-start snap-always">
+              <TrendCard
+                days={weekStats.days}
+                mode={mode}
+                setMode={setMode}
+                isThisWeek={weekKey === thisWeekKey}
+                onCurrentWeek={() => {
+                  pendingCenterScrollRef.current = true;
+                  setBaseDate(new Date());
+                }}
+                onOpenDatePicker={openDatePicker}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <DateJumpModal
+        open={datePickerOpen}
+        value={jumpDateKey}
+        onChange={setJumpDateKey}
+        onClose={() => setDatePickerOpen(false)}
+        onSubmit={jumpToWeek}
+      />
+    </>
   );
 }
 
@@ -598,6 +629,57 @@ function LongTaskProgressCard({ progress }) {
   );
 }
 
+function DateJumpModal({ open, value, onChange, onClose, onSubmit }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4 backdrop-blur-sm">
+      <div className="box-border w-full max-w-[calc(100vw-48px)] rounded-[24px] bg-white p-4 shadow-2xl min-[390px]:max-w-[340px]">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[17px] font-black text-slate-950">週を選ぶ</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
+            aria-label="閉じる"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <label className="block text-[12px] font-black text-slate-500">
+          表示したい日付
+        </label>
+        <div className="relative mt-2 h-12 w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="pointer-events-none flex h-full min-w-0 items-center px-3 text-[16px] font-bold text-slate-900">
+            {value ? value.replaceAll("-", "/") : "日付を選択"}
+          </div>
+          <input
+            type="date"
+            value={value}
+            onChange={(event) => {
+              onChange(event.target.value);
+              setTimeout(() => {
+                event.target.blur();
+                document.activeElement?.blur?.();
+              }, 0);
+            }}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={onSubmit}
+          className="mt-4 h-12 w-full rounded-2xl bg-emerald-500 text-[14px] font-black text-white active:scale-[0.99]"
+        >
+          この週へ移動
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function StatsPage({ appData, onNavigate }) {
   const [baseDate, setBaseDate] = useState(() => new Date());
   const stats = useMemo(() => buildWeekStats(appData, baseDate), [appData, baseDate]);
@@ -605,13 +687,16 @@ export default function StatsPage({ appData, onNavigate }) {
     () => buildLongTaskProgress(appData, stats.days),
     [appData, stats.days]
   );
+  const rangeLabel = `${formatShortDate(stats.days[0].dateKey)} - ${formatShortDate(
+    stats.days[6].dateKey
+  )}`;
 
   return (
     <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
       <div
         className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(94px+env(safe-area-inset-bottom))] pt-[calc(12px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]"
       >
-        <Header />
+        <Header rangeLabel={rangeLabel} />
 
         <main className="space-y-3">
           <SummaryCard stats={stats} />
