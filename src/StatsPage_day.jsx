@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
-  CalendarDays,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   CircleDot,
   Clock3,
   Target,
-  X,
 } from "lucide-react";
 import BottomNav from "./components/BottomNav";
 
@@ -324,14 +320,7 @@ function buildLongTaskProgress(appData = {}, weekDays = []) {
   };
 }
 
-function Header({
-  rangeLabel,
-  isThisWeek,
-  onPreviousWeek,
-  onNextWeek,
-  onCurrentWeek,
-  onOpenDatePicker,
-}) {
+function Header() {
   return (
     <header className="mb-3">
       <div className="mb-2 flex items-center justify-between">
@@ -339,47 +328,6 @@ function Header({
           <h1 className="text-[24px] font-black text-slate-950">週間まとめ</h1>
         </div>
       </div>
-
-      <div className="grid grid-cols-[40px_1fr_40px] items-center gap-2 rounded-2xl bg-white p-1.5 text-[12px] font-black text-slate-500 shadow-sm">
-        <button
-          type="button"
-          onClick={onPreviousWeek}
-          className="grid h-9 w-9 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
-          aria-label="前の週"
-        >
-          <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
-        </button>
-
-        <button
-          type="button"
-          onClick={onOpenDatePicker}
-          className="flex min-w-0 items-center justify-center gap-1.5 rounded-xl py-2 active:bg-emerald-50"
-        >
-          <CalendarDays className="h-4 w-4 shrink-0 text-emerald-500" strokeWidth={2.4} />
-          <span className="truncate">{rangeLabel}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onNextWeek}
-          className="grid h-9 w-9 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
-          aria-label="次の週"
-        >
-          <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
-        </button>
-      </div>
-
-      {!isThisWeek && (
-        <div className="mt-2 flex justify-center">
-          <button
-            type="button"
-            onClick={onCurrentWeek}
-            className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-600 active:scale-[0.97]"
-          >
-            今週に戻る
-          </button>
-        </div>
-      )}
     </header>
   );
 }
@@ -410,7 +358,7 @@ function SummaryItem({ icon: Icon, label, value }) {
   );
 }
 
-function TrendCard({ days, mode, setMode }) {
+function TrendCard({ days, mode, setMode, rangeLabel, isThisWeek, onCurrentWeek }) {
   const activeMode = TREND_MODES[mode] ?? TREND_MODES.focus;
   const Icon = activeMode.icon;
   const values = days.map((day) => Number(day[activeMode.valueKey] ?? 0));
@@ -432,9 +380,20 @@ function TrendCard({ days, mode, setMode }) {
         <h2 className="min-w-0 flex-1 truncate text-[15px] font-black text-slate-950">
           {activeMode.title}
         </h2>
-        <span className="text-[10px] font-black text-slate-400">
-          最大 {activeMode.valueLabel(rawMax)}
-        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="whitespace-nowrap rounded-full bg-slate-50 px-2 py-1 text-[10px] font-black text-slate-500">
+            {rangeLabel}
+          </span>
+          {!isThisWeek && (
+            <button
+              type="button"
+              onClick={onCurrentWeek}
+              className="whitespace-nowrap rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600 active:scale-[0.97]"
+            >
+              今週に戻る
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-3 grid grid-cols-3 gap-1 rounded-2xl bg-slate-50 p-1">
@@ -509,15 +468,16 @@ function WeekTrendPager({ appData, baseDate, setBaseDate }) {
   const pendingCenterScrollRef = useRef(true);
   const [mode, setMode] = useState("focus");
   const baseWeek = useMemo(() => getStartOfWeek(baseDate), [baseDate]);
+  const thisWeekKey = getDateKey(getStartOfWeek(new Date()));
   const weeks = useMemo(() => {
-    return Array.from({ length: 25 }, (_, index) => addDays(baseWeek, (index - 12) * 7));
+    return [-1, 0, 1].map((offset) => addDays(baseWeek, offset * 7));
   }, [baseWeek]);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !pendingCenterScrollRef.current) return;
     requestAnimationFrame(() => {
-      el.scrollLeft = el.clientWidth * 12;
+      el.scrollLeft = el.clientWidth;
       pendingCenterScrollRef.current = false;
     });
   }, [weeks]);
@@ -526,14 +486,20 @@ function WeekTrendPager({ appData, baseDate, setBaseDate }) {
     const el = scrollRef.current;
     if (!el) return;
 
-    const index = Math.round(el.scrollLeft / el.clientWidth);
-    const nextWeek = weeks[index];
+    const rawIndex = Math.round(el.scrollLeft / el.clientWidth);
+    const index = Math.min(2, Math.max(0, rawIndex));
+    const offset = index - 1;
+    const nextWeek = addDays(baseWeek, offset * 7);
     if (!nextWeek) return;
 
-    const currentWeekKey = getDateKey(baseWeek);
-    const nextWeekKey = getDateKey(nextWeek);
-    if (nextWeekKey !== currentWeekKey) {
+    if (offset !== 0) {
+      pendingCenterScrollRef.current = true;
       setBaseDate(nextWeek);
+      return;
+    }
+
+    if (rawIndex !== 1) {
+      el.scrollTo({ left: el.clientWidth, behavior: "smooth" });
     }
   };
 
@@ -545,9 +511,23 @@ function WeekTrendPager({ appData, baseDate, setBaseDate }) {
     >
       {weeks.map((weekDate) => {
         const weekStats = buildWeekStats(appData, weekDate);
+        const rangeLabel = `${formatShortDate(weekStats.days[0].dateKey)} - ${formatShortDate(
+          weekStats.days[6].dateKey
+        )}`;
+        const weekKey = getDateKey(getStartOfWeek(weekDate));
         return (
           <div key={getDateKey(weekDate)} className="w-full shrink-0 snap-start snap-always">
-            <TrendCard days={weekStats.days} mode={mode} setMode={setMode} />
+            <TrendCard
+              days={weekStats.days}
+              mode={mode}
+              setMode={setMode}
+              rangeLabel={rangeLabel}
+              isThisWeek={weekKey === thisWeekKey}
+              onCurrentWeek={() => {
+                pendingCenterScrollRef.current = true;
+                setBaseDate(new Date());
+              }}
+            />
           </div>
         );
       })}
@@ -618,94 +598,20 @@ function LongTaskProgressCard({ progress }) {
   );
 }
 
-function DateJumpModal({ open, value, onChange, onClose, onSubmit }) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4 backdrop-blur-sm">
-      <div className="box-border w-full max-w-[340px] rounded-[26px] bg-white p-4 shadow-2xl">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[17px] font-black text-slate-950">週を選ぶ</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-xl text-slate-400 active:bg-slate-100"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <label className="block text-[12px] font-black text-slate-500">
-          表示したい日付
-        </label>
-        <div className="relative mt-2 h-12 w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="pointer-events-none flex h-full min-w-0 items-center px-3 text-[16px] font-bold text-slate-900">
-            {value ? value.replaceAll("-", "/") : "日付を選択"}
-          </div>
-          <input
-            type="date"
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={onSubmit}
-          className="mt-4 h-12 w-full rounded-2xl bg-emerald-500 text-[14px] font-black text-white active:scale-[0.99]"
-        >
-          この週へ移動
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function StatsPage({ appData, onNavigate }) {
   const [baseDate, setBaseDate] = useState(() => new Date());
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [jumpDateKey, setJumpDateKey] = useState(() => getDateKey(new Date()));
   const stats = useMemo(() => buildWeekStats(appData, baseDate), [appData, baseDate]);
   const longTaskProgress = useMemo(
     () => buildLongTaskProgress(appData, stats.days),
     [appData, stats.days]
   );
-  const rangeLabel = `${formatShortDate(stats.days[0].dateKey)} - ${formatShortDate(
-    stats.days[6].dateKey
-  )}`;
-  const thisWeekKey = getDateKey(getStartOfWeek(new Date()));
-  const currentWeekKey = getDateKey(getStartOfWeek(baseDate));
-  const isThisWeek = currentWeekKey === thisWeekKey;
-
-  const moveWeek = (diff) => {
-    setBaseDate((current) => addDays(current, diff * 7));
-  };
-
-  const openDatePicker = () => {
-    setJumpDateKey(getDateKey(baseDate));
-    setDatePickerOpen(true);
-  };
-
-  const jumpToWeek = () => {
-    if (!jumpDateKey) return;
-    setBaseDate(parseDateKey(jumpDateKey));
-    setDatePickerOpen(false);
-  };
 
   return (
     <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
       <div
         className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(94px+env(safe-area-inset-bottom))] pt-[calc(12px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]"
       >
-        <Header
-          rangeLabel={rangeLabel}
-          isThisWeek={isThisWeek}
-          onPreviousWeek={() => moveWeek(-1)}
-          onNextWeek={() => moveWeek(1)}
-          onCurrentWeek={() => setBaseDate(new Date())}
-          onOpenDatePicker={openDatePicker}
-        />
+        <Header />
 
         <main className="space-y-3">
           <SummaryCard stats={stats} />
@@ -713,14 +619,6 @@ export default function StatsPage({ appData, onNavigate }) {
           <LongTaskProgressCard progress={longTaskProgress} />
         </main>
       </div>
-
-      <DateJumpModal
-        open={datePickerOpen}
-        value={jumpDateKey}
-        onChange={setJumpDateKey}
-        onClose={() => setDatePickerOpen(false)}
-        onSubmit={jumpToWeek}
-      />
 
       <BottomNav active="stats" onNavigate={onNavigate} />
     </div>
