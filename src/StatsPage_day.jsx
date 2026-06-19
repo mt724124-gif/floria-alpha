@@ -109,6 +109,10 @@ function isCompleted(task) {
   return task?.taskStatus === "completed" || task?.completed === true;
 }
 
+function isPostponed(task) {
+  return task?.taskStatus === "postponed";
+}
+
 function getTaskActualMinutes(task) {
   const actualSeconds = Number(task?.actualSeconds ?? task?.elapsedSeconds ?? 0);
   if (actualSeconds > 0) return Math.round(actualSeconds / 60);
@@ -137,6 +141,18 @@ function isShortTaskVisible(task) {
     task?.taskStatus !== "deleted" &&
     String(task?.title ?? "").trim()
   );
+}
+
+function isCreatedCountTarget(task) {
+  return task?.taskStatus !== "deleted" && !isPostponed(task);
+}
+
+function getRecordCreatedTaskCount(record = {}) {
+  if (Array.isArray(record.tasks)) {
+    return record.tasks.filter(isCreatedCountTarget).length;
+  }
+
+  return Number(record.createdTaskCount ?? 0);
 }
 
 function getWeekDays(baseDate = new Date()) {
@@ -208,14 +224,17 @@ function buildWeekStats(appData = {}, baseDate = new Date()) {
         .filter(isLongPlanTaskVisible)
     );
     const allTasks = [...shortTasks, ...longTasks];
-    const taskCreatedCount = allTasks.length;
+    const taskCreatedCount = [
+      ...shortTasks.filter(isCreatedCountTarget),
+      ...longTasks,
+    ].length;
     const taskCompletedCount = allTasks.filter(isCompleted).length;
     const taskFocusMinutes = allTasks.reduce(
       (sum, task) => sum + getTaskActualMinutes(task),
       0
     );
     const createdTaskCount = Math.max(
-      Number(record.createdTaskCount ?? 0),
+      getRecordCreatedTaskCount(record),
       taskCreatedCount
     );
     const completedTaskCount = Math.max(
