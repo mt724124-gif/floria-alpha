@@ -1436,7 +1436,18 @@ function TodoListCard({
   );
 }
 
-function LongTaskListCard({ todos, emptyGroups = [], selectedTaskId, canSelect, canComplete, canEdit, onSelect, onToggle, onEdit }) {
+function LongTaskListCard({
+  todos,
+  emptyGroups = [],
+  selectedTaskId,
+  canSelect,
+  canComplete,
+  canEdit,
+  onSelect,
+  onToggle,
+  onEdit,
+  onOpenLongTaskDetail,
+}) {
   const [openDetailId, setOpenDetailId] = useState(null);
   const [openGroupKeys, setOpenGroupKeys] = useState([]);
 
@@ -1546,17 +1557,12 @@ const completedCount = todos.filter((todo) => isCompleted(todo)).length;
 
   return (
     <div key={key} className="overflow-hidden rounded-[18px] border border-emerald-100 bg-white">
-      <button
-        type="button"
-        onClick={() => {
-          if (isEmptyGroup) return;
-          toggleGroup(key);
-        }}
-        className={`flex w-full items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-left ${
-          isEmptyGroup ? "cursor-default" : "active:bg-slate-100"
-        }`}
-      >
-        <div className="min-w-0 flex-1">
+      <div className="flex w-full items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-left">
+        <button
+          type="button"
+          onClick={() => onOpenLongTaskDetail?.(key)}
+          className="min-w-0 flex-1 rounded-xl text-left active:bg-emerald-50"
+        >
           <p className="truncate text-[13px] font-black text-slate-800">
             {group.label}
           </p>
@@ -1566,10 +1572,14 @@ const completedCount = todos.filter((todo) => isCompleted(todo)).length;
               ? "本日の小タスクはありません"
               : `未完了 ${groupIncompleteCount}件 / 完了 ${groupCompletedCount}件`}
           </p>
-        </div>
+        </button>
 
         {!isEmptyGroup && (
-          <>
+          <button
+            type="button"
+            onClick={() => toggleGroup(key)}
+            className="flex shrink-0 items-center gap-1 rounded-xl px-2 py-1 active:bg-slate-100"
+          >
             <span className="shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">
               {group.todos.length}件
             </span>
@@ -1583,9 +1593,9 @@ const completedCount = todos.filter((todo) => isCompleted(todo)).length;
                 strokeWidth={2.8}
               />
             </span>
-          </>
+          </button>
         )}
-      </button>
+      </div>
 
                 {isOpen && (
                   <div className="bg-white">
@@ -1940,6 +1950,7 @@ export default function TodayPage({
   onUpdateTaskEverywhere,
   onNavigate,
   onOpenReview,
+  onOpenLongTaskDetail,
 }) {
   const [selectedDate, setSelectedDate] = useState(() => {
     if (!initialDateKey) return new Date();
@@ -3044,6 +3055,7 @@ return (
       },
     });
   }}
+  onOpenLongTaskDetail={onOpenLongTaskDetail}
 />
 
           <TodayRecordCard

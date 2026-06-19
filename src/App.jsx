@@ -6,6 +6,7 @@ import StatsPageDay from "./StatsPage_day";
 import SetPage from "./SetPage";
 import ReviewPage from "./ReviewPage";
 import AIPage from "./AIPage";
+import LongTaskDetail from "./components/LongTaskDetail";
 import { updateDailyRecordTask } from "./utils/dailyRecords";
 
 const STORAGE_KEY = "todo-app-data-v1";
@@ -367,6 +368,7 @@ const [todayInitialDateKey, setTodayInitialDateKey] = useState(null);
 const [forcedReviewDateKey, setForcedReviewDateKey] = useState(null);
 const [aiMode, setAiMode] = useState("create");
 const [aiReplanTargetId, setAiReplanTargetId] = useState(null);
+const [selectedLongTaskDetailId, setSelectedLongTaskDetailId] = useState(null);
 
   const [appData, setAppData] = useState(createInitialAppData);
 
@@ -681,7 +683,70 @@ const openAiReplanForLongTask = (task) => {
   if (!task?.id) return;
   setAiMode("replan");
   setAiReplanTargetId(task.id);
+  setSelectedLongTaskDetailId(null);
   setScreen("ai");
+};
+
+const selectedLongTaskDetail =
+  (appData.longTasks ?? []).find(
+    (task) => String(task.id) === String(selectedLongTaskDetailId)
+  ) ?? null;
+
+const openLongTaskDetailFromToday = (longTaskId) => {
+  if (!longTaskId) return;
+  const exists = (appData.longTasks ?? []).some(
+    (task) => String(task.id) === String(longTaskId)
+  );
+  if (!exists) return;
+  setSelectedLongTaskDetailId(longTaskId);
+};
+
+const closeLongTaskDetailFromToday = () => {
+  setSelectedLongTaskDetailId(null);
+};
+
+const updateLongTaskDetailFromToday = (updatedTask) => {
+  if (!updatedTask?.id) return;
+
+  updateAppData((current) => ({
+    ...current,
+    longTasks: (current.longTasks ?? []).map((task) =>
+      String(task.id) === String(updatedTask.id)
+        ? { ...task, ...updatedTask, updatedAt: updatedTask.updatedAt ?? new Date().toISOString() }
+        : task
+    ),
+  }));
+
+  setSelectedLongTaskDetailId(updatedTask.id);
+};
+
+const updateLongTaskDailyPlanFromToday = (task, _updatedRow, nextRows) => {
+  if (!task?.id) return;
+  const updatedAt = new Date().toISOString();
+
+  updateAppData((current) => ({
+    ...current,
+    longTasks: (current.longTasks ?? []).map((item) =>
+      String(item.id) === String(task.id)
+        ? { ...item, dailyPlans: nextRows ?? [], updatedAt }
+        : item
+    ),
+  }));
+
+  setSelectedLongTaskDetailId(task.id);
+};
+
+const deleteLongTaskFromToday = (task) => {
+  if (!task?.id) return;
+
+  updateAppData((current) => ({
+    ...current,
+    longTasks: (current.longTasks ?? []).filter(
+      (item) => String(item.id) !== String(task.id)
+    ),
+  }));
+
+  setSelectedLongTaskDetailId(null);
 };
 
 const navigateFromBottomNav = (nextScreen) => {
@@ -719,6 +784,7 @@ return (
     setReviewDateKey(dateKey);
     setScreen("review");
   }}
+  onOpenLongTaskDetail={openLongTaskDetailFromToday}
 />
       )}
 
@@ -762,9 +828,10 @@ return (
     if (nextScreen === "today") {
       if (forcedReviewDateKey && reviewDateKey === forcedReviewDateKey) {
         setForcedReviewDateKey(null);
+        setTodayInitialDateKey(getTodayKey());
+      } else {
+        setTodayInitialDateKey(reviewDateKey);
       }
-
-      setTodayInitialDateKey(reviewDateKey);
     }
     setScreen(nextScreen);
   }}
@@ -811,6 +878,17 @@ return (
             </button>
           </div>
         </div>
+      )}
+
+      {screen === "today" && selectedLongTaskDetail && (
+        <LongTaskDetail
+          task={selectedLongTaskDetail}
+          onClose={closeLongTaskDetailFromToday}
+          onDelete={deleteLongTaskFromToday}
+          onUpdateDailyPlan={updateLongTaskDailyPlanFromToday}
+          onUpdateTask={updateLongTaskDetailFromToday}
+          onOpenAiReplan={openAiReplanForLongTask}
+        />
       )}
     </>
   );
