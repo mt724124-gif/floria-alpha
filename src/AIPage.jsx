@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import BottomNav from "./components/BottomNav";
 import {
-  AlertTriangle,
   CalendarDays,
   Check,
   ChevronDown,
@@ -402,6 +401,18 @@ function buildOriginalRequestText(tasks) {
     .join("\n\n");
 }
 
+function buildSourceRequest(tasks, fixedInstructions = []) {
+  return {
+    freeText: buildOriginalRequestText(tasks),
+    fixedRequests: (fixedInstructions ?? [])
+      .filter((item) => item.enabled && String(item.text ?? "").trim())
+      .map((item) => ({
+        id: String(item.id ?? makeId()),
+        text: String(item.text).trim(),
+      })),
+  };
+}
+
 function restoreRequestTasks(tasks) {
   const restored = (tasks ?? []).map((task, index) => ({
     id: makeId() + index,
@@ -503,6 +514,273 @@ function buildAiPrompt(tasks, fixedInstructions = []) {
     null,
     2
   );
+}
+
+function getLongTaskStart(task) {
+  return task?.startDate ?? task?.start ?? formatDateKey(today);
+}
+
+function getLongTaskEnd(task) {
+  return task?.endDate ?? task?.end ?? formatDateKey(addDays(today, 7));
+}
+
+function isLongSubTaskCompleted(item) {
+  if (item?.taskStatus === "pending") return false;
+  if (item?.taskStatus === "deleted") return false;
+  return item?.taskStatus === "completed" || item?.completed === true;
+}
+
+function buildReplanRequestTask(task) {
+  return {
+    id: task?.id ?? makeId(),
+    title: task?.title ?? "",
+    startDate: formatDateKey(today),
+    endDate: formatDateKey(addDays(today, 7)),
+    detail: task?.aiMetadata?.originalRequest ?? task?.overviewMemo ?? "",
+    open: true,
+  };
+}
+
+function buildReplanPrompt(task, requestTask, fixedInstructions = []) {
+  const completedTasks = [];
+  const incompleteTasks = [];
+  const currentDailyPlacement = [];
+  const selectedRules = fixedInstructions
+    .filter((item) => item.enabled && String(item.text ?? "").trim())
+    .map((item) => item.text.trim());
+
+  (task?.dailyPlans ?? []).forEach((day) => {
+    const visibleTasks = (day.tasks ?? []).filter((item) => item?.taskStatus !== "deleted");
+
+    currentDailyPlacement.push({
+      date: day.date,
+      tasks: visibleTasks.map((item) => ({
+        id: item.id,
+        title: item.title,
+        estimatedMinutes:
+          item.estimatedMinutes === "" || item.estimatedMinutes == null
+            ? null
+            : Number(item.estimatedMinutes),
+        details: item.detail ?? item.memo ?? "",
+        completed: isLongSubTaskCompleted(item),
+        taskStatus: item.taskStatus ?? (isLongSubTaskCompleted(item) ? "completed" : "pending"),
+      })),
+    });
+
+    visibleTasks.forEach((item) => {
+      const normalized = {
+        id: item.id,
+        title: item.title,
+        date: day.date,
+        estimatedMinutes:
+          item.estimatedMinutes === "" || item.estimatedMinutes == null
+            ? null
+            : Number(item.estimatedMinutes),
+        details: item.detail ?? item.memo ?? "",
+      };
+
+      if (isLongSubTaskCompleted(item)) {
+        completedTasks.push(normalized);
+      } else {
+        incompleteTasks.push(normalized);
+      }
+    });
+  });
+
+  return JSON.stringify(
+    {
+      requestType: "replan_long_task_daily_plans",
+      version: "long_task_replan_request_v1",
+      instruction:
+        "あなたの役割は、既存の長期タスクの未完了小タスクだけを再配置することです。完了済み小タスクは絶対に変更せず、終了希望日までに無理のない日程へ再編してください。アプリに貼り戻して使うため、返答は指定JSONだけにしてください。",
+      assistantRole: [
+        "長期タスクの未完了小タスクだけを再配置してください。",
+        "完了済み小タスクは日付・内容ともに絶対に変更しないでください。",
+        "完了済み小タスクはAIによる再配置対象に含めないでください。",
+        "既存の未完了タスクの内容をなるべく維持してください。",
+        "できるだけ元の順番を維持してください。",
+        "1日に偏りすぎないようにしてください。",
+      ],
+      additionalUserRules: selectedRules,
+      strictOutputRules: [
+        "返答は必ず ```json から始まるMarkdownコードブロックで囲んでください。",
+        "コードブロック内には純粋なJSONのみを書いてください。",
+        "JSON以外の文章を前後に付けないでください。",
+        "説明文、補足、コメント、挨拶は一切書かないでください。",
+        "version は long_task_replan_v1 から変更しないでください。",
+        "longTaskId を変更しないでください。",
+        "task id を新規作成しないでください。",
+        "task id を変更しないでください。",
+        "完了済みタスクは dailyPlans に含めないでください。",
+        "配列やキー名を変更しないでください。",
+        "trailing comma を付けないでください。",
+      ],
+      outputFormat: {
+        version: "long_task_replan_v1",
+        longTaskId: String(task?.id ?? ""),
+        targetEndDate: requestTask.endDate,
+        dailyPlans: [
+          {
+            date: "YYYY-MM-DD",
+            tasks: [
+              {
+                id: "既存小タスクID",
+                title: "小タスク名",
+                estimatedMinutes: 60,
+                details: "必要なら詳細",
+              },
+            ],
+          },
+        ],
+      },
+      finalOutputInstruction:
+        '返答は以下のJSONコードブロックのみです。説明文、補足、コメント、挨拶は一切書かないでください。\n```json\n{\n  "version": "long_task_replan_v1",\n  "longTaskId": "...",\n  "targetEndDate": "YYYY-MM-DD",\n  "dailyPlans": []\n}\n```',
+      inputData: {
+        today: formatDateKey(today),
+        targetEndDate: requestTask.endDate,
+        longTaskId: String(task?.id ?? ""),
+        longTaskTitle: task?.title ?? "",
+        currentPeriod: {
+          startDate: getLongTaskStart(task),
+          endDate: getLongTaskEnd(task),
+        },
+        requestedPeriod: {
+          startDate: requestTask.startDate,
+          endDate: requestTask.endDate,
+        },
+        originalRequest: task?.aiMetadata?.originalRequest ?? "",
+        userRequest: requestTask.detail ?? "",
+        incompleteTasks,
+        completedTasks,
+        currentDailyPlacement,
+      },
+    },
+    null,
+    2
+  );
+}
+
+function normalizeReplanAiData(raw, task, requestTask) {
+  const parsed = JSON.parse(extractJsonText(raw));
+
+  if (parsed.version !== "long_task_replan_v1") {
+    throw new Error("version が long_task_replan_v1 ではありません");
+  }
+
+  if (String(parsed.longTaskId) !== String(task?.id)) {
+    throw new Error("longTaskId が再編対象の長期タスクと一致しません");
+  }
+
+  if (!Array.isArray(parsed.dailyPlans)) {
+    throw new Error("dailyPlans が配列ではありません");
+  }
+
+  const incompleteById = new Map();
+  (task?.dailyPlans ?? []).forEach((day) => {
+    (day.tasks ?? []).forEach((item) => {
+      if (isLongSubTaskCompleted(item) || item?.taskStatus === "deleted") return;
+      incompleteById.set(String(item.id), item);
+    });
+  });
+
+  const dailyPlans = parsed.dailyPlans
+    .filter((day) => day?.date)
+    .map((day, dayIndex) => ({
+      id: `${task.id}-${day.date}-${dayIndex}`,
+      date: day.date,
+      open: false,
+      tasks: (day.tasks ?? [])
+        .map((item) => {
+          const source = incompleteById.get(String(item?.id));
+          if (!source) return null;
+
+          return {
+            ...source,
+            title: item.title ?? source.title,
+            estimatedMinutes:
+              item.estimatedMinutes === "" || item.estimatedMinutes == null
+                ? source.estimatedMinutes
+                : Number(item.estimatedMinutes),
+            detail: item.details ?? item.detail ?? item.memo ?? source.detail ?? source.memo ?? "",
+            memo: item.details ?? item.detail ?? item.memo ?? source.memo ?? source.detail ?? "",
+            selected: item.selected !== undefined ? Boolean(item.selected) : true,
+            completed: false,
+            taskStatus: "pending",
+            completedAt: null,
+            status: source.status ?? "accepted",
+          };
+        })
+        .filter(Boolean),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return [
+    {
+      ...task,
+      id: task.id,
+      title: task.title,
+      startDate: requestTask.startDate || getLongTaskStart(task),
+      endDate: parsed.targetEndDate ?? requestTask.endDate ?? getLongTaskEnd(task),
+      open: true,
+      dailyPlans,
+    },
+  ];
+}
+
+function mergeReplanIntoLongTask(originalTask, previewTask) {
+  const selectedById = new Map();
+
+  (previewTask?.dailyPlans ?? []).forEach((day) => {
+    (day.tasks ?? []).forEach((item) => {
+      if (item.selected) {
+        selectedById.set(String(item.id), {
+          ...item,
+          completed: false,
+          taskStatus: "pending",
+          completedAt: null,
+        });
+      }
+    });
+  });
+
+  const preservedRows = (originalTask?.dailyPlans ?? []).map((day) => ({
+    ...day,
+    tasks: (day.tasks ?? []).filter((item) => {
+      if (isLongSubTaskCompleted(item)) return true;
+      return !selectedById.has(String(item.id));
+    }),
+  }));
+
+  const startDate = getLongTaskStart(originalTask);
+  const endDate = previewTask?.endDate ?? getLongTaskEnd(originalTask);
+  const allDates = [
+    ...new Set([
+      ...createDateRange(startDate, endDate),
+      ...preservedRows.map((day) => day.date),
+      ...(previewTask?.dailyPlans ?? []).map((day) => day.date),
+    ]),
+  ].sort();
+
+  return {
+    ...originalTask,
+    startDate,
+    start: startDate,
+    endDate,
+    end: endDate,
+    dailyPlans: allDates.map((date) => {
+      const preserved = preservedRows.find((day) => day.date === date)?.tasks ?? [];
+      const selected = (previewTask?.dailyPlans?.find((day) => day.date === date)?.tasks ?? [])
+        .filter((item) => selectedById.has(String(item.id)))
+        .map((item) => selectedById.get(String(item.id)));
+
+      return {
+        id: `${originalTask.id}-${date}`,
+        date,
+        open: preserved.length + selected.length > 0,
+        tasks: [...preserved, ...selected],
+      };
+    }),
+  };
 }
 
 async function copyTextToClipboard(text) {
@@ -879,7 +1157,7 @@ const [detailExpanded, setDetailExpanded] = useState(false);
   onClick={() => setDetailExpanded((current) => !current)}
   className="mt-1 text-[11px] font-black text-emerald-600"
 >
-  {detailExpanded ? "全文表示を閉じる" : "全文を表示"}
+  {detailExpanded ? "全文表示を閉じる" : "全文表示"}
 </button>
         </>
       )}
@@ -1018,7 +1296,44 @@ const [newRule, setNewRule] = useState("");
   );
 }
 
-function RequestHistoryPanel({ requestHistory, onRestoreHistory, onDeleteHistory }) {
+function RequestHistoryPanel({
+  mode = "create",
+  replanSourceRequest,
+  requestHistory,
+  onRestoreHistory,
+  onDeleteHistory,
+  onRestoreSourceRequest,
+}) {
+  if (mode === "replan") {
+    const hasSource =
+      String(replanSourceRequest?.freeText ?? "").trim() ||
+      (replanSourceRequest?.fixedRequests ?? []).length > 0;
+
+    return (
+      <section className="rounded-[18px] border border-slate-100 bg-white p-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)]">
+        <div className="mb-2">
+          <h3 className="text-[14px] font-black text-slate-950">入力履歴</h3>
+          <p className="mt-0.5 text-[11px] font-bold text-slate-500">
+            この長期タスクの作成時要望を呼び戻します
+          </p>
+        </div>
+
+        <button
+          type="button"
+          disabled={!hasSource}
+          onClick={onRestoreSourceRequest}
+          className={`flex h-10 w-full items-center justify-center rounded-2xl text-[13px] font-black ${
+            hasSource
+              ? "bg-emerald-50 text-emerald-700 active:bg-emerald-100"
+              : "bg-slate-50 text-slate-300"
+          }`}
+        >
+          作成時の要望を呼び戻す
+        </button>
+      </section>
+    );
+  }
+
   if (!requestHistory.length) {
     return (
       <section className="rounded-[18px] border border-slate-100 bg-white p-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)]">
@@ -1035,7 +1350,9 @@ function RequestHistoryPanel({ requestHistory, onRestoreHistory, onDeleteHistory
       <div className="mb-2 flex items-center justify-between">
         <div>
           <h3 className="text-[14px] font-black text-slate-950">入力履歴</h3>
-          <p className="mt-0.5 text-[11px] font-bold text-slate-500">押すと依頼内容を復元します</p>
+          <p className="mt-0.5 text-[11px] font-bold text-slate-500">
+            押すと依頼内容を復元します
+          </p>
         </div>
       </div>
 
@@ -1076,7 +1393,7 @@ function IncludeHistoryToggle() {
 
       <span className="min-w-0">
         <span className="block text-[12px] font-black text-slate-500 line-through">
-          過去の達成履歴を追加する。
+          過去の達成履歴を追加する
         </span>
         <span className="mt-0.5 block text-[11px] font-bold leading-relaxed text-slate-400">
           これまでの記録を元にあなたの傾向に合わせた計画を立案します。
@@ -1087,6 +1404,8 @@ function IncludeHistoryToggle() {
 }
 
 function RequestPage({
+  mode = "create",
+  replanTarget,
   requestTasks,
   setRequestTasks,
   setStep,
@@ -1104,6 +1423,11 @@ function RequestPage({
     aiDestinations.find((item) => item.id === selectedAiDestinationId) ??
     aiDestinations[0] ??
     defaultAiDestinations[0];
+  const replanSourceRequest =
+    replanTarget?.sourceRequest ??
+    (replanTarget?.aiMetadata?.originalRequest
+      ? { freeText: replanTarget.aiMetadata.originalRequest, fixedRequests: [] }
+      : null);
 
   const addTask = () => {
     setRequestTasks((current) => [
@@ -1153,8 +1477,61 @@ function RequestPage({
   };
 
   const restoreHistory = (historyItem) => {
+    if (mode === "replan" && replanTarget) {
+      const restored = restoreRequestTasks(historyItem.tasks)[0] ?? {};
+      const current = requestTasks[0] ?? buildReplanRequestTask(replanTarget);
+      setRequestTasks([
+        {
+          ...buildReplanRequestTask(replanTarget),
+          startDate: current.startDate,
+          endDate: current.endDate,
+          detail: restored.detail ?? replanTarget.aiMetadata?.originalRequest ?? "",
+        },
+      ]);
+      setToast("入力履歴を反映しました");
+      return;
+    }
+
     setRequestTasks(restoreRequestTasks(historyItem.tasks));
     setToast("入力履歴を復元しました");
+  };
+
+  const restoreSourceRequest = () => {
+    if (mode !== "replan" || !replanTarget || !replanSourceRequest) return;
+
+    const current = requestTasks[0] ?? buildReplanRequestTask(replanTarget);
+    setRequestTasks([
+      {
+        ...current,
+        title: replanTarget.title ?? current.title,
+        detail: replanSourceRequest.freeText ?? "",
+      },
+    ]);
+
+    const fixedRequests = replanSourceRequest.fixedRequests ?? [];
+    if (fixedRequests.length > 0) {
+      setFixedInstructions((currentRules) => {
+        const byId = new Map(currentRules.map((item) => [String(item.id), item]));
+
+        fixedRequests.forEach((item, index) => {
+          const id = String(item.id ?? `source-request-${index}`);
+          const text = String(item.text ?? "").trim();
+          if (!text) return;
+
+          const existing = byId.get(id);
+          byId.set(id, {
+            ...(existing ?? {}),
+            id,
+            text,
+            enabled: true,
+          });
+        });
+
+        return [...byId.values()];
+      });
+    }
+
+    setToast("作成時の要望を呼び戻しました");
   };
 
   const deleteHistory = (id) => {
@@ -1170,7 +1547,14 @@ function RequestPage({
     return;
   }
 
-  const prompt = buildAiPrompt(requestTasks, fixedInstructions);
+  const prompt =
+    mode === "replan" && replanTarget
+      ? buildReplanPrompt(
+          replanTarget,
+          requestTasks[0] ?? buildReplanRequestTask(replanTarget),
+          fixedInstructions
+        )
+      : buildAiPrompt(requestTasks, fixedInstructions);
   const url = selectedAiDestination?.url || DEFAULT_AI_URL;
 
   const copied = await copyTextToClipboard(prompt);
@@ -1211,6 +1595,7 @@ function RequestPage({
       <section className="flex items-center justify-between px-1">
         <h3 className="text-[14px] font-black text-slate-950">依頼内容</h3>
 
+        {mode !== "replan" && (
         <button
           type="button"
           onClick={addTask}
@@ -1219,6 +1604,7 @@ function RequestPage({
           <Plus className="h-4 w-4" />
           追加
         </button>
+        )}
       </section>
 
       {requestTasks.map((task, index) => (
@@ -1226,7 +1612,7 @@ function RequestPage({
           key={task.id}
           task={task}
           index={index}
-          canDelete={requestTasks.length > 1}
+          canDelete={mode !== "replan" && requestTasks.length > 1}
           onChange={(next) => updateTask(task.id, next)}
           onDelete={() => deleteTask(task.id)}
           onToggleOpen={() => toggleTaskOpen(task.id)}
@@ -1240,9 +1626,12 @@ function RequestPage({
       />
 
       <RequestHistoryPanel
+        mode={mode}
+        replanSourceRequest={replanSourceRequest}
         requestHistory={requestHistory}
         onRestoreHistory={restoreHistory}
         onDeleteHistory={deleteHistory}
+        onRestoreSourceRequest={restoreSourceRequest}
       />
 
       <IncludeHistoryToggle />
@@ -1341,50 +1730,6 @@ function LongTaskSummary({ task, index, active, onClick }) {
   );
 }
 
-function ShiftConfirmModal({ pending, onCancel, onConfirm }) {
-  if (!pending) return null;
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-[360px] rounded-[24px] bg-white p-4 shadow-2xl">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-amber-50 text-amber-500">
-            <AlertTriangle className="h-5 w-5" />
-          </div>
-          <h3 className="text-[16px] font-black text-slate-950">
-            期間を延長しますか？
-          </h3>
-        </div>
-
-        <p className="text-[13px] font-bold leading-relaxed text-slate-600">
-          長期タスクの終了日が
-          <span className="mx-1 font-black text-slate-950">{toSlashDate(pending.oldEnd)}</span>
-          から
-          <span className="mx-1 font-black text-emerald-600">{toSlashDate(pending.newEnd)}</span>
-          に延長されます。
-        </p>
-
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="h-11 rounded-2xl border border-slate-200 bg-white text-[13px] font-black text-slate-600 active:bg-slate-50"
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="h-11 rounded-2xl bg-emerald-500 text-[13px] font-black text-white active:bg-emerald-600"
-          >
-            延長してずらす
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function DayTaskItem({
   day,
   item,
@@ -1464,8 +1809,6 @@ className={`relative rounded-2xl border border-slate-100 bg-white px-3 py-3 tran
 
 function DayRow({
   day,
-  shiftBaseDate,
-  onSelectShiftBaseDate,
   onToggleDaySelected,
   onToggleOpen,
   onAddTask,
@@ -1481,14 +1824,13 @@ function DayRow({
   const totalMinutes = (day.tasks ?? []).reduce((sum, item) => sum + (Number(item.estimatedMinutes) || 0), 0);
   const hasTasks = (day.tasks ?? []).length > 0;
   const allSelected = hasTasks && selectedCount === day.tasks.length;
-  const isShiftBase = shiftBaseDate === day.date;
 
   return (
     <section
   data-day-date={day.date}
   className={`relative overflow-visible rounded-[18px] border bg-white shadow-[0_5px_14px_rgba(15,23,42,0.035)] ${
   isDraggingSourceDay ? "z-[999998]" : "z-0"
-} ${isShiftBase ? "border-emerald-300 ring-2 ring-emerald-50" : "border-slate-100"}`}
+} border-slate-100`}
 >
       <div className="grid w-full grid-cols-[32px_58px_1fr_auto] items-center gap-2 px-3 py-2.5 text-left">
         <button
@@ -1502,17 +1844,10 @@ function DayRow({
 
         <button
           type="button"
-          onClick={(event) => {
-            onSelectShiftBaseDate(day.date);
-
-            setTimeout(() => {
-              event.currentTarget.blur();
-              document.activeElement?.blur?.();
-            }, 0);
-          }}
-          className={`rounded-xl px-1.5 py-1 text-left active:bg-emerald-50 ${isShiftBase ? "bg-emerald-50" : ""}`}
+          onClick={onToggleOpen}
+          className="rounded-xl px-1.5 py-1 text-left active:bg-emerald-50"
         >
-          <p className={`text-[16px] font-black leading-none ${isShiftBase ? "text-emerald-700" : "text-slate-900"}`}>
+          <p className="text-[16px] font-black leading-none text-slate-900">
             {Number(day.date.slice(5, 7))}/{Number(day.date.slice(8, 10))}
           </p>
           <p className="mt-0.5 text-[12px] font-bold text-slate-500">({getDayLabel(day.date)})</p>
@@ -1566,53 +1901,7 @@ function DayRow({
   );
 }
 
-function BulkShiftPanel({ task, onShift, shiftBaseDate, setShiftBaseDate }) {
-  if (!task) return null;
-
-  return (
-    <section className="rounded-[18px] border border-slate-100 bg-white p-2.5 shadow-[0_5px_14px_rgba(15,23,42,0.035)]">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[13px] font-black text-slate-950">一括日程調整</p>
-        <p className="text-[11px] font-bold text-slate-400">基準日以降を移動</p>
-      </div>
-
-      <div className="grid grid-cols-[1fr_repeat(4,44px)] gap-1.5">
-        <input
-          type="date"
-          value={shiftBaseDate || task.startDate}
-          min={task.startDate}
-          max={task.endDate}
-          onChange={(event) => {
-            const value = event.target.value;
-            if (!value) return;
-
-            setShiftBaseDate(value);
-
-            setTimeout(() => {
-              event.target.blur();
-              document.activeElement?.blur?.();
-            }, 0);
-          }}
-          className="h-9 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-[16px] font-bold outline-none focus:border-emerald-400"
-        />
-        {[-2, -1, 1, 2].map((diff) => (
-          <button
-            key={diff}
-            type="button"
-            onClick={() => onShift(diff)}
-            className="h-9 rounded-xl border border-emerald-100 bg-emerald-50 text-[16px] font-black text-emerald-700 active:bg-emerald-100"
-          >
-            {diff > 0 ? `+${diff}` : diff}日
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function DailyPlanEditor({ task, onChange, setToast }) {
-  const [shiftBaseDate, setShiftBaseDate] = useState(task?.startDate ?? "");
-  const [pendingShift, setPendingShift] = useState(null);
   const [draggingTaskId, setDraggingTaskId] = useState(null);
   const [dragOffsetY, setDragOffsetY] = useState(0);
 const [dragClientY, setDragClientY] = useState(0);
@@ -1621,81 +1910,6 @@ const [dragClientY, setDragClientY] = useState(0);
   const startScrollYRef = useRef(0);
   const previousBodyTouchActionRef = useRef("");
   const previousBodyUserSelectRef = useRef("");
-
-  useEffect(() => {
-    setShiftBaseDate(task?.startDate ?? "");
-  }, [task?.id, task?.startDate]);
-
-  const ensureRange = (startDate, endDate, existingDays) => {
-    const byDate = new Map(existingDays.map((day) => [day.date, day]));
-    return createDateRange(startDate, endDate).map((date) => {
-      const existing = byDate.get(date);
-      return existing ?? { id: `${makeId()}-${date}`, date, open: false, tasks: [] };
-    });
-  };
-
-  const applyShift = (diff, forceExtend = false) => {
-    if (!task || !shiftBaseDate) return;
-
-    const movingTasks = [];
-    task.dailyPlans.forEach((day) => {
-      if (day.date < shiftBaseDate) return;
-      (day.tasks ?? []).forEach((item) => {
-        movingTasks.push({ ...item, fromDate: day.date, toDate: addDaysToDateKey(day.date, diff) });
-      });
-    });
-
-    if (movingTasks.length === 0) {
-      setToast("移動対象のタスクがありません");
-      return;
-    }
-
-    const minDate = movingTasks.reduce((min, item) => (item.toDate < min ? item.toDate : min), movingTasks[0].toDate);
-    const maxDate = movingTasks.reduce((max, item) => (item.toDate > max ? item.toDate : max), movingTasks[0].toDate);
-
-    if (minDate < task.startDate) {
-      setToast("開始日より前には移動できません");
-      return;
-    }
-
-    if (maxDate > task.endDate && !forceExtend) {
-      setPendingShift({
-        diff,
-        oldEnd: task.endDate,
-        newEnd: maxDate,
-      });
-      return;
-    }
-
-    const nextEndDate = maxDate > task.endDate ? maxDate : task.endDate;
-    const baseDays = ensureRange(task.startDate, nextEndDate, task.dailyPlans).map((day) => ({
-      ...day,
-      tasks: day.date >= shiftBaseDate ? [] : [...(day.tasks ?? [])],
-    }));
-
-    const dayMap = new Map(baseDays.map((day) => [day.date, day]));
-
-    task.dailyPlans.forEach((day) => {
-      const keepOriginal = day.date < shiftBaseDate;
-      if (keepOriginal) return;
-
-      (day.tasks ?? []).forEach((item) => {
-        const toDate = addDaysToDateKey(day.date, diff);
-        const targetDay = dayMap.get(toDate);
-        if (!targetDay) return;
-        targetDay.tasks = [...(targetDay.tasks ?? []), item];
-      });
-    });
-
-    onChange({
-      ...task,
-      endDate: nextEndDate,
-      dailyPlans: [...dayMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
-    });
-
-    setPendingShift(null);
-  };
-
   const updateDay = (date, updater) => {
     onChange({
       ...task,
@@ -1895,24 +2109,16 @@ setDragClientY(0);
 
   return (
     <>
-      <BulkShiftPanel
-        task={task}
-        shiftBaseDate={shiftBaseDate}
-        setShiftBaseDate={setShiftBaseDate}
-        onShift={(diff) => applyShift(diff, false)}
-      />
 
       <section className="relative z-0 overflow-visible space-y-1.5">
         {task.dailyPlans.map((day) => (
           <DayRow
   key={day.date}
   day={day}
-  shiftBaseDate={shiftBaseDate}
   draggingTaskId={draggingTaskId}
   dragOffsetY={dragOffsetY}
   dragClientY={dragClientY}
   isDraggingSourceDay={day.tasks?.some((item) => item.id === draggingTaskId)}
-            onSelectShiftBaseDate={setShiftBaseDate}
             onToggleDaySelected={toggleDaySelected}
             onToggleOpen={() => toggleDayOpen(day.date)}
             onAddTask={addTaskToDay}
@@ -1922,17 +2128,22 @@ setDragClientY(0);
           />
         ))}
       </section>
-
-      <ShiftConfirmModal
-        pending={pendingShift}
-        onCancel={() => setPendingShift(null)}
-        onConfirm={() => applyShift(pendingShift.diff, true)}
-      />
     </>
   );
 }
 
-function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks, requestTasks }) {
+function EditPage({
+  mode = "create",
+  replanTarget,
+  aiTasks,
+  setAiTasks,
+  setStep,
+  setToast,
+  onSaveLongTasks,
+  onSaveReplannedLongTask,
+  requestTasks,
+  fixedInstructions,
+}) {
   const [jsonText, setJsonText] = useState("");
   const [parseStatus, setParseStatus] = useState(null);
   const [activeTaskId, setActiveTaskId] = useState(aiTasks[0]?.id ?? null);
@@ -1972,10 +2183,30 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks, req
       ),
     [aiTasks]
   );
+  const totalSubTaskCount = useMemo(
+    () =>
+      aiTasks.reduce(
+        (sum, task) =>
+          sum +
+          (task.dailyPlans ?? []).reduce(
+            (daySum, plan) => daySum + (Array.isArray(plan.tasks) ? plan.tasks.length : 0),
+            0
+          ),
+        0
+      ),
+    [aiTasks]
+  );
 
   const parseJson = (overrideText) => {
     try {
-      const normalized = normalizeAiData(overrideText ?? jsonText);
+      const normalized =
+        mode === "replan" && replanTarget
+          ? normalizeReplanAiData(
+              overrideText ?? jsonText,
+              replanTarget,
+              requestTasks[0] ?? buildReplanRequestTask(replanTarget)
+            )
+          : normalizeAiData(overrideText ?? jsonText);
       setAiTasks(normalized);
       setActiveTaskId(normalized[0]?.id ?? null);
       setParseStatus({
@@ -1995,9 +2226,20 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks, req
   };
 
   const saveTasks = () => {
-  const originalRequest = buildOriginalRequestText(requestTasks);
+  if (mode === "replan" && replanTarget) {
+    const previewTask = aiTasks[0];
+    if (!previewTask) return;
+
+    onSaveReplannedLongTask?.(mergeReplanIntoLongTask(replanTarget, previewTask));
+    setToast("長期タスクの日程を再編しました");
+    return;
+  }
+
+  const sourceRequest = buildSourceRequest(requestTasks, fixedInstructions);
+  const originalRequest = sourceRequest.freeText;
   const selectedTasks = aiTasks.map((task) => ({
     ...task,
+    sourceRequest,
     aiMetadata: {
       ...(task.aiMetadata ?? {}),
       originalRequest,
@@ -2067,18 +2309,18 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks, req
           <div className="rounded-[14px] border border-slate-100 bg-white p-2 text-center">
             <CalendarDays className="mx-auto mb-0.5 h-4 w-4 text-emerald-500" />
             <p className="text-[9px] font-black text-slate-400">タスク数</p>
-            <p className="text-[14px] font-black text-slate-950">{aiTasks.length}件</p>
+            <p className="text-[14px] font-black text-slate-950">{mode === "replan" ? totalSubTaskCount : aiTasks.length}件</p>
           </div>
 
           <div className="rounded-[14px] border border-slate-100 bg-white p-2 text-center">
             <Clock className="mx-auto mb-0.5 h-4 w-4 text-emerald-500" />
-            <p className="text-[9px] font-black text-slate-400">推定</p>
+            <p className="text-[9px] font-black text-slate-400">推定時間</p>
             <p className="text-[14px] font-black text-slate-950">{shortHoursLabel(totalEstimated)}</p>
           </div>
 
           <div className="rounded-[14px] border border-slate-100 bg-white p-2 text-center">
             <Check className="mx-auto mb-0.5 h-4 w-4 text-emerald-500" />
-            <p className="text-[9px] font-black text-slate-400">保存</p>
+            <p className="text-[9px] font-black text-slate-400">採用数</p>
             <p className="text-[14px] font-black text-slate-950">{selectedCount}件</p>
           </div>
         </section>
@@ -2126,8 +2368,12 @@ function EditPage({ aiTasks, setAiTasks, setStep, setToast, onSaveLongTasks, req
 }
 
 export default function AIPage({
+  appData,
+  mode = "create",
+  replanTargetId,
   onBack,
   onSaveLongTasks,
+  onSaveReplannedLongTask,
   onNavigate,
 }) {
   const [step, setStep] = useState(1);
@@ -2141,6 +2387,18 @@ export default function AIPage({
   );
   const [requestHistory, setRequestHistory] = useState(() => loadRequestHistory());
   const [fixedInstructions, setFixedInstructions] = useState(() => loadFixedInstructions());
+
+  const replanTarget = useMemo(() => {
+    if (mode !== "replan" || !replanTargetId) return null;
+    return (appData?.longTasks ?? []).find((task) => String(task.id) === String(replanTargetId)) ?? null;
+  }, [appData?.longTasks, mode, replanTargetId]);
+
+  useEffect(() => {
+    if (mode !== "replan" || !replanTarget) return;
+    setRequestTasks([buildReplanRequestTask(replanTarget)]);
+    setAiTasks([]);
+    setStep(1);
+  }, [mode, replanTargetId]);
 
   useEffect(() => {
     try {
@@ -2183,6 +2441,8 @@ export default function AIPage({
 
         {step === 1 ? (
           <RequestPage
+            mode={mode}
+            replanTarget={replanTarget}
             requestTasks={requestTasks}
             setRequestTasks={setRequestTasks}
             setStep={setStep}
@@ -2198,12 +2458,16 @@ export default function AIPage({
           />
         ) : (
           <EditPage
+            mode={mode}
+            replanTarget={replanTarget}
             aiTasks={aiTasks}
             setAiTasks={setAiTasks}
             setStep={setStep}
             setToast={setToast}
             onSaveLongTasks={onSaveLongTasks}
+            onSaveReplannedLongTask={onSaveReplannedLongTask}
             requestTasks={requestTasks}
+            fixedInstructions={fixedInstructions}
           />
         )}
       </div>

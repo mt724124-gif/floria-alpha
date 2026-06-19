@@ -1071,7 +1071,7 @@ function SummaryItem({ label, value }) {
   );
 }
 
-export default function CalendarPage({ appData, setAppData, onNavigate }) {
+export default function CalendarPage({ appData, setAppData, onNavigate, onOpenAiReplan }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("month");
@@ -1380,6 +1380,7 @@ const saveLongTask = (task) => {
           onDelete={deleteLongTask}
           onUpdateDailyPlan={updateDailyPlan}
           onUpdateTask={updateLongTask}
+          onOpenAiReplan={onOpenAiReplan}
           onAddTodayPlan={(task) => {
             console.log("add today plan", task);
           }}

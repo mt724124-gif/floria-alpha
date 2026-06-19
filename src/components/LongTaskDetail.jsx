@@ -891,6 +891,7 @@ export default function LongTaskDetail({
   onDelete,
   onUpdateDailyPlan,
   onUpdateTask,
+  onOpenAiReplan,
 }) {
   if (!task) return null;
 
@@ -1588,18 +1589,28 @@ if (targetRow) {
                 この長期タスクを完了する
               </button>
             ) : (
-              <div className="mt-3 rounded-2xl bg-amber-50 px-3 py-2.5 text-center">
-                <p className="text-[12px] font-black text-amber-700">
-                  未完了の小タスクがあります
-                </p>
-                <p className="mt-1 text-[10px] font-bold text-amber-600">
-                  すべての小タスクを達成すると完了ボタンが表示されます。
-                </p>
+              <div className="mt-3 grid grid-cols-[1fr_104px] gap-2">
+                <div className="rounded-2xl bg-amber-50 px-3 py-2.5 text-center">
+                  <p className="text-[12px] font-black text-amber-700">
+                    未完了の小タスクがあります
+                  </p>
+                  <p className="mt-1 text-[10px] font-bold text-amber-600">
+                    すべての小タスクを達成すると完了ボタンが表示されます。
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onOpenAiReplan?.(task)}
+                  className="flex min-h-[58px] items-center justify-center rounded-2xl bg-emerald-600 px-2 text-center text-[12px] font-black leading-snug text-white shadow-[0_10px_22px_rgba(16,185,129,0.20)] active:scale-[0.99]"
+                >
+                  AI日程調整
+                </button>
               </div>
             )}
           </section>
 
-          <div className="mt-3 grid grid-cols-3 rounded-t-[16px] bg-white text-[12px] font-black">
+          <div className="mt-3 grid grid-cols-2 rounded-t-[16px] bg-white text-[12px] font-black">
             <button
               type="button"
               onClick={() => setActiveTab("daily")}
@@ -1622,17 +1633,6 @@ if (targetRow) {
               }`}
             >
               概要・メモ
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("ai")}
-              className={`h-10 text-[12px] font-black ${
-                activeTab === "ai"
-                  ? "border-b-2 border-emerald-500 bg-emerald-50/60 text-emerald-600"
-                  : "border-b border-slate-100 text-slate-400"
-              }`}
-            >
-              AI日程調整
             </button>
           </div>
 
@@ -1895,30 +1895,6 @@ if (targetRow) {
                 className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-[16px] font-medium outline-none placeholder:text-slate-300 focus:border-emerald-400"
               />
             </section>
-          )}
-
-          {activeTab === "ai" && (
-            <ReplanPanel
-              task={task}
-              dailyRows={dailyRows}
-              targetEndDate={targetEndDate}
-              setTargetEndDate={setTargetEndDate}
-              jsonText={replanJsonText}
-              setJsonText={setReplanJsonText}
-              parseStatus={replanParseStatus}
-              previewRows={replanPreviewRows}
-              onCopyPrompt={copyReplanPrompt}
-              onParse={parseReplanJson}
-              onToggleTask={toggleReplanTask}
-              onToggleDay={toggleReplanDay}
-              onToggleOpen={toggleReplanOpen}
-              onUpdateTask={updateReplanTask}
-              onDragStart={startReplanDrag}
-              draggingTaskId={draggingReplanTaskId}
-              dragOffsetY={replanDragOffsetY}
-              onApply={applyReplan}
-              onReset={resetReplan}
-            />
           )}
 
           {deleteConfirmOpen ? (

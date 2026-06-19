@@ -365,6 +365,8 @@ export default function App() {
   const [reviewDateKey, setReviewDateKey] = useState(getTodayKey());
 const [todayInitialDateKey, setTodayInitialDateKey] = useState(null);
 const [forcedReviewDateKey, setForcedReviewDateKey] = useState(null);
+const [aiMode, setAiMode] = useState("create");
+const [aiReplanTargetId, setAiReplanTargetId] = useState(null);
 
   const [appData, setAppData] = useState(createInitialAppData);
 
@@ -660,9 +662,36 @@ const [forcedReviewDateKey, setForcedReviewDateKey] = useState(null);
   setScreen("calendar");
 };
 
+const handleSaveReplannedLongTaskFromAI = (updatedLongTask) => {
+  if (!updatedLongTask?.id) return;
+
+  updateAppData((current) => ({
+    ...current,
+    longTasks: (current.longTasks ?? []).map((task) =>
+      String(task.id) === String(updatedLongTask.id) ? updatedLongTask : task
+    ),
+  }));
+
+  setAiMode("create");
+  setAiReplanTargetId(null);
+  setScreen("calendar");
+};
+
+const openAiReplanForLongTask = (task) => {
+  if (!task?.id) return;
+  setAiMode("replan");
+  setAiReplanTargetId(task.id);
+  setScreen("ai");
+};
+
 const navigateFromBottomNav = (nextScreen) => {
   if (nextScreen === "today") {
     setTodayInitialDateKey(getTodayKey());
+  }
+
+  if (nextScreen === "ai") {
+    setAiMode("create");
+    setAiReplanTargetId(null);
   }
 
   setScreen(nextScreen);
@@ -698,6 +727,7 @@ return (
   appData={appData}
   setAppData={updateAppData}
   onNavigate={navigateFromBottomNav}
+  onOpenAiReplan={openAiReplanForLongTask}
 />
       )}
 
@@ -709,12 +739,17 @@ return (
         <AIPage
   appData={appData}
   setAppData={updateAppData}
+  mode={aiMode}
+  replanTargetId={aiReplanTargetId}
   onNavigate={navigateFromBottomNav}
   onBack={() => {
     setTodayInitialDateKey(getTodayKey());
+    setAiMode("create");
+    setAiReplanTargetId(null);
     setScreen("today");
   }}
   onSaveLongTasks={handleSaveLongTasksFromAI}
+  onSaveReplannedLongTask={handleSaveReplannedLongTaskFromAI}
 />
       )}
 
