@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TodayPage from "./TodayPage";
 import TimerPage from "./TimerPage";
 import CalendarPage from "./CalendarPage";
@@ -8,9 +8,11 @@ import ReviewPage from "./ReviewPage";
 import AIPage from "./AIPage";
 import LongTaskDetail from "./components/LongTaskDetail";
 import { updateDailyRecordTask } from "./utils/dailyRecords";
-
-const STORAGE_KEY = "todo-app-data-v1";
-const LEGACY_LONG_TASKS_STORAGE_KEY = "todo-app-long-tasks-v1";
+import { DataRecovery } from "./components/DataManagement";
+import {
+  browserStorage, captureStorage, createBackup, createRecoveryBackup,
+  downloadJson, loadStorage, restoreBackup, saveAppData,
+} from "./utils/storage";
 
 function getTodayKey() {
   return new Date().toLocaleDateString("sv-SE");
@@ -104,38 +106,6 @@ function findOldestIncompletePastReviewDateKey(appData) {
   );
 }
 
-function loadSavedData() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return null;
-    return JSON.parse(saved);
-  } catch (error) {
-    console.error("保存データの読み込みに失敗しました", error);
-    return null;
-  }
-}
-
-function loadLegacyLongTasks() {
-  try {
-    const saved = localStorage.getItem(LEGACY_LONG_TASKS_STORAGE_KEY);
-    if (!saved) return null;
-
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
-  } catch (error) {
-    console.error("旧長期タスクデータの読み込みに失敗しました", error);
-    return null;
-  }
-}
-
-function saveData(data) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (error) {
-    console.error("保存データの書き込みに失敗しました", error);
-  }
-}
-
 function createId() {
   if (crypto?.randomUUID) {
     return crypto.randomUUID();
@@ -217,26 +187,6 @@ function normalizeDailyPlan(plan = {}, longTaskId = "") {
     date,
     selected: plan.selected ?? true,
     tasks: [],
-  };
-}
-
-function createInitialAppData() {
-  const savedData = loadSavedData() ?? {};
-  const hasSavedLongTasks =
-    Array.isArray(savedData.longTasks) && savedData.longTasks.length > 0;
-  const legacyLongTasks = hasSavedLongTasks ? null : loadLegacyLongTasks();
-
-  return {
-    tasks: [],
-    categories: ["学習", "仕事", "健康", "その他"],
-    workLogs: [],
-    timerSessions: [],
-    dailyRecords: {},
-    longTasks: [],
-    aiLongTaskDrafts: [],
-    settings: {},
-    ...savedData,
-    longTasks: legacyLongTasks ?? savedData.longTasks ?? [],
   };
 }
 
@@ -370,17 +320,63 @@ const [aiMode, setAiMode] = useState("create");
 const [aiReplanTargetId, setAiReplanTargetId] = useState(null);
 const [selectedLongTaskDetailId, setSelectedLongTaskDetailId] = useState(null);
 
-  const [appData, setAppData] = useState(createInitialAppData);
+  const [initialStorage] = useState(() => loadStorage(browserStorage));
+  const [appData, setAppData] = useState(initialStorage.data);
+  const [storageError, setStorageError] = useState(initialStorage.error);
+  const [recoverySnapshot, setRecoverySnapshot] = useState(initialStorage.snapshot);
+  const [restoreNotice, setRestoreNotice] = useState(false);
+  const lastSavedData = useRef(initialStorage.data);
 
   useEffect(() => {
-    saveData(appData);
-  }, [appData]);
+    // Never write defaults after a failed read, or rewrite valid data on mount.
+    if (storageError || !appData || appData === lastSavedData.current) return;
+    try {
+      saveAppData(browserStorage, appData);
+      lastSavedData.current = appData;
+    } catch (error) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- A failed external write must immediately stop normal interaction.
+      setRecoverySnapshot(captureStorage(browserStorage));
+      setStorageError(`保存に失敗しました。${error.message}`);
+    }
+  }, [appData, storageError]);
+
+  const exportBackup = () => downloadJson(createBackup(browserStorage, appData));
+  const exportRecovery = () => downloadJson(createRecoveryBackup(recoverySnapshot, appData), "recovery");
+
+  const restoreData = (backup) => {
+    try {
+      const data = restoreBackup(browserStorage, backup);
+      lastSavedData.current = data;
+      setAppData(data);
+      setStorageError(null);
+      setTimerTask(null);
+      setTaskUpdateRequest(null);
+      setSelectedLongTaskDetailId(null);
+      setForcedReviewDateKey(null);
+      setReviewDateKey(getTodayKey());
+      setTodayInitialDateKey(getTodayKey());
+      setAiMode("create");
+      setAiReplanTargetId(null);
+      setScreen("today");
+      setRestoreNotice(true);
+    } catch (error) {
+      if (error.rollbackSucceeded === false) {
+        setRecoverySnapshot(error.snapshot);
+        setStorageError(error.message);
+      }
+      throw error;
+    }
+  };
 
   const updateAppData = (updater) => {
     setAppData((current) => {
       return typeof updater === "function" ? updater(current) : updater;
     });
   };
+
+  if (storageError || !appData) {
+    return <DataRecovery error={storageError} onExport={exportRecovery} onRestore={restoreData} />;
+  }
 
   const openTimer = (task) => {
     const taskDateKey = getTaskDateKey(task);
@@ -770,6 +766,12 @@ const shouldShowIncompleteReviewPopup =
 
 return (
     <>
+      {restoreNotice && (
+        <div role="status" className="fixed left-1/2 top-[calc(12px+env(safe-area-inset-top))] z-[1000] flex w-[calc(100%_-_24px)] max-w-[450px] -translate-x-1/2 items-center justify-between gap-2 rounded-2xl bg-emerald-700 p-3 text-[12px] font-bold text-white shadow-lg">
+          バックアップから復元しました。
+          <button type="button" onClick={() => setRestoreNotice(false)} className="shrink-0 px-2 py-1">閉じる</button>
+        </div>
+      )}
       {screen === "today" && (
         <TodayPage
   initialDateKey={todayInitialDateKey}
@@ -838,7 +840,7 @@ return (
 />
       )}
 
-      {screen === "settings" && <SetPage onNavigate={navigateFromBottomNav} />}
+      {screen === "settings" && <SetPage onNavigate={navigateFromBottomNav} onExportBackup={exportBackup} onRestoreBackup={restoreData} />}
 
             {screen === "timer" && (
         <TimerPage

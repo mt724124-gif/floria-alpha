@@ -13,6 +13,7 @@ import {
   Sprout,
 } from "lucide-react";
 import BottomNav from "./components/BottomNav";
+import DataManagement from "./components/DataManagement";
 
 function Header() {
   return (
@@ -154,11 +155,13 @@ function PersonalizeCard() {
   );
 }
 
-export default function SettingsPage({ onNavigate }) {
+export default function SettingsPage({ onNavigate, onExportBackup, onRestoreBackup }) {
   return (
     <div className="min-h-dvh bg-[#f6f8f7] text-slate-950 antialiased">
       <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-[#fbfcfb] px-[max(12px,env(safe-area-inset-left))] pb-[calc(94px+env(safe-area-inset-bottom))] pt-[calc(10px+env(safe-area-inset-top))] shadow-[0_0_80px_rgba(15,23,42,0.045)]">
         <Header />
+
+        <DataManagement onExport={onExportBackup} onRestore={onRestoreBackup} />
 
         <Section title="基本設定">
           <SettingRow
