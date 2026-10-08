@@ -55,7 +55,9 @@ function task(value, path) {
     const number = value[key];
     // Legacy planned time can be an empty string or a numeric string.
     if (number != null && !(typeof number === "number" || typeof number === "string")) fail(`${path}.${key}`);
-    if (number != null && (!Number.isFinite(Number(number)) || Number(number) < 0)) fail(`${path}.${key}`);
+    // Existing editors can save negative values; Phase 0 validates structure,
+    // not new time-entry rules. Preserve those values without correcting them.
+    if (number != null && !Number.isFinite(Number(number))) fail(`${path}.${key}`);
   }
   for (const key of ["date", "targetDate", "createdDate", "postponedToDate", "postponedFromDate", "carriedFromDate"]) {
     if (value[key] != null && value[key] !== "") dateKey(value[key], `${path}.${key}`);
@@ -197,18 +199,26 @@ export function loadStorage(storage) {
 }
 
 export function saveAppData(storage, data) {
-  validateAppData(data);
-  storage.setItem(STORAGE_KEY, JSON.stringify(data));
+  const raw = JSON.stringify(data);
+  // Validate the same JSON that the previous save path wrote (NaN becomes null).
+  validateAppData(JSON.parse(raw));
+  storage.setItem(STORAGE_KEY, raw);
 }
 
 export function createBackup(storage, appData, now = new Date()) {
   const snapshot = captureStorage(storage);
   if (snapshot.unreadableKeys.length) throw new Error("保存領域を読み込めないためバックアップを作成できません。");
   validateValues(snapshot.values);
-  // Include current state, including defaults for an installation not yet saved.
-  if (appData != null && snapshot.values[STORAGE_KEY] === null) {
-    validateAppData(appData);
-    snapshot.values[STORAGE_KEY] = JSON.stringify(appData);
+  if (appData != null) {
+    const raw = JSON.stringify(appData);
+    validateAppData(JSON.parse(raw));
+    // The committed React state can be ahead of the passive save effect.
+    // Prefer it in the file without writing to storage; keep original raw JSON
+    // when it already represents the same state, including legacy defaults.
+    if (snapshot.values[STORAGE_KEY] === null ||
+        JSON.stringify(dataFromValues(snapshot.values)) !== raw) {
+      snapshot.values[STORAGE_KEY] = raw;
+    }
   }
   return { format: "floria-backup", version: 1, exportedAt: now.toISOString(), storage: snapshot.values };
 }

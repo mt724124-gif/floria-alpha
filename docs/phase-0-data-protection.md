@@ -59,7 +59,7 @@
 }
 ```
 
-ファイル名は `Floria-backup-YYYY-MM-DDTHH-MM-SS-sssZ.json`。日時はUTCです。作成は保存データを書き換えません。本体がまだ保存されていない新規利用時のみ、メモリ上の初期データをファイルに含めます。
+ファイル名は `Floria-backup-YYYY-MM-DDTHH-MM-SS-sssZ.json`。日時はUTCです。作成は保存データを書き換えません。最新React stateが保存済み本体と異なる場合は、最新stateの本体JSONをファイルに含めます。保存済み本体が同じ状態を表す場合は元のraw JSONを保持します。関連8キーは保存済みのraw値を保持し、作成処理はlocalStorageを書き換えません。
 
 破損時の退避は `format: floria-recovery`。元の文字列を解析せず保持し、読めなかったキーはunreadableKeysに記載します。通常保存に失敗した場合は、まだ保存できていないappDataをunsavedAppDataとして別に含めます。壊れた文字列をそのまま再導入しないため、この退避形式は自動復元対象ではありません。
 
@@ -171,7 +171,7 @@ loadStorageは不正時にdata:nullとエラーを返します。通常画面・
 変更ファイルのESLint：SetPage.jsxの既存の未使用Settings import（no-unused-vars）1件で失敗。origin/mainにも同じimportがあることを確認しました。Appと新規実装/テストのESLintは成功し、新規指摘はありません。全体lintは既存の114 errors / 14 warningsが残ります（診断時115 / 14。置き換えた初期化処理内の重複キー1件が消えたため）。データ保護と無関係な既存指摘は修正していません。
 Appの外部保存失敗時に即座に操作を停止するstate更新には、理由付きの1行限定lint抑制を使用しています。
 
-PR提出前の再検証でも62件のテストとビルドが成功し、git diff --checkも成功しました。読込失敗時の上書き停止、全9キーの包含、置換前の退避、復元失敗時の復帰、旧形式互換、復元後のstate反映をコードとテストで再確認しました。追加修正を要する重大な問題は見つかりませんでした。今回は実装コードを変更せず、この検証記録のみ追記しています。
+初回PR提出前の再検証でも62件のテストとビルドが成功し、git diff --checkも成功しました。読込失敗時の上書き停止、全9キーの包含、置換前の退避、復元失敗時の復帰、旧形式互換、復元後のstate反映をコードとテストで再確認しました。追加修正を要する重大な問題は見つかりませんでした。今回は実装コードを変更せず、この検証記録のみ追記しています。
 
 ## 6. 手動確認が必要な操作
 
@@ -206,3 +206,81 @@ localStorageに複数キーのトランザクションAPIはありません。�
 ## git diffの要約
 
 既存変更はAppの保存境界と設定ページの接続、テスト用依存だけです。データ保護・復元処理は新規utils/componentへ分離しました。appDataの構造とlocalStorageキーは維持し、バックアップ用のformat/versionはファイル内にのみ導入しました。Phase 1の不具合修正は含みません。
+
+
+## PR #3追加レビュー（2026-10-08）
+
+最新main、PRブランチ、AGENTS.mdを再確認。追加レビュー前のPR headはa921904811a2217d4de6d1d1f09ab2b3a242aeee。以下の再現テストを作成し、修正前に失敗することを確認してから共通保存処理だけを修正しました。
+
+### 1. 保存effect前の操作結果がバックアップに入らない
+
+元コード：
+
+```js
+if (appData != null && snapshot.values[STORAGE_KEY] === null) {
+  validateAppData(appData);
+  snapshot.values[STORAGE_KEY] = JSON.stringify(appData);
+}
+```
+
+既存の本体キーがあると、Reactの最新stateより古い保存値だけをファイルへ含めていました。React commit後のlayout effectでバックアップを呼ぶテストでは、Appの通常保存effect前のバックアップから追加タスクが欠落しました。このテストは保存待ちの境界を意図的に作るもので、通常の設定ボタンクリックすべてで発生するという意味ではありません。
+
+修正コード：
+
+```js
+if (appData != null) {
+  const raw = JSON.stringify(appData);
+  validateAppData(JSON.parse(raw));
+  if (snapshot.values[STORAGE_KEY] === null ||
+      JSON.stringify(dataFromValues(snapshot.values)) !== raw) {
+    snapshot.values[STORAGE_KEY] = raw;
+  }
+}
+```
+
+最新stateを本体の候補とし、既に同じ状態ならraw JSONを保持します。変更されるのはバックアップ用のメモリ内スナップショットだけです。追加・編集・完了・削除・長期更新・振り返り再編集の保存待ちを検証し、復元後にも最新値が残ることを確認しました。関連キーや元の保存値は変更しません。
+
+### 2. 既存入力処理との時間値の互換性
+
+実LongTaskDetailの小タスク時間欄に-0.5時間を入力すると、saveDraftとserializeDailyRowsはestimatedMinutes:-30を生成します。旧保存はそのままJSONへ書き込みましたが、Phase 0の非負チェックは読込を拒否しました。未設定などの文字入力ではNaNが生成され、旧保存ではJSON.stringifyによりnullになりましたが、Phase 0はJSON化前に検証して保存を拒否しました。
+
+負数や文字入力が正しい時間指定という意味ではありません。今回は既存データを新たな入力ルールで拒否しないための互換性対応で、入力画面の仕様変更や値の補正は行いません。
+
+元コード：
+
+```js
+if (number != null && (!Number.isFinite(Number(number)) || Number(number) < 0)) fail(`${path}.${key}`);
+validateAppData(data);
+storage.setItem(STORAGE_KEY, JSON.stringify(data));
+```
+
+修正コード：
+
+```js
+if (number != null && !Number.isFinite(Number(number))) fail(`${path}.${key}`);
+const raw = JSON.stringify(data);
+validateAppData(JSON.parse(raw));
+storage.setItem(STORAGE_KEY, raw);
+```
+
+有限の既存数値は符号を理由に拒否せず保持します。保存とバックアップは従来と同じJSON化後の値を検証します。tasks必須、配列/オブジェクト、日付、文字列/booleanなどの構造検証は維持し、不正構造の保存・バックアップが元の保存値を変更しない回帰テストも追加しました。
+
+### 実際の生成処理を使った検証
+
+- TodoModalのsubmit出力と、dailyRecordsのupdateDailyRecordTask/confirmDailyRecordが生成する記録。
+- LongTaskModalのhandleSave出力。
+- LongTaskDetailのsaveDraft/serializeDailyRows出力（0.5、-0.5、未設定の時間入力）。
+- 実AIPageでサンプルJSONを取り込み、実AppのnormalizeLongTasksFromAIを経て保存した長期計画とAI設定。
+- AppのsaveTimerResultToAppDataで生成したtasks/workLogs/timerSessions/dailyRecords。タイマー画面はテスト用callbackに置き換え、計測結果の保存処理自体は実コードを実行しました。
+
+データはテスト専用で、本番localStorageは使用していません。今回の検証は上記の生成形式と旧形式フィクスチャについての確認であり、過去のあらゆる保存データの正常動作を保証するものではありません。
+
+### 追加レビュー後の結果・差分
+
+- npm test：5ファイル、79件成功（追加17件）。
+- npm run build：成功。
+- 今回変更したstorage.jsと追加2テストファイルのESLint：成功。
+- git diff --check、UTF-8確認：成功。
+- 変更：src/utils/storage.js、tests/phase0-review.test.jsx、tests/producer-compatibility.test.jsx、この報告のみ。
+- UI、appData構造、localStorageキー、Today/Calendar/Review/Timer/AI/Weeklyの実装は変更なし。
+- mainへのmerge・本番デプロイは行いません。既存のSetPage未使用import等のlint指摘も今回の範囲外として維持します。
